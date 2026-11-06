@@ -212,6 +212,27 @@ function parseIraqiPostText(rawText) {
 }
 
 let activeSearchController = null;
+
+/** معرّف مجهول لهذا المتصفح، يُستخدم فقط لحد الاستخدام العادل لعمليات البحث الجديدة. */
+function getClientId() {
+  try {
+    let id = localStorage.getItem('radar_client_id');
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
+      id = crypto.randomUUID();
+      localStorage.setItem('radar_client_id', id);
+    }
+    return id;
+  } catch {
+    return '';
+  }
+}
+
+function describeAge(isoDate) {
+  const mins = Math.max(0, Math.round((Date.now() - Date.parse(isoDate)) / 60000));
+  if (!Number.isFinite(mins)) return '';
+  if (mins < 60) return `${mins} دقيقة`;
+  return `${Math.round(mins / 60)} ساعة`;
+}
 async function performLiveSearch(queryText) {
   const cleanQuery = queryText.trim();
   if (!cleanQuery) {
@@ -238,11 +259,22 @@ async function performLiveSearch(queryText) {
     }
   };
 
+  const headers = { 'X-Client-Id': getClientId() };
+
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal, headers });
     const data = await res.json();
     applyData(data);
-    if (res.status === 429) {
+    if (data && data.quotaExceeded) {
+      banner.hidden = false;
+      banner.textContent = `استنفدت عمليات البحث الجديدة المتاحة لهذا الشهر (${data.quotaLimit}). عمليات البحث التي سبق أن بحثها زوار آخرون تبقى متاحة مجاناً، ويمكنك استخدام أزرار البحث المباشر أدناه.`;
+    } else if (data && data.budgetExhausted) {
+      banner.hidden = false;
+      banner.textContent = 'بلغ الموقع الحد اليومي لعمليات البحث الجديدة. جرّب بحثاً شائعاً أو عد غداً، أو استخدم أزرار البحث المباشر أدناه.';
+    } else if (data && data.cached && data.cachedAt) {
+      banner.hidden = false;
+      banner.textContent = `نتائج محفوظة حديثاً: آخر تحديث منذ ${describeAge(data.cachedAt)}. (${(data.offers || []).length} نتيجة بروابطها الأصلية)`;
+    } else if (res.status === 429) {
       banner.hidden = false;
       banner.textContent = 'عدد عمليات البحث كبير خلال دقيقة واحدة. انتظر قليلاً ثم أعد المحاولة.';
     } else if (data && data.providerOk === false) {
@@ -257,7 +289,7 @@ async function performLiveSearch(queryText) {
       banner.textContent = 'ظهرت النتائج الأولى، وجاري استكمال بقية نتائج فيسبوك وانستغرام والمتاجر العراقية (قرابة 20 ثانية)...';
       renderApp();
       try {
-        const res2 = await fetch(`${url}&wait=1`, { signal: controller.signal });
+        const res2 = await fetch(`${url}&wait=1`, { signal: controller.signal, headers });
         const full = await res2.json();
         if (controller === activeSearchController && full && Array.isArray(full.offers) && full.offers.length >= (data.offers || []).length) {
           applyData(full);
@@ -1249,17 +1281,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.selectedGov = govSelect.value;
     state.maxBudget = maxBudgetInput.value ? Number(maxBudgetInput.value) : null;
 
-    if (state.query) {
-      fetch('/api/searches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: state.query,
-          governorate: state.selectedGov,
-          maxBudget: state.maxBudget
-        })
-      }).catch(() => {});
-    }
+    // تسجيل البحث يتم في الخادم مع كل عملية بحث (بما فيها أزرار الأقسام) لقائمة الأكثر طلباً
 
     performLiveSearch(state.query);
   });

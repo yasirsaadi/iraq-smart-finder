@@ -25,3 +25,6 @@ services:
       # مفتاح سيربر يُدخل يدوياً من لوحة رندر ولا يُحفظ في المستودع
       - key: SERPER_API_KEY
         sync: false
+      # رمز التحديث الليلي يُدخل يدوياً ويطابق سر REFRESH_TOKEN في غيت‌هب
+      - key: ADMIN_REFRESH_TOKEN
+        sync: false

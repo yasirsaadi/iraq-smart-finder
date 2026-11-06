@@ -89,3 +89,16 @@ test('الصفحة الرئيسية تحمّل السكربت كوحدة', async
   const engine = await get(PROD, '/shared/price-engine.js');
   assert.equal(engine.status, 200);
 });
+
+test('التحديث الليلي محمي برمز سري ولا يعمل بدونه', async () => {
+  const res = await fetch(`http://127.0.0.1:${PROD}/api/admin/refresh-popular`, { method: 'POST' });
+  assert.equal(res.status, 401);
+  const wrong = await fetch(`http://127.0.0.1:${PROD}/api/admin/refresh-popular`, { method: 'POST', headers: { Authorization: 'Bearer wrong' } });
+  assert.equal(wrong.status, 401);
+});
+
+test('الإعدادات تعلن مدة حفظ النتائج وحصة البحث المجانية', async () => {
+  const cfg = await (await get(PROD, '/api/config')).json();
+  assert.equal(cfg.cacheTtlHours, 12);
+  assert.equal(cfg.freeNewSearchesPerMonth, 30);
+});

@@ -1,0 +1,44 @@
+# التحديث الليلي لأشهر عمليات البحث في رادار أسعار العراق
+# يوقظ خادم رندر ويحدّث النتائج المحفوظة على دفعات صغيرة، فيجد الزوار صباحاً نتائج جاهزة مجاناً.
+# يتطلب سراً في المستودع باسم REFRESH_TOKEN يطابق المتغير ADMIN_REFRESH_TOKEN في رندر.
+name: Nightly popular-search refresh
+
+on:
+  schedule:
+    - cron: '17 0 * * *' # 03:17 بتوقيت بغداد
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SITE_URL: ${{ vars.SITE_URL || 'https://iraq-smart-finder.onrender.com' }}
+      REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+    steps:
+      - name: Refresh popular searches in batches
+        run: |
+          if [ -z "$REFRESH_TOKEN" ]; then
+            echo "REFRESH_TOKEN secret is not set; skipping."
+            exit 0
+          fi
+          # إيقاظ الخادم المجاني أولاً
+          curl -s -o /dev/null --retry 5 --retry-delay 10 --retry-all-errors -m 90 "$SITE_URL/healthz" || true
+          offset=0
+          for i in $(seq 1 200); do
+            body=$(curl -s -m 600 --retry 2 --retry-delay 15 -X POST \
+              -H "Authorization: Bearer $REFRESH_TOKEN" \
+              "$SITE_URL/api/admin/refresh-popular?offset=$offset&limit=5")
+            echo "$body"
+            done_flag=$(echo "$body" | jq -r '.done // "true"')
+            next=$(echo "$body" | jq -r '.nextOffset // empty')
+            if [ "$done_flag" = "true" ] || [ -z "$next" ]; then break; fi
+            offset=$next
+          done
