@@ -15,3 +15,10 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false
+      # الميزات غير المكتملة معطلة صراحةً في الإنتاج (انظر .env.example)
+      - key: DEMO_MODE
+        value: "false"
+      - key: PAYMENTS_ENABLED
+        value: "false"
+      - key: ALERTS_DELIVERY_ENABLED
+        value: "false"

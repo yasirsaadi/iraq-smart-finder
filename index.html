@@ -59,7 +59,7 @@
         </div>
 
         <div class="utility-left">
-          <button type="button" class="utility-nav-btn" id="openRadarBtn">
+          <button type="button" class="utility-nav-btn" id="openRadarBtn" hidden>
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
@@ -75,7 +75,7 @@
             <span>إضافة عرض (سلعة / سيارة / عقار)</span>
           </button>
 
-          <button type="button" class="utility-vip-btn" id="openSubscriptionBtn">
+          <button type="button" class="utility-vip-btn" id="openSubscriptionBtn" hidden>
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
@@ -487,28 +487,28 @@
       <div class="fair-meter-header">
         <div>
           <h2 class="fair-meter-title">مؤشر السعر العادل وكاشف الغلاء في السوق العراقي</h2>
-          <p class="fair-meter-subtitle">يقارن أسعار السلع والسيارات والعقارات عبر المحافظات ليكشف لك اللقطات والأسعار المبالغ فيها:</p>
+          <p class="fair-meter-subtitle">يقارن كل عرض بعروض مماثلة فقط (نفس الفئة والطراز ونوع الصفقة)، ويعرض الوسيط والمتوسط الحسابي كلاً باسمه:</p>
         </div>
-        <button type="button" class="btn-create-alert-inline" id="createAlertFromMeterBtn">
+        <button type="button" class="btn-create-alert-inline" id="createAlertFromMeterBtn" hidden>
           + راقب هبوط السعر عبر الرادار
         </button>
       </div>
 
       <div class="fair-meter-Grid">
         <div class="meter-zone zone-deal">
-          <span class="zone-label">سعر لقطة (الأرخص بالعراق)</span>
+          <span class="zone-label">أقل سعر بين العروض المماثلة</span>
           <strong class="zone-value" id="meterMinPrice">—</strong>
-          <span class="zone-desc">أفضل صفقة متوفرة حالياً</span>
+          <span class="zone-desc" id="meterMinNote">ضمن العروض المماثلة المعروضة حالياً</span>
         </div>
 
         <div class="meter-zone zone-fair">
-          <span class="zone-label">متوسط سعر السوق العادل</span>
+          <span class="zone-label">السعر الوسيط للعروض المماثلة</span>
           <strong class="zone-value" id="meterAvgPrice">—</strong>
-          <span class="zone-desc">السعر الطبيعي المتداول في السوق</span>
+          <span class="zone-desc" id="meterFairNote">الوسيط والمتوسط الحسابي للعروض المماثلة فقط</span>
         </div>
 
         <div class="meter-zone zone-high">
-          <span class="zone-label">أعلى سعر معروض (احذر الغلاء)</span>
+          <span class="zone-label">أعلى سعر بين العروض المماثلة</span>
           <strong class="zone-value" id="meterMaxPrice">—</strong>
           <span class="zone-desc" id="meterMaxDiffNote">فرق السعر عن الأرخص</span>
         </div>
@@ -589,7 +589,7 @@
         </button>
         <button type="button" class="platform-tab" data-platform="google">
           <span class="source-dot dot-gg"></span>
-          <span>مواقع كوكل</span>
+          <span>مواقع الويب</span>
           <span class="tab-counter" id="countGg">0</span>
         </button>
       </div>
@@ -938,6 +938,6 @@
     </div>
   </footer>
 
-  <script src="app.js"></script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>
