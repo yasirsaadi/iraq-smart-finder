@@ -1138,15 +1138,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  document.getElementById('jumpToCheapestBtn').addEventListener('click', () => {
+  document.getElementById('jumpToCheapestBtn').addEventListener('click', (e) => {
+    e.preventDefault();
     document.querySelector('[data-sort="cheapest"]').click();
+    document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  document.getElementById('jumpToNearestBtn').addEventListener('click', () => {
+  document.getElementById('jumpToNearestBtn').addEventListener('click', (e) => {
+    e.preventDefault();
     document.querySelector('[data-sort="nearest"]').click();
+    document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  document.getElementById('jumpToSmartBtn').addEventListener('click', () => {
+  document.getElementById('jumpToSmartBtn').addEventListener('click', (e) => {
+    e.preventDefault();
     document.querySelector('[data-sort="smart"]').click();
+    document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+
+  // ضبط ارتفاع الهيدر الثابت تلقائياً ليبقى الشريط العلوي ثابتاً دائماً دون أن يغطي المحتوى
+  const siteHeader = document.querySelector('.site-header');
+  function syncFixedHeaderHeight() {
+    if (siteHeader) {
+      document.documentElement.style.setProperty('--header-height', `${siteHeader.offsetHeight}px`);
+    }
+  }
+  syncFixedHeaderHeight();
+  window.addEventListener('resize', syncFixedHeaderHeight);
 
   document.getElementById('detectLocationBtn').addEventListener('click', detectUserGovernorateByGPS);
 
