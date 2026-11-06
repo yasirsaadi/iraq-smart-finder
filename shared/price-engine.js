@@ -675,3 +675,46 @@ export function computePriceStats(values) {
 
 /** أقل عدد عروض مماثلة مطلوب قبل إصدار أي حكم مقارن (أرخص/أغلى من الوسيط). */
 export const MIN_COMPARABLE_OFFERS = 3;
+
+// ---------------------------------------------------------------------------
+// السلع المذكورة في نص ما (لمنع نسب سعر سلعة إلى سلعة أخرى في المقتطف نفسه)
+// ---------------------------------------------------------------------------
+
+const PHONE_BRANDS = [
+  ['apple', 'ابل', ['ايفون', 'iphone', 'ابل', 'apple', 'ايباد', 'ipad', 'ماك بوك', 'macbook', 'ايربودز', 'airpods']],
+  ['samsung', 'سامسونج', ['سامسونج', 'سامسونك', 'samsung', 'جالكسي', 'كالكسي', 'galaxy']],
+  ['xiaomi', 'شاومي', ['شاومي', 'xiaomi', 'ريدمي', 'redmi', 'بوكو', 'poco']],
+  ['huawei', 'هواوي', ['هواوي', 'huawei', 'هونر', 'honor']],
+  ['oppo', 'اوبو', ['اوبو', 'oppo', 'ريلمي', 'realme', 'فيفو', 'vivo']],
+  ['sony', 'سوني', ['بلاي ستيشن', 'بلايستيشن', 'playstation', 'ps5', 'ps4']]
+];
+
+/** مفاتيح الطرازات والماركات المذكورة في النص (سيارات وهواتف وأجهزة). */
+export function mentionedItemKeys(rawText) {
+  const text = normalizeForMatch(rawText);
+  const keys = new Set();
+  for (const table of [CAR_MODELS, CAR_BRANDS, PHONE_BRANDS]) {
+    for (const [key, , terms] of table) {
+      if (terms.some((t) => hasTerm(text, t))) keys.add(key);
+    }
+  }
+  return keys;
+}
+
+/**
+ * يستخرج السعر من الجزء الذي يخص السلعة المطلوبة فقط.
+ * مقتطفات محركات البحث قد تدمج عدة منشورات بفاصل "..." أو "·"، مثل:
+ * "بي ام دبليو 760 ... هيونداي كونا 2024 السعر: 15,500$" — والسعر هنا ليس للسيارة المطلوبة.
+ * يُقبل الجزء إذا طابق كلمات البحث، أو إذا لم يذكر أي سلعة أخرى على الإطلاق.
+ */
+export function extractPriceForQuery(query, title, snippet, options = {}) {
+  const parts = [String(title || ''), ...String(snippet || '').split(/\s*(?:\.{3,}|…|·|\s\|\s)\s*/)];
+  const segments = parts.map((p) => p.trim()).filter((p) => p.length > 2);
+  for (const segment of segments) {
+    const extracted = extractIraqiPrice(segment, options);
+    if (!extracted) continue;
+    if (isRelevantToQuery(query, segment)) return { ...extracted, segment };
+    if (mentionedItemKeys(segment).size === 0) return { ...extracted, segment };
+  }
+  return null;
+}
