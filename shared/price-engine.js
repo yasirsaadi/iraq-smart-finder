@@ -8,7 +8,8 @@
 
 const AR = '\\u0600-\\u06FF';
 const WORD_CHARS = `${AR}a-z0-9`;
-const NUM = '\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?';
+// يشمل: 1,585,000 و 43.900.000 (النقطة فاصل آلاف عند تكرارها) و 1.5
+const NUM = '\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d{1,3}(?:\\.\\d{3}){2,}(?!\\d)|\\d+(?:\\.\\d+)?';
 const NUM_MILLION = '\\d+(?:[.,]\\d{1,2})?(?!\\d)';
 const WARQA_WORD = '(?:ورقه|ورقات|اوراق|ورق)';
 const B = `(^|[^${WORD_CHARS}])`; // حد بداية الكلمة (بديل عن lookbehind)
@@ -37,6 +38,7 @@ export function normalizeDigits(str) {
     .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
     .replace(/٬/g, ',') // فاصل الآلاف العربي
+    .replace(/(\d)،(?=\d{3}(?!\d))/g, '$1,') // الفاصلة العربية بين الأرقام: 82،000
     .replace(/٫/g, '.'); // الفاصلة العشرية العربية
 }
 
@@ -48,12 +50,18 @@ export function normalizeForMatch(str) {
     .replace(/[أإآٱ]/g, 'ا')
     .replace(/ة/g, 'ه')
     .replace(/ى/g, 'ي')
+    .replace(/گ/g, 'ك') // الكاف العراقية: "گري" = "كري"
+    .replace(/چ/g, 'ج')
+    .replace(/پ/g, 'ب')
+    .replace(/ڤ/g, 'ف')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 function toNumber(raw) {
-  return parseFloat(String(raw).replace(/,/g, ''));
+  const str = String(raw);
+  if (/^\d{1,3}(?:\.\d{3}){2,}$/.test(str)) return parseFloat(str.replace(/\./g, ''));
+  return parseFloat(str.replace(/,/g, ''));
 }
 
 function escapeRegExp(s) {
@@ -179,7 +187,9 @@ const PATTERNS = [
     re: new RegExp(`\\$\\s*(${NUM})|${B}(${NUM})\\s*(?:\\$|دولار|usd)${E}`, 'g'),
     build(m) {
       const raw = m[1] || m[3];
-      return { currency: 'USD', amount: toNumber(raw) };
+      // "19.000$" بالأسلوب الأوروبي: نقطة يتبعها 3 أرقام بالضبط تعني آلافاً لا كسوراً
+      const amount = /^\d{1,3}\.\d{3}$/.test(raw) ? parseFloat(raw.replace('.', '')) : toNumber(raw);
+      return { currency: 'USD', amount };
     },
     offset(m) {
       return m[1] ? 0 : m[2].length;
@@ -188,7 +198,7 @@ const PATTERNS = [
   {
     unit: 'iqd',
     priority: 4,
-    re: new RegExp(`${B}(${NUM})\\s*(?:دينار|د\\.\\s?ع|دع|iqd)${E}|(?:iqd|د\\.\\s?ع)\\s*:?\\s*(${NUM})`, 'g'),
+    re: new RegExp(`${B}(${NUM})\\s*(?:دينار|د\\.\\s?ع|ع\\.\\s?د|دع|iqd)${E}|(?:iqd|د\\.\\s?ع|ع\\.\\s?د)\\s*:?\\s*(${NUM})`, 'g'),
     build(m) {
       const n = toNumber(m[2] || m[3]);
       if (n < 1000) return null; // "250 دينار" غامضة: لا نخمّن أنها بالآلاف
@@ -219,8 +229,8 @@ const PATTERNS = [
       if (/^\s*(?:دفتر|دفاتر|ورق|مليون|ملايين|الف|الاف|دولار|\$|دينار|د\.\s?ع|usd|iqd)/.test(after)) return null;
       const raw = m[2];
       const n = toNumber(raw);
-      if (n < 1000) return null;
-      if (!raw.includes(',') && n >= 1980 && n <= 2035) return null; // سنة صنع وليست سعراً
+      // "السعر 1140" أو "سعر 1775" بلا وحدة: قد تعني آلافاً أو دولارات، فلا نخمّن (ويستبعد هذا سنوات الصنع أيضاً)
+      if (n < 10000) return null;
       return { currency: 'IQD', amount: n, keywordBuiltIn: true };
     },
     offset(m) {
@@ -367,7 +377,7 @@ const PRODUCT_FAMILIES = [
   ['watches', 'ساعات ذكية', ['ساعه ذكيه', 'ابل واتش', 'apple watch']],
   ['audio', 'سماعات وصوتيات', ['سماعه', 'سماعات', 'ايربودز', 'airpods', 'سبيكر']],
   ['tv', 'شاشات وتلفزيونات', ['شاشه', 'تلفزيون', 'تلفاز', 'tv']],
-  ['ac', 'أجهزة تبريد', ['سبلت', 'مكيف', 'مبرده', 'gree', 'جري']],
+  ['ac', 'أجهزة تبريد', ['سبلت', 'سبليت', 'مكيف', 'مبرده', 'gree', 'جري', 'كري']],
   ['kitchen', 'أجهزة مطبخ', ['ماكينه قهوه', 'خلاط', 'قلايه', 'مايكرويف', 'طباخ']],
   ['appliances', 'أجهزة منزلية كبيرة', ['ثلاجه', 'غساله', 'مجمده', 'مكنسه', 'نشافه']],
   ['solar', 'طاقة شمسية', ['طاقه شمسيه', 'الواح شمسيه', 'انفرتر', 'بطاريه ليثيوم', 'منظومه']]
@@ -569,7 +579,7 @@ const TERM_SYNONYMS = [
   ['ايفون', 'iphone'], ['ابل', 'apple'], ['سامسونج', 'سامسونك', 'samsung'], ['جالكسي', 'كالكسي', 'galaxy'],
   ['شاومي', 'xiaomi'], ['ريدمي', 'redmi'], ['هواوي', 'huawei'], ['برو', 'pro'], ['ماكس', 'max'], ['الترا', 'ultra'],
   ['بلايستيشن', 'بلاي ستيشن', 'playstation', 'ps'], ['ايربودز', 'airpods'], ['لابتوب', 'laptop'], ['لينوفو', 'lenovo'],
-  ['ماك بوك', 'macbook'], ['ايباد', 'ipad'], ['شاشه', 'tv'], ['سبلت', 'split'], ['جري', 'gree'],
+  ['ماك بوك', 'macbook'], ['ايباد', 'ipad'], ['شاشه', 'tv'], ['سبلت', 'سبليت', 'split'], ['جري', 'كري', 'كريي', 'gree'],
   ['هيونداي', 'hyundai'], ['كيا', 'kia'], ['تويوتا', 'toyota'], ['نيسان', 'nissan'], ['شيفروليه', 'شفروليه', 'chevrolet'],
   ['فورد', 'ford'], ['مرسيدس', 'mercedes', 'benz'], ['النترا', 'elantra'], ['سوناتا', 'sonata'], ['توسان', 'tucson'],
   ['سبورتاج', 'sportage'], ['سورينتو', 'sorento'], ['كامري', 'camry'], ['كورولا', 'corolla'],

@@ -22,3 +22,6 @@ services:
         value: "false"
       - key: ALERTS_DELIVERY_ENABLED
         value: "false"
+      # مفتاح سيربر يُدخل يدوياً من لوحة رندر ولا يُحفظ في المستودع
+      - key: SERPER_API_KEY
+        sync: false

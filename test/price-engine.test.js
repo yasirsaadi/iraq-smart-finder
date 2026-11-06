@@ -34,6 +34,8 @@ test('صيغ المليون والألف والدينار', () => {
   assert.equal(price('السعر 1.5 مليون'), 1_500_000);
   assert.equal(price('السعر نص مليون'), 500_000);
   assert.equal(price('ايفون 15 السعر 1,585,000 د.ع'), 1_585_000);
+  assert.equal(price('Apple iPhone 15 Pro Max. ع.د 1,908,159.'), 1_908_159);
+  assert.equal(price('ايفون السعر 1,140،000 دينار'), 1_140_000, 'الفاصلة العربية بين الأرقام');
   assert.equal(price('ps5 بسعر 695000'), 695_000);
   assert.equal(price('سبلت جري السعر 845 الف'), 845_000);
 });
@@ -58,6 +60,8 @@ test('الأرقام التي ليست أسعاراً لا تُستخرج كسع
   assert.equal(price('كيا سبورتاج 2023 ماشية 18 ألف ميل'), null);
   assert.equal(price('سيارة ماشية 150 ألف كم'), null);
   assert.equal(price('النترا موديل 2022 السعر 2022'), null);
+  assert.equal(price('آيفون ١٧ سعر ١٧٧٥ مكان بغداد'), null, 'رقم بلا وحدة أقل من 10 آلاف غامض');
+  assert.equal(price('ايفون بقسط شهري (82،000) العنوان بغداد'), null, 'القسط ليس السعر');
   assert.equal(price('دفتر ملاحظات 100 ورقة A4'), null);
   assert.equal(price('ضمان 5 سنوات أو 200 ألف كم'), null);
   assert.equal(price('ايفون 15 برو ماكس 256 جيجا'), null);
@@ -162,4 +166,13 @@ test('الصلة تقبل الكتابة اللاتينية للماركات و�
   assert.equal(isRelevantToQuery('كيا سبورتاج', 'KIA Sportage 2023 clean'), true);
   assert.equal(isRelevantToQuery('ايفون 15', 'iPhone 13 used'), false);
   assert.equal(isRelevantToQuery('لاندكروزر', 'Toyota Land Cruiser GXR'), true);
+});
+
+test('صيغ السوق العراقي من نتائج حقيقية: النقطة للآلاف والكاف العراقية', () => {
+  assert.equal(price('Kia Sportage سعر 19.000$ الموديل: 2023'), 28_500_000);
+  assert.equal(price('السعر 43.900.000 دينار'), 43_900_000);
+  assert.equal(price('السعر 1.5 مليون'), 1_500_000, 'النقطة العشرية العادية لم تتأثر');
+  assert.equal(isRelevantToQuery('سبلت جري 2 طن', 'سبلت گري 2 طن انفرتر'), true);
+  assert.equal(isRelevantToQuery('سبلت جري 2 طن', 'سبلت كري جداري 2 طن'), true);
+  assert.equal(classifySection('سبلت گري 2 طن').section, 'products');
 });
