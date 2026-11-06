@@ -1,351 +1,338 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl" data-theme="dark">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>دَلال العراق | ابحث عن أرخص وأقرب حاجة في فيسبوك وانستغرام وكوكل</title>
+  <title>دلال العراق | مقارنة الأسعار في فيسبوك وانستغرام ومتاجر كوكل</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- خلفية جمالية -->
-  <div class="bg-glow bg-glow-1" aria-hidden="true"></div>
-  <div class="bg-glow bg-glow-2" aria-hidden="true"></div>
+  <!-- الشريط العلوي الخدمي (على غرار المتاجر الكبرى) -->
+  <div class="utility-bar">
+    <div class="container utility-inner">
+      <div class="utility-right">
+        <div class="delivery-selector">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          <span class="utility-label">نطاق البحث والتوصيل:</span>
+          <select id="governorateSelect" aria-label="اختر المحافظة">
+            <option value="baghdad">بغداد</option>
+            <option value="basra">البصرة</option>
+            <option value="erbil">أربيل</option>
+            <option value="nineveh">نينوى (الموصل)</option>
+            <option value="najaf">النجف الأشرف</option>
+            <option value="karbala">كربلاء المقدسة</option>
+            <option value="sulaymaniyah">السليمانية</option>
+            <option value="dhiqar">ذي قار (الناصرية)</option>
+            <option value="babil">بابل (الحلة)</option>
+            <option value="kirkuk">كركوك</option>
+            <option value="anbar">الأنبار (الرمادي)</option>
+            <option value="diyala">ديالى (بعقوبة)</option>
+            <option value="wasit">واسط (الكوت)</option>
+            <option value="salahaddin">صلاح الدين (تكريت)</option>
+            <option value="maysan">ميسان (العمارة)</option>
+            <option value="qadisiyah">القادسية (الديوانية)</option>
+            <option value="muthanna">المثنى (السماوة)</option>
+            <option value="duhok">دهوك</option>
+          </select>
+          <button type="button" id="detectLocationBtn" class="utility-gps-btn" title="تحديد المحافظة تلقائياً عبر الموقع الجغرافي">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+            </svg>
+            <span>تحديد تلقائي</span>
+          </button>
+        </div>
+      </div>
 
-  <!-- الشريط العلوي -->
-  <header class="navbar">
-    <div class="container nav-container">
-      <a href="#" class="brand" aria-label="دلال العراق - الصفحة الرئيسية">
-        <div class="brand-logo">
+      <div class="utility-left">
+        <div class="exchange-box" title="سعر صرف المئة دولار لحساب عروض البيجات المسعرة بالورقة">
+          <span class="utility-label">سعر الصرف التقديري (100 دولار):</span>
+          <input type="number" id="exchangeRateInput" value="150000" step="1000" min="100000" max="250000" aria-label="سعر صرف 100 دولار بالدينار" />
+          <span class="currency-unit">د.ع</span>
+        </div>
+
+        <button type="button" class="utility-action-btn" id="openAnalyzerBtn">
+          <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"></path>
+          </svg>
+          <span>إضافة منشور للمقارنة</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- الهيدر التجاري الرئيسي -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="#" class="brand-identity" aria-label="دلال العراق - الصفحة الرئيسية">
+        <div class="brand-mark">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <path d="m21 21-4.3-4.3"></path>
-            <path d="M11 8v6"></path>
-            <path d="M8 11h6"></path>
+            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path>
+            <path d="M3 6h18"></path>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
           </svg>
         </div>
-        <div class="brand-text">
-          <span class="brand-title">دَلال العراق</span>
-          <span class="brand-subtitle">أرخص سعر وأقرب مكان بضغطة زر</span>
+        <div class="brand-copy">
+          <span class="brand-name">دَلال العراق</span>
+          <span class="brand-tagline">دليل الأسعار الموحد • فيسبوك • انستغرام • كوكل</span>
         </div>
       </a>
 
-      <div class="nav-actions">
-        <div class="exchange-pill" title="سعر صرف الدولار التقديري لحساب الأسعار المعروضة بالورقة/الدولار">
-          <span>💵 100$ =</span>
-          <input type="number" id="exchangeRateInput" value="150000" step="1000" min="100000" max="250000" aria-label="سعر صرف 100 دولار بالدينار العراقي" />
-          <span>د.ع</span>
+      <!-- شريط البحث التجاري الموحد -->
+      <form id="searchForm" class="commercial-search-form" autocomplete="off">
+        <div class="search-main-field">
+          <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.3-4.3"></path>
+          </svg>
+          <input
+            type="text"
+            id="searchQuery"
+            placeholder="ابحث عن منتج، موديل، أو جهاز (مثال: آيفون 15 برو، سبلت جري 2 طن، بلاي ستيشن 5)..."
+          />
+          <button type="button" id="clearQueryBtn" class="clear-input-btn" hidden aria-label="مسح البحث">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6 6 18M6 6l12 12"></path>
+            </svg>
+          </button>
         </div>
 
-        <button type="button" class="btn-outline" id="openAnalyzerBtn">
-          <span>📋</span>
-          <span>فرز منشورات بالذكاء</span>
-        </button>
+        <div class="search-budget-field">
+          <span class="budget-prefix">السقف الأعلى:</span>
+          <input
+            type="number"
+            id="maxBudgetInput"
+            placeholder="غير محدد (د.ع)"
+            min="0"
+            step="10000"
+          />
+        </div>
 
-        <button type="button" class="btn-icon" id="themeToggleBtn" title="تغيير المظهر (ليلي / نهاري)" aria-label="تغيير المظهر">
-          🌙
+        <button type="submit" class="search-submit-btn" id="searchSubmitBtn">
+          بحث ومقارنة
         </button>
+      </form>
+    </div>
+
+    <!-- شريط الأقسام والبحث السريع -->
+    <div class="categories-strip">
+      <div class="container categories-inner">
+        <span class="categories-label">الأكثر بحثاً في العراق:</span>
+        <button type="button" class="category-link tag-chip" data-query="آيفون 15 برو ماكس">آيفون 15 برو ماكس</button>
+        <button type="button" class="category-link tag-chip" data-query="بلاي ستيشن 5 سليم">بلاي ستيشن 5 سليم</button>
+        <button type="button" class="category-link tag-chip" data-query="سبلت جري 2 طن انفرتر">سبلت جري 2 طن انفرتر</button>
+        <button type="button" class="category-link tag-chip" data-query="لابتوب لينوفو LOQ للألعاب">لابتوب لينوفو للألعاب</button>
+        <button type="button" class="category-link tag-chip" data-query="سماعة ايربودز برو 2">سماعة أبل ايربودز برو</button>
+        <button type="button" class="category-link tag-chip" data-query="ماكينة قهوة ديلونجي">ماكينة قهوة ديلونجي</button>
+        <button type="button" class="category-link tag-chip" data-query="شاشة سامسونج سمارت 55 بوصة">شاشة سامسونج 55 بوصة</button>
       </div>
     </div>
   </header>
 
-  <!-- القسم الرئيسي للبحث -->
-  <main class="container">
-    <section class="hero-section">
-      <div class="hero-badge">
-        <span class="pulse-dot"></span>
-        <span>يغطي جميع محافظات العراق الـ 18 • فيسبوك + انستغرام + كوكل</span>
+  <main class="container main-content">
+    <!-- تنبيه تحديد الموقع -->
+    <div id="searchStatusBanner" class="notice-banner" hidden></div>
+
+    <!-- شريط الملخص السعري والجغرافي -->
+    <section class="metrics-overview" id="summaryHighlights" aria-label="ملخص أفضل العروض">
+      <div class="overview-card overview-cheapest">
+        <div class="overview-header">
+          <span class="overview-badge badge-green">أقل سعر مسجل</span>
+          <a href="#resultsGrid" class="overview-jump" id="jumpToCheapestBtn">عرض التفاصيل</a>
+        </div>
+        <h2 class="overview-title" id="bestPriceTitle">—</h2>
+        <div class="overview-footer">
+          <span class="overview-price" id="bestPriceValue">—</span>
+          <span class="overview-sub" id="bestPricePlatform">—</span>
+        </div>
       </div>
-      <h1 class="hero-title">
-        اطلب أي حاجة.. ونجيبلك <span class="gradient-text">الأرخص سعراً</span> و<span class="gradient-text-alt">الأقرب لمكانك</span>
-      </h1>
-      <p class="hero-desc">
-        يبحث في بيجات وكروبات الفيسبوك، متاجر الانستغرام العراقية، ومواقع كوكل، ويستخرج الأسعار بالدينار العراقي أو الدولار ويرتبها حسب محافظتك.
-      </p>
 
-      <!-- صندوق البحث الذكي -->
-      <form id="searchForm" class="search-box-card" autocomplete="off">
-        <div class="search-grid">
-          <!-- حقل اسم الحاجة -->
-          <div class="input-group search-query-group">
-            <label for="searchQuery" class="input-label">شنو الحاجة الي تدور عليها؟</label>
-            <div class="input-wrapper">
-              <span class="input-icon">🔍</span>
-              <input
-                type="text"
-                id="searchQuery"
-                placeholder="مثال: آيفون 15 برو، بلاي ستيشن 5، سبلت جري 2 طن، عطر سوفاج..."
-                required
-              />
-              <button type="button" id="clearQueryBtn" class="clear-btn" hidden title="مسح البحث">✕</button>
-            </div>
-          </div>
-
-          <!-- اختيار المحافظة -->
-          <div class="input-group">
-            <label for="governorateSelect" class="input-label">محافظتك (لحساب الأقرب)</label>
-            <div class="input-wrapper">
-              <span class="input-icon">📍</span>
-              <select id="governorateSelect">
-                <option value="baghdad">بغداد</option>
-                <option value="basra">البصرة</option>
-                <option value="erbil">أربيل</option>
-                <option value="nineveh">نينوى (الموصل)</option>
-                <option value="najaf">النجف الأشرف</option>
-                <option value="karbala">كربلاء المقدسة</option>
-                <option value="sulaymaniyah">السليمانية</option>
-                <option value="dhiqar">ذي قار (الناصرية)</option>
-                <option value="babil">بابل (الحلة)</option>
-                <option value="kirkuk">كركوك</option>
-                <option value="anbar">الأنبار (الرمادي)</option>
-                <option value="diyala">ديالى (بعقوبة)</option>
-                <option value="wasit">واسط (الكوت)</option>
-                <option value="salahaddin">صلاح الدين (تكريت)</option>
-                <option value="maysan">ميسان (العمارة)</option>
-                <option value="qadisiyah">القادسية (الديوانية)</option>
-                <option value="muthanna">المثنى (السماوة)</option>
-                <option value="duhok">دهوك</option>
-              </select>
-              <button type="button" id="detectLocationBtn" class="gps-btn" title="تحديد محافظتي تلقائياً عبر GPS">
-                🎯 موقعي
-              </button>
-            </div>
-          </div>
-
-          <!-- السعر الأقصى (اختياري) -->
-          <div class="input-group">
-            <label for="maxBudgetInput" class="input-label">ميزانيتك القصوى (اختياري)</label>
-            <div class="input-wrapper">
-              <span class="input-icon">💰</span>
-              <input
-                type="number"
-                id="maxBudgetInput"
-                placeholder="مثال: 500000 (د.ع)"
-                min="0"
-                step="5000"
-              />
-            </div>
-          </div>
-
-          <!-- زر البحث -->
-          <div class="search-submit-group">
-            <button type="submit" class="btn-primary search-btn" id="searchSubmitBtn">
-              <span>ابحث وقارن الآن</span>
-              <span class="btn-arrow">←</span>
-            </button>
-          </div>
+      <div class="overview-card overview-nearest">
+        <div class="overview-header">
+          <span class="overview-badge badge-blue">الأقرب لمحافظتك</span>
+          <a href="#resultsGrid" class="overview-jump" id="jumpToNearestBtn">عرض التفاصيل</a>
         </div>
-
-        <!-- اقتراحات سريعة -->
-        <div class="quick-tags">
-          <span class="quick-tags-label">عمليات بحث شائعة بالعراق:</span>
-          <button type="button" class="tag-chip" data-query="آيفون 15 برو ماكس">📱 آيفون 15 برو ماكس</button>
-          <button type="button" class="tag-chip" data-query="بلاي ستيشن 5 سليم">🎮 بلاي ستيشن 5 سليم</button>
-          <button type="button" class="tag-chip" data-query="سبلت جري 2 طن انفرتر">❄️ سبلت جري 2 طن</button>
-          <button type="button" class="tag-chip" data-query="لابتوب لينوفو LOQ للألعاب">💻 لابتوب لينوفو LOQ</button>
-          <button type="button" class="tag-chip" data-query="سماعة ايربودز برو 2">🎧 ايربودز برو 2</button>
-          <button type="button" class="tag-chip" data-query="ماكينة قهوة ديلونجي">☕ ماكينة قهوة ديلونجي</button>
-          <button type="button" class="tag-chip" data-query="شاشة سامسونج سمارت 55 بوصة">📺 شاشة سامسونج 55</button>
+        <h2 class="overview-title" id="nearestItemTitle">—</h2>
+        <div class="overview-footer">
+          <span class="overview-distance" id="nearestItemDistance">—</span>
+          <span class="overview-sub" id="nearestItemPrice">—</span>
         </div>
-      </form>
+      </div>
+
+      <div class="overview-card overview-smart">
+        <div class="overview-header">
+          <span class="overview-badge badge-amber">أفضل قيمة ومسافة معاً</span>
+          <a href="#resultsGrid" class="overview-jump" id="jumpToSmartBtn">عرض التفاصيل</a>
+        </div>
+        <h2 class="overview-title" id="smartMatchTitle">—</h2>
+        <div class="overview-footer">
+          <span class="overview-score" id="smartMatchMeta">—</span>
+          <span class="overview-sub" id="smartMatchSaving">—</span>
+        </div>
+      </div>
     </section>
 
-    <!-- شريط البحث الحي المباشر في المنصات الثلاث (يظهر ويتحدث مع كل بحث) -->
-    <section class="live-deep-links-section" id="liveDeepLinksSection">
-      <div class="deep-links-header">
-        <div>
-          <h2 class="section-sm-title">🚀 بوابات البحث الحي والمباشر في العراق لـ: <strong id="deepLinkQueryTitle">الكل</strong></h2>
-          <p class="section-sm-desc">روابط مفلترة ذكياً تفتح لك نتائج البحث الحقيقية في محافظتك مباشرة داخل فيسبوك وانستغرام وكوكل:</p>
+    <!-- بوابات البحث الخارجي المباشر في المنصات الثلاث -->
+    <section class="direct-gateways-panel" id="liveDeepLinksSection">
+      <div class="gateways-info">
+        <div class="gateways-title-row">
+          <h2 class="gateways-heading">البحث الحي في المنصات المفتوحة عن: <span id="deepLinkQueryTitle">جميع العروض</span></h2>
+          <span class="active-gov-pill" id="activeLocationBadge">المحافظة: بغداد</span>
         </div>
-        <span class="location-indicator" id="activeLocationBadge">📍 بغداد</span>
+        <p class="gateways-desc">انتقل مباشرة إلى نتائج البحث الحية المفلترة حسب محافظتك واسم السلعة في المنصات الثلاث:</p>
       </div>
 
-      <div class="deep-links-grid">
-        <a href="#" target="_blank" rel="noopener noreferrer" id="fbMarketplaceLink" class="deep-card deep-fb">
-          <div class="deep-card-icon">📘</div>
-          <div class="deep-card-body">
-            <strong>سوق فيسبوك وبيجات العراق</strong>
-            <span>يبحث في المنشورات والبيجات التي تذكر السعر والتوصيل</span>
+      <div class="gateways-buttons">
+        <a href="#" target="_blank" rel="noopener noreferrer" id="fbMarketplaceLink" class="gateway-btn gateway-fb">
+          <svg class="platform-svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c5.05-.5 9-4.76 9-9.95z"/>
+          </svg>
+          <div class="gateway-text">
+            <strong>منشورات وسوق فيسبوك</strong>
+            <span>البحث في الصفحات والمجموعات العراقية</span>
           </div>
-          <span class="external-arrow">↗</span>
+          <svg class="icon-xs ext-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M7 17 17 7M7 7h10v10"></path>
+          </svg>
         </a>
 
-        <a href="#" target="_blank" rel="noopener noreferrer" id="igShopsLink" class="deep-card deep-ig">
-          <div class="deep-card-icon">📸</div>
-          <div class="deep-card-body">
-            <strong>متاجر وبيجات انستغرام العراق</strong>
-            <span>فلترة حسابات الانستغرام العراقية مع الأسعار</span>
+        <a href="#" target="_blank" rel="noopener noreferrer" id="igShopsLink" class="gateway-btn gateway-ig">
+          <svg class="platform-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+            <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
+          </svg>
+          <div class="gateway-text">
+            <strong>متاجر انستغرام العراق</strong>
+            <span>فلترة حسابات البيع والتوصيل</span>
           </div>
-          <span class="external-arrow">↗</span>
+          <svg class="icon-xs ext-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M7 17 17 7M7 7h10v10"></path>
+          </svg>
         </a>
 
-        <a href="#" target="_blank" rel="noopener noreferrer" id="googleStoresLink" class="deep-card deep-google">
-          <div class="deep-card-icon">🌐</div>
-          <div class="deep-card-body">
-            <strong>متاجر كوكل والسوق المفتوح</strong>
-            <span>مسواك، الريان، النبأ، السوق المفتوح والمواقع العراقية</span>
+        <a href="#" target="_blank" rel="noopener noreferrer" id="googleStoresLink" class="gateway-btn gateway-gg">
+          <svg class="platform-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <div class="gateway-text">
+            <strong>متاجر كوكل والمواقع العراقية</strong>
+            <span>مسواك، الريان، النبأ، والسوق المفتوح</span>
           </div>
-          <span class="external-arrow">↗</span>
+          <svg class="icon-xs ext-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M7 17 17 7M7 7h10v10"></path>
+          </svg>
         </a>
       </div>
     </section>
 
-    <!-- ملخص أرخص سعر وأقرب خيار -->
-    <section class="summary-highlights" id="summaryHighlights">
-      <div class="highlight-box cheapest-highlight">
-        <div class="highlight-icon">🔥</div>
-        <div class="highlight-content">
-          <span class="highlight-label">أرخص عرض تم العثور عليه</span>
-          <h3 id="bestPriceTitle">—</h3>
-          <div class="highlight-meta">
-            <strong class="highlight-price" id="bestPriceValue">—</strong>
-            <span class="highlight-platform" id="bestPricePlatform">—</span>
-          </div>
-        </div>
-        <a href="#resultsGrid" class="highlight-action" id="jumpToCheapestBtn">عرض</a>
-      </div>
-
-      <div class="highlight-box nearest-highlight">
-        <div class="highlight-icon">📍</div>
-        <div class="highlight-content">
-          <span class="highlight-label">أقرب عرض لموقعك الحالي</span>
-          <h3 id="nearestItemTitle">—</h3>
-          <div class="highlight-meta">
-            <strong class="highlight-distance" id="nearestItemDistance">—</strong>
-            <span class="highlight-platform" id="nearestItemPrice">—</span>
-          </div>
-        </div>
-        <a href="#resultsGrid" class="highlight-action" id="jumpToNearestBtn">عرض</a>
-      </div>
-
-      <div class="highlight-box smart-highlight">
-        <div class="highlight-icon">⭐</div>
-        <div class="highlight-content">
-          <span class="highlight-label">أفضل خيار (أرخص + أقرب معاً)</span>
-          <h3 id="smartMatchTitle">—</h3>
-          <div class="highlight-meta">
-            <strong class="highlight-score" id="smartMatchMeta">—</strong>
-            <span class="highlight-platform" id="smartMatchSaving">—</span>
-          </div>
-        </div>
-        <a href="#resultsGrid" class="highlight-action" id="jumpToSmartBtn">عرض</a>
-      </div>
-    </section>
-
-    <!-- أدوات الفلترة والترتيب -->
-    <section class="controls-bar">
-      <!-- فلتر المنصة -->
-      <div class="platform-tabs" role="tablist" aria-label="فلترة حسب المنصة">
+    <!-- شريط التحكم والفرز التجاري -->
+    <section class="catalog-toolbar" aria-label="أدوات الفلترة والترتيب">
+      <div class="platform-filter-group" role="tablist">
         <button type="button" class="platform-tab active" data-platform="all">
-          <span>الكل</span>
-          <span class="tab-count" id="countAll">0</span>
+          <span>جميع المصادر</span>
+          <span class="tab-counter" id="countAll">0</span>
         </button>
         <button type="button" class="platform-tab" data-platform="facebook">
-          <span class="dot-fb"></span>
+          <span class="source-dot dot-fb"></span>
           <span>فيسبوك</span>
-          <span class="tab-count" id="countFb">0</span>
+          <span class="tab-counter" id="countFb">0</span>
         </button>
         <button type="button" class="platform-tab" data-platform="instagram">
-          <span class="dot-ig"></span>
+          <span class="source-dot dot-ig"></span>
           <span>انستغرام</span>
-          <span class="tab-count" id="countIg">0</span>
+          <span class="tab-counter" id="countIg">0</span>
         </button>
         <button type="button" class="platform-tab" data-platform="google">
-          <span class="dot-gg"></span>
-          <span>كوكل ومتاجر</span>
-          <span class="tab-count" id="countGg">0</span>
+          <span class="source-dot dot-gg"></span>
+          <span>متاجر كوكل</span>
+          <span class="tab-counter" id="countGg">0</span>
         </button>
       </div>
 
-      <!-- طريقة الترتيب -->
-      <div class="sort-controls">
-        <label for="sortSelect" class="sort-label">ترتيب حسب:</label>
-        <div class="sort-pills" id="sortPills">
-          <button type="button" class="sort-pill active" data-sort="smart">
-            ⭐ الأفضل (أرخص وأقرب)
-          </button>
-          <button type="button" class="sort-pill" data-sort="cheapest">
-            🔥 الأرخص سعراً أولاً
-          </button>
-          <button type="button" class="sort-pill" data-sort="nearest">
-            📍 الأقرب لمحافظتك أولاً
-          </button>
+      <div class="sorting-group">
+        <span class="toolbar-label">ترتيب النتائج:</span>
+        <div class="sort-segmented" id="sortPills">
+          <button type="button" class="sort-pill active" data-sort="smart">الأفضل قيمةً ومسافةً</button>
+          <button type="button" class="sort-pill" data-sort="cheapest">الأقل سعراً</button>
+          <button type="button" class="sort-pill" data-sort="nearest">الأقرب لمحافظتي</button>
         </div>
 
-        <label class="checkbox-filter">
+        <label class="local-only-toggle">
           <input type="checkbox" id="sameCityOnlyCheckbox" />
           <span>داخل محافظتي فقط</span>
         </label>
       </div>
     </section>
 
-    <!-- حالة البحث -->
-    <div id="searchStatusBanner" class="status-banner" hidden></div>
-
-    <!-- شبكة النتائج -->
-    <section id="resultsGrid" class="results-grid" aria-live="polite"></section>
+    <!-- قائمة وبطاقات المنتجات -->
+    <section id="resultsGrid" class="commercial-grid" aria-live="polite"></section>
   </main>
 
-  <!-- نافذة (Modal) محلل منشورات الفيسبوك والانستغرام الذكي -->
-  <dialog id="analyzerModal" class="custom-modal">
-    <div class="modal-header">
+  <!-- نافذة إضافة وتحليل منشور جديد -->
+  <dialog id="analyzerModal" class="commercial-modal">
+    <div class="modal-top">
       <div>
-        <h2>🤖 محلل منشورات الفيس والانستا الذكي (باللهجة العراقية)</h2>
-        <p>انسخ أي منشور أو تعليق من فيسبوك أو انستغرام (حتى لو السعر مكتوب "ورقة ونص" أو "25 الف") وسيقوم النظام باستخراج السعر والمحافظة وإضافته للمقارنة فوراً!</p>
+        <h2>إضافة وتحليل منشور بيع من فيسبوك أو انستغرام</h2>
+        <p>الصق نص المنشور كما هو (حتى لو كان السعر مكتوباً باللهجة العراقية مثل: ورقة ونص، دفتر، أو ألف دينار) وسيتم استخراج السعر والمحافظة ورقم الهاتف تلقائياً.</p>
       </div>
-      <button type="button" class="modal-close-btn" id="closeAnalyzerBtn" aria-label="إغلاق">✕</button>
+      <button type="button" class="modal-close" id="closeAnalyzerBtn" aria-label="إغلاق">✕</button>
     </div>
 
-    <form id="analyzerForm" class="modal-body">
-      <div class="form-row">
-        <div class="input-group">
-          <label class="input-label" for="postPlatformSelect">المنصة</label>
+    <form id="analyzerForm" class="modal-form">
+      <div class="modal-grid-2">
+        <div class="field-block">
+          <label for="postPlatformSelect">المنصة المصدر</label>
           <select id="postPlatformSelect">
-            <option value="facebook">📘 فيسبوك (بيج / كروب / ماركت بليس)</option>
-            <option value="instagram">📸 انستغرام (بيج / ستوري / ريلز)</option>
-            <option value="google">🌐 كوكل / متجر إلكتروني</option>
+            <option value="facebook">فيسبوك (صفحة تجارية / سوق مفتوح)</option>
+            <option value="instagram">انستغرام (حساب متجر / منشور)</option>
+            <option value="google">كوكل / متجر إلكتروني محلي</option>
           </select>
         </div>
-        <div class="input-group">
-          <label class="input-label" for="postStoreName">اسم البيج أو المتجر</label>
-          <input type="text" id="postStoreName" placeholder="مثال: بيج كلكسي بغداد" required />
+        <div class="field-block">
+          <label for="postStoreName">اسم المتجر أو الصفحة</label>
+          <input type="text" id="postStoreName" placeholder="مثال: معرض المنصور للهواتف" required />
         </div>
       </div>
 
-      <div class="input-group">
-        <label class="input-label" for="postRawText">نص المنشور الكامل (انسخه والصقه هنا)</label>
+      <div class="field-block">
+        <label for="postRawText">نص المنشور الكامل</label>
         <textarea
           id="postRawText"
           rows="4"
-          placeholder="مثال: متوفر آيفون 15 برو ماكس نظيف جداً ضمان سنة السعر 9 دفاتر و50 دولار او 1,425,000 الف دينار، العنوان بغداد المنصور ويوجد توصيل لكافة المحافظات 07701234567"
+          placeholder="مثال: متوفر آيفون 15 برو ماكس 256 جيجا نظيف جداً ضمان سنة السعر 10 أوراق فقط، العنوان بغداد المنصور ويوجد توصيل لكافة المحافظات 07701234567"
           required
         ></textarea>
       </div>
 
-      <div class="parsed-preview" id="parsedPreviewBox">
-        <span>🔍 الاستخراج التلقائي:</span>
-        <span class="preview-chip" id="previewPriceChip">السعر: —</span>
-        <span class="preview-chip" id="previewGovChip">المحافظة: —</span>
-        <span class="preview-chip" id="previewPhoneChip">الهاتف: —</span>
+      <div class="extraction-summary" id="parsedPreviewBox">
+        <span class="extraction-title">البيانات المستخرجة تلقائياً:</span>
+        <span class="extraction-tag" id="previewPriceChip">السعر: —</span>
+        <span class="extraction-tag" id="previewGovChip">المحافظة: —</span>
+        <span class="extraction-tag" id="previewPhoneChip">الهاتف: —</span>
       </div>
 
-      <div class="modal-footer">
-        <button type="button" class="btn-outline" id="fillSamplePostBtn">تجربة نص منشور جاهز</button>
-        <button type="submit" class="btn-primary">إضافة للمقارنة والترتيب الآن</button>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="fillSamplePostBtn">تعبئة مثال تجريبي</button>
+        <button type="submit" class="btn-submit">حفظ وإضافة إلى جدول المقارنة</button>
       </div>
     </form>
   </dialog>
 
-  <!-- تذييل الموقع -->
-  <footer class="footer">
-    <div class="container footer-inner">
-      <div>
-        <strong>دَلال العراق الذكي</strong> — محرك بحث ومقارنة أسعار ومواقع مخصص للسوق العراقي (فيسبوك • انستغرام • كوكل).
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <div class="footer-right">
+        <strong>دَلال العراق</strong> — منصة مقارنة الأسعار والبحث التجاري في المحافظات العراقية الثماني عشرة.
       </div>
-      <div class="footer-note">
-        يدعم حساب المسافات بين جميع المحافظات العراقية الـ 18 وتحويل الأسعار بالدينار العراقي والدولار.
+      <div class="footer-left">
+        يتم تحديث الأسعار وحساب المسافات الجغرافية بالدينار العراقي والدولار.
       </div>
     </div>
   </footer>
