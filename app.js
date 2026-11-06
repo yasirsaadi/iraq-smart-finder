@@ -240,7 +240,7 @@ async function performLiveSearch(queryText) {
     if (data && data.providerOk === false) {
       const banner = document.getElementById('searchStatusBanner');
       banner.hidden = false;
-      banner.textContent = 'تعذر الوصول إلى مصدر البحث الحي حالياً (مصدر تجريبي غير مضمون). استخدم أزرار البحث المباشر في المنصات أدناه.';
+      banner.textContent = 'مصدر البحث الحي لم يُرجع نتائج قابلة للقراءة حالياً (مصدر تجريبي غير مضمون). استخدم أزرار البحث المباشر في فيسبوك وانستغرام وكوكل أدناه.';
     }
   } catch (err) {
     if (err.name !== 'AbortError') {

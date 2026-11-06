@@ -65,3 +65,8 @@ test('describeSource لا يدعي هوية متجر', () => {
   assert.equal(describeSource('opensooq.com').storeName, 'opensooq.com');
   assert.equal(describeSource('evilfacebook.com').platform, 'google');
 });
+
+test('صفحة بلا نتائج قابلة للقراءة (تحقق أو بنية متغيرة) تعيد قائمة فارغة', () => {
+  assert.deepEqual(parseYahooResults('<html><body>Please verify you are human</body></html>'), []);
+  assert.deepEqual(parseYahooResults(''), []);
+});
