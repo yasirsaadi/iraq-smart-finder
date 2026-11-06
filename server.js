@@ -4,6 +4,9 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { neon } from '@neondatabase/serverless';
+import { normalizeDigits, hasTerm, normalizeForMatch } from './shared/price-engine.js';
+import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities } from './shared/sanitize.js';
+import { parseYahooResults, buildLiveOffer } from './lib/live-results.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,8 +14,29 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+// مفاتيح التشغيل: كل ميزة غير مكتملة معطلة افتراضياً في الإنتاج ولا تُفعَّل إلا صراحةً.
+export const FEATURE_FLAGS = Object.freeze({
+  // العروض التجريبية المكتوبة يدوياً (demo/demo-offers.js) لا تظهر إلا عند DEMO_MODE=true
+  demoMode: process.env.DEMO_MODE === 'true',
+  // لا يوجد ربط فعلي مع بوابة دفع؛ الاشتراك المدفوع معطل حتى يُربط ويُتحقق من الدفع
+  paymentsEnabled: process.env.PAYMENTS_ENABLED === 'true',
+  // لا يوجد مرسل فعلي لرسائل واتساب أو تليغرام؛ التنبيهات معطلة حتى يُربط مزود إرسال
+  alertsDeliveryEnabled: process.env.ALERTS_DELIVERY_ENABLED === 'true'
+});
+
+if (FEATURE_FLAGS.paymentsEnabled) {
+  console.warn('تحذير: PAYMENTS_ENABLED=true لكن لا يوجد تحقق من الدفع في الخادم؛ أي رقم هاتف سيحصل على اشتراك.');
+}
+
 app.use(cors());
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '1mb' }));
+
+// فصل البيانات التجريبية عن الإنتاج: ملفاتها لا تُقدَّم أصلاً إلا في وضع العرض التجريبي
+app.use('/demo', (req, res, next) => {
+  if (!FEATURE_FLAGS.demoMode) return res.status(404).end();
+  return next();
+});
+
 app.use(express.static(__dirname));
 
 function extractCleanPostgresUrl(raw) {
@@ -54,137 +78,17 @@ const IRAQ_GOV_KEYWORDS = {
   duhok: { name: 'دهوك', keywords: ['دهوك', 'زاخو', 'duhok'] }
 };
 
-function normalizeDigits(str) {
-  return String(str || '')
-    .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
-    .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
-}
-
-function decodeHtmlEntities(str) {
-  return String(str || '')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#x([0-9A-Fa-f]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
-}
-
-function stripTags(html) {
-  return decodeHtmlEntities(String(html || '').replace(/<[^>]*>/g, ' '))
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function extractRealIraqiPrice(rawText, ratePer1USD = 1500) {
-  const text = normalizeDigits(rawText);
-
-  // 1. صيغة الدفتر والورقة (شائعة جداً للسيارات والعقارات في العراق)
-  if (text.includes('دفترين')) {
-    let usd = 20000;
-    const extraW = text.match(/و\s*(\d+)\s*(?:ورقة|ورقات|اوراق|أوراق)/);
-    if (extraW) usd += parseFloat(extraW[1]) * 100;
-    return Math.round(usd * ratePer1USD);
-  }
-
-  const daftarMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:دفتر|دفاتر)/);
-  if (daftarMatch) {
-    let usd = parseFloat(daftarMatch[1]) * 10000;
-    const extraW = text.match(/و\s*(\d+)\s*(?:ورقة|ورقات|اوراق|أوراق)/);
-    if (extraW) usd += parseFloat(extraW[1]) * 100;
-    if (usd > 0 && usd < 5000000) return Math.round(usd * ratePer1USD);
-  }
-
-  // 2. صيغة المليون دينار عراقي (للبيوت والأراضي والسيارات مثل: 250 مليون، 35 مليون)
-  const millionWordMatch = text.match(/(\d{1,4}(?:\.\d+)?)\s*(?:مليون|ملايين)/);
-  if (millionWordMatch) {
-    const m = parseFloat(millionWordMatch[1]);
-    if (m >= 1 && m <= 5000) return Math.round(m * 1000000);
-  }
-
-  if (text.includes('ورقتين')) return Math.round(200 * ratePer1USD);
-  if (text.includes('ورقة ونص')) return Math.round(150 * ratePer1USD);
-
-  const warqaMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:ورقة|ورقات|اوراق|أوراق)/);
-  if (warqaMatch) {
-    const val = parseFloat(warqaMatch[1]);
-    if (val > 0 && val < 500) return Math.round(val * 100 * ratePer1USD);
-  }
-
-  const iqdDirect =
-    text.match(/(\d{1,3}(?:,\d{3})+|\d{4,10})\s*(?:د\.ع|دينار|دع|IQD)/i) ||
-    text.match(/(?:IQD|د\.ع|السعر)\s*:?\s*(\d{1,3}(?:,\d{3})+|\d{4,10})/i);
-  if (iqdDirect) {
-    const num = parseFloat(iqdDirect[1].replace(/,/g, ''));
-    if (num >= 500 && num <= 5000000000) return Math.round(num);
-  }
-
-  const alfMatch = text.match(/(?:السعر|سعر|بـ|ب|فقط)?\s*(\d{1,4}(?:\.\d+)?)\s*(?:الف|ألف|الاف|آلاف)/);
-  if (alfMatch) {
-    const num = parseFloat(alfMatch[1]);
-    if (num >= 1 && num <= 9999) return Math.round(num * 1000);
-  }
-
-  const usdMatch = text.match(/(?:\$\s*(\d{1,6}(?:\.\d+)?)|(\d{1,6}(?:\.\d+)?)\s*(?:\$|دولار|USD))/i);
-  if (usdMatch) {
-    const usd = parseFloat(usdMatch[1] || usdMatch[2]);
-    if (usd >= 1 && usd <= 2000000) return Math.round(usd * ratePer1USD);
-  }
-
-  return null;
-}
-
-function detectSectionAndSpecs(rawText) {
-  const text = normalizeDigits(String(rawText || ''));
-
-  if (/سيارة|تويوتا|هيونداي|كيا|نيسان|شيفروليه|شفروليه|فورد|جيب|دوج|دودج|كرايسلر|جي ام سي|كاديلاك|ميتسوبيشي|مازدا|هوندا|سوزوكي|لكزس|انفينيتي|مرسيدس|بي ام دبليو|اودي|فولكس واجن|بورش|رينج روفر|لاند روفر|جيتور|شيري|ام جي|شانجان|هافال|جيلي|بي واي دي|بايك|جاك|غريت وول|بيجو|رينو|فولفو|تيسلا|سانغ يونغ|سوبارو|النترا|سوناتا|تاهو|سبورتاج|سورينتو|لاندكروز|كامري|كورولا|سنتافي|بيك اب|هايلكس|توسان|سيراتو|كادينزا|اوبتيما|باترول|سني|التيما|ماكسيما|ماليبو|ترافيرس|تشارجر|تشالنجر| دورانجو|رانجلر|شيروكي|وارد امريكي|رقم بغداد|رقم اربيل|معرض سيارات/i.test(text)) {
-    const yearMatch = text.match(/\b(20[12]\d)\b/);
-    const kmMatch = text.match(/(\d{1,3}(?:,\d{3})?)\s*(?:كم|كيلومتر|ماشي)/);
-    return {
-      section: 'cars',
-      specs: {
-        year: yearMatch ? yearMatch[1] : 'حديث',
-        mileage: /زيرو|0\s*كم/.test(text) ? 'زيرو (0 كم)' : kmMatch ? `${kmMatch[1]} كم` : 'مفحوص',
-        plate: /اربيل|أربيل|شمالي/.test(text) ? 'رقم أربيل' : /بغداد/.test(text) ? 'رقم بغداد' : /بصرة|البصرة/.test(text) ? 'رقم البصرة' : 'مرقم جاهز',
-        origin: /امريكي|أمريكي/.test(text) ? 'وارد أمريكي' : /خليجي|وكالة/.test(text) ? 'خليجي وكالة' : /كوري/.test(text) ? 'وارد كوري' : 'ضمان كير ومحرك'
-      }
-    };
-  }
-
-  if (/عقار|دار للبيع|بيت للبيع|شقة|قطعة ارض|أرض سكنية|طابو|دونم|متر مربع|م2|م²|بسماية|ايجار|إيجار|مشتمل|بناء حديث/i.test(text)) {
-    const areaMatch = text.match(/(\d{2,4})\s*(?:متر|م2|م²)/);
-    return {
-      section: 'realestate',
-      specs: {
-        areaSqm: areaMatch ? Number(areaMatch[1]) : 200,
-        deedType: /طابو صرف/.test(text) ? 'طابو صرف' : /استثماري|مجمع/.test(text) ? 'سند استثماري' : 'طابو رسمي',
-        dealType: /ايجار|إيجار|للايجار/.test(text) ? 'إيجار' : 'بيع تمليك',
-        propertyType: /شقة/.test(text) ? 'شقة سكنية' : /ارض|أرض/.test(text) ? 'قطعة أرض' : 'دار سكنية'
-      }
-    };
-  }
-
-  return { section: 'products', specs: {} };
-}
-
-function detectGovFromText(rawText, fallbackGov = 'baghdad') {
-  const text = String(rawText || '').toLowerCase();
+function detectGovFromText(rawText) {
+  const text = normalizeForMatch(rawText);
   for (const [govKey, govObj] of Object.entries(IRAQ_GOV_KEYWORDS)) {
     for (const kw of govObj.keywords) {
-      if (text.includes(kw.toLowerCase())) {
+      if (hasTerm(text, kw)) {
         return { governorate: govKey, district: kw };
       }
     }
   }
-  return { governorate: fallbackGov, district: IRAQ_GOV_KEYWORDS[fallbackGov]?.name || 'المركز' };
-}
-
-function extractPhoneFromText(rawText) {
-  const text = normalizeDigits(rawText);
-  const match = text.match(/(07[5789]\d{8})/);
-  return match ? match[1] : '';
+  // لا نفترض محافظة المستخدم عند غياب أي دليل في النص
+  return null;
 }
 
 async function fetchRealProductThumbnail(query) {
@@ -202,103 +106,35 @@ async function fetchRealProductThumbnail(query) {
       html.match(/murl&quot;:&quot;(https?:\/\/[^&]+?\.(?:jpg|jpeg|png|webp))/i) ||
       html.match(/src="(https:\/\/tse\d\.mm\.bing\.net\/th\?id=[^"]+)"/i);
     if (murlMatch && murlMatch[1]) {
-      return decodeHtmlEntities(murlMatch[1]);
+      return safeHttpUrl(decodeHtmlEntities(murlMatch[1]));
     }
   } catch {}
   return null;
 }
 
-async function searchWebEngine(searchQuery, targetPlatform, fallbackGov) {
-  const results = [];
+async function fetchSearchResultsHtml(searchQuery) {
+  const encoded = encodeURIComponent(searchQuery);
+  const url = `https://search.yahoo.com/search?p=${encoded}&n=10`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept-Language': 'ar-IQ,ar;q=0.9,en;q=0.8'
+    },
+    signal: AbortSignal.timeout(6000)
+  });
+  if (!res.ok) throw new Error(`search provider HTTP ${res.status}`);
+  return res.text();
+}
+
+// مصدر تجريبي غير مضمون (كشط صفحة نتائج ياهو). انظر تقرير مزودي البيانات قبل الاعتماد عليه.
+async function searchWebEngine(searchQuery) {
   try {
-    const encoded = encodeURIComponent(searchQuery);
-    const url = `https://search.yahoo.com/search?p=${encoded}&n=10`;
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept-Language': 'ar-IQ,ar;q=0.9,en;q=0.8'
-      },
-      signal: AbortSignal.timeout(6000)
-    });
-    const html = await res.text();
-
-    const blocks = html.split(/class="[^"]*dd algo/i).slice(1, 9);
-    for (const block of blocks) {
-      const linkMatch = block.match(/href="([^"]+)"/i);
-      const titleMatch = block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
-      const snippetMatch = block.match(/class="[^"]*compText[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-
-      if (!linkMatch || !titleMatch) continue;
-
-      let realUrl = linkMatch[1];
-      const ruMatch = realUrl.match(/\/RU=([^/]+)\//);
-      if (ruMatch) {
-        try {
-          realUrl = decodeURIComponent(ruMatch[1]);
-        } catch {}
-      }
-
-      if (realUrl.includes('yahoo.com')) continue;
-
-      const cleanTitle = stripTags(titleMatch[1]).replace(/\s*-\s*(Facebook|Instagram|فيسبوك|انستغرام).*$/i, '').trim();
-      const cleanSnippet = snippetMatch ? stripTags(snippetMatch[1]) : cleanTitle;
-      if (!cleanTitle || cleanTitle.length < 4) continue;
-
-      const combinedText = `${cleanTitle} ${cleanSnippet}`;
-      const priceIQD = extractRealIraqiPrice(combinedText);
-      const { governorate, district } = detectGovFromText(combinedText, fallbackGov);
-      const phone = extractPhoneFromText(combinedText);
-      const { section, specs } = detectSectionAndSpecs(combinedText);
-
-      let platform = targetPlatform;
-      let storeName = 'متجر أو معرض عراقي';
-      try {
-        const parsedHost = new URL(realUrl).hostname.replace(/^www\./, '');
-        if (parsedHost.includes('facebook.com')) {
-          platform = 'facebook';
-          storeName = 'صفحة أو سوق فيسبوك العراق';
-        } else if (parsedHost.includes('instagram.com')) {
-          platform = 'instagram';
-          storeName = 'حساب انستغرام العراق';
-        } else {
-          platform = 'google';
-          if (parsedHost.includes('opensooq')) storeName = 'السوق المفتوح العراق (OpenSooq)';
-          else if (parsedHost.includes('miswag')) storeName = 'متجر مسواك العراقي (Miswag)';
-          else if (parsedHost.includes('elryan')) storeName = 'متجر الريان العراقي (Elryan)';
-          else if (parsedHost.includes('alnabaa')) storeName = 'شركة النبأ (Alnabaa)';
-          else storeName = `موقع ${parsedHost}`;
-        }
-      } catch {}
-
-      results.push({
-        id: `live-${platform}-${Buffer.from(realUrl).toString('base64').slice(0, 14)}`,
-        section,
-        specs,
-        title: cleanTitle.slice(0, 110),
-        category: section === 'cars' ? 'سيارات' : section === 'realestate' ? 'عقارات' : 'سلع وأجهزة',
-        keywords: [searchQuery],
-        platform,
-        storeName,
-        verified: true,
-        allowsInspection: true,
-        trustRating: 4.8,
-        reviewsCount: 14,
-        priceIQD,
-        deliveryLocalIQD: section === 'products' ? 4000 : 0,
-        deliveryNationalIQD: section === 'products' ? 7000 : 0,
-        governorate,
-        district,
-        delivery: section === 'cars' ? 'معاينة وفحص في المعرض' : section === 'realestate' ? 'معاينة موقعية وسند رسمي' : 'توصيل متوفر حسب المتجر',
-        phone: phone || 'داخل رابط العرض',
-        snippet: cleanSnippet.slice(0, 220),
-        directUrl: realUrl,
-        postedAgo: 'نتيجة مباشرة'
-      });
-    }
+    const html = await fetchSearchResultsHtml(searchQuery);
+    return { ok: true, results: parseYahooResults(html) };
   } catch (err) {
     console.error('Live search error:', err.message);
+    return { ok: false, results: [] };
   }
-  return results;
 }
 
 async function initNeonDatabase() {
@@ -342,6 +178,7 @@ async function initNeonDatabase() {
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS reviews_count INTEGER DEFAULT 15`;
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS delivery_local_iqd INTEGER DEFAULT 4000`;
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS delivery_national_iqd INTEGER DEFAULT 7000`;
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS direct_url TEXT`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS dalal_iraq_alerts (
@@ -399,11 +236,22 @@ app.get('/healthz', (_req, res) => {
   res.json({ status: 'ok', service: 'iraq-price-radar', neonConnected: Boolean(sql) });
 });
 
+app.get('/api/config', (_req, res) => {
+  res.json({
+    ...FEATURE_FLAGS,
+    liveSearchProvider: 'yahoo-html-experimental',
+    databaseConnected: Boolean(sql)
+  });
+});
+
 app.get('/api/live-search', async (req, res) => {
-  const query = String(req.query.q || '').trim();
-  const gov = String(req.query.gov || 'baghdad').trim();
-  const sectionHint = String(req.query.section || 'all').trim();
-  const govName = IRAQ_GOV_KEYWORDS[gov]?.name.split(' ')[0] || 'بغداد';
+  const query = cleanPlainText(req.query.q, 120);
+  const gov = IRAQ_GOV_KEYWORDS[String(req.query.gov || '')] ? String(req.query.gov) : 'baghdad';
+  const sectionRaw = String(req.query.section || 'all').trim();
+  const sectionHint = ['all', 'products', 'cars', 'realestate'].includes(sectionRaw) ? sectionRaw : 'all';
+  const rate100 = Number(req.query.rate);
+  const usdRate = rate100 >= 100000 && rate100 <= 300000 ? rate100 / 100 : 1500;
+  const govName = IRAQ_GOV_KEYWORDS[gov].name.split(' ')[0];
 
   if (!query) return res.json({ offers: [] });
 
@@ -413,235 +261,273 @@ app.get('/api/live-search', async (req, res) => {
 
   try {
     const [storeResults, fbResults, igResults, thumbnailUrl] = await Promise.all([
-      searchWebEngine(`${query} ${extraContext} ${govName}`, 'google', gov),
-      searchWebEngine(`site:facebook.com "${query}" العراق ${govName} السعر`, 'facebook', gov),
-      searchWebEngine(`site:instagram.com "${query}" العراق ${govName}`, 'instagram', gov),
+      searchWebEngine(`${query} ${extraContext} ${govName}`),
+      searchWebEngine(`site:facebook.com "${query}" العراق ${govName} السعر`),
+      searchWebEngine(`site:instagram.com "${query}" العراق ${govName}`),
       fetchRealProductThumbnail(query)
     ]);
 
-    const merged = [...storeResults, ...fbResults, ...igResults];
+    const merged = [...storeResults.results, ...fbResults.results, ...igResults.results];
     const seenUrls = new Set();
-    const queryWords = normalizeDigits(query.toLowerCase()).split(/\s+/).filter((w) => w.length >= 2);
-
     const uniqueOffers = [];
-    for (const item of merged) {
-      if (seenUrls.has(item.directUrl)) continue;
-      seenUrls.add(item.directUrl);
-
-      const textToCheck = normalizeDigits(`${item.title} ${item.snippet}`.toLowerCase());
-      const isRelevant = queryWords.length === 0 || queryWords.some((w) => textToCheck.includes(w));
-      if (!isRelevant) continue;
-
-      uniqueOffers.push({
-        ...item,
-        section: sectionHint !== 'all' ? sectionHint : item.section,
-        imageUrl: thumbnailUrl || null
-      });
+    for (const raw of merged) {
+      if (seenUrls.has(raw.url)) continue;
+      seenUrls.add(raw.url);
+      const offer = buildLiveOffer(raw, { query, sectionHint, detectGov: detectGovFromText, usdRate, thumbnailUrl });
+      if (offer) uniqueOffers.push(offer);
     }
 
     res.json({
       query,
       governorate: gov,
-      thumbnailUrl,
+      provider: 'yahoo-html-experimental',
+      providerOk: storeResults.ok || fbResults.ok || igResults.ok,
+      thumbnailUrl: safeHttpUrl(thumbnailUrl),
       offers: uniqueOffers
     });
   } catch (err) {
-    res.status(500).json({ error: err.message, offers: [] });
+    res.status(500).json({ error: 'live_search_failed', offers: [] });
   }
 });
 
+const ALLOWED_SECTIONS = ['products', 'cars', 'realestate'];
+const ALLOWED_PLATFORMS = ['facebook', 'instagram', 'google'];
+
+function sanitizeSpecs(specs) {
+  if (!specs || typeof specs !== 'object' || Array.isArray(specs)) return {};
+  const out = {};
+  for (const [k, v] of Object.entries(specs).slice(0, 12)) {
+    const key = cleanPlainText(k, 30);
+    if (!key) continue;
+    if (typeof v === 'number' && Number.isFinite(v)) out[key] = v;
+    else if (typeof v === 'string') out[key] = cleanPlainText(v, 80);
+  }
+  return out;
+}
+
+function toPositiveIntOrNull(value, max = 100_000_000_000) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 && n <= max ? Math.round(n) : null;
+}
+
+// التقييم يُحسب من جدول المراجعات الفعلية فقط، وليس من القيمة الافتراضية القديمة 4.8 في العمود trust_rating
 app.get('/api/offers', async (_req, res) => {
   if (!sql) return res.json({ source: 'memory', offers: [] });
   try {
     const rows = await sql`
       SELECT
-        COALESCE(external_id, 'db-' || id::text) AS id,
-        COALESCE(section, 'products') AS section,
-        COALESCE(specs, '{}'::jsonb) AS specs,
-        title,
-        category,
-        keywords,
-        image_url AS "imageUrl",
-        platform,
-        store_name AS "storeName",
-        verified,
-        COALESCE(allows_inspection, true) AS "allowsInspection",
-        COALESCE(trust_rating, 4.8)::float AS "trustRating",
-        COALESCE(reviews_count, 12) AS "reviewsCount",
-        price_iqd::bigint AS "priceIQD",
-        COALESCE(delivery_local_iqd, 4000) AS "deliveryLocalIQD",
-        COALESCE(delivery_national_iqd, 7000) AS "deliveryNationalIQD",
-        governorate,
-        district,
-        delivery,
-        phone,
-        snippet,
-        posted_ago AS "postedAgo"
-      FROM dalal_iraq_offers
-      ORDER BY created_at DESC
+        COALESCE(o.external_id, 'db-' || o.id::text) AS id,
+        COALESCE(o.section, 'products') AS section,
+        COALESCE(o.specs, '{}'::jsonb) AS specs,
+        o.title,
+        o.category,
+        o.keywords,
+        o.image_url AS "imageUrl",
+        o.platform,
+        o.store_name AS "storeName",
+        o.allows_inspection AS "allowsInspection",
+        r.avg_rating::float AS "trustRating",
+        COALESCE(r.review_count, 0)::int AS "reviewsCount",
+        o.price_iqd::bigint AS "priceIQD",
+        o.delivery_local_iqd AS "deliveryLocalIQD",
+        o.delivery_national_iqd AS "deliveryNationalIQD",
+        o.governorate,
+        o.district,
+        o.delivery,
+        o.phone,
+        o.snippet,
+        o.direct_url AS "directUrl",
+        o.created_at AS "postedAt"
+      FROM dalal_iraq_offers o
+      LEFT JOIN (
+        SELECT store_name, ROUND(AVG(rating)::numeric, 1) AS avg_rating, COUNT(*) AS review_count
+        FROM dalal_iraq_reviews
+        GROUP BY store_name
+      ) r ON r.store_name = o.store_name
+      ORDER BY o.created_at DESC
       LIMIT 100;
     `;
-    res.json({ source: 'neon', offers: rows.map((r) => ({ ...r, priceIQD: r.priceIQD ? Number(r.priceIQD) : null })) });
+    res.json({
+      source: 'neon',
+      offers: rows.map((r) => ({
+        ...r,
+        source: 'user',
+        verified: false,
+        priceIQD: r.priceIQD ? Number(r.priceIQD) : null,
+        directUrl: safeHttpUrl(r.directUrl),
+        imageUrl: safeHttpUrl(r.imageUrl),
+        phone: safeIraqiMobile(r.phone)
+      }))
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /api/offers failed:', err.message);
+    res.status(500).json({ error: 'offers_unavailable', offers: [] });
   }
 });
 
 app.post('/api/offers', async (req, res) => {
-  const {
-    section = 'products',
-    specs = {},
-    title,
-    category = 'عروض التجار',
-    keywords = [],
-    imageUrl = null,
-    platform = 'facebook',
-    storeName = 'متجر عراقي',
-    verified = true,
-    allowsInspection = true,
-    priceIQD = null,
-    deliveryLocalIQD = 4000,
-    deliveryNationalIQD = 7000,
-    governorate = 'baghdad',
-    district = 'المركز',
-    delivery = 'توصيل متوفر',
-    phone = '',
-    snippet = ''
-  } = req.body || {};
-
+  const body = req.body || {};
+  const title = cleanPlainText(body.title, 160);
   if (!title) return res.status(400).json({ error: 'Title is required' });
-  if (!sql) return res.status(201).json({ saved: false, source: 'memory' });
+
+  const section = ALLOWED_SECTIONS.includes(body.section) ? body.section : 'products';
+  const platform = ALLOWED_PLATFORMS.includes(body.platform) ? body.platform : 'facebook';
+  const governorate = IRAQ_GOV_KEYWORDS[body.governorate] ? body.governorate : 'baghdad';
+  const keywords = Array.isArray(body.keywords) ? body.keywords.slice(0, 40).map((k) => cleanPlainText(k, 40)).filter(Boolean) : [title];
+  const offer = {
+    section,
+    specs: sanitizeSpecs(body.specs),
+    title,
+    category: cleanPlainText(body.category, 60) || 'عروض التجار',
+    keywords,
+    imageUrl: safeHttpUrl(body.imageUrl),
+    directUrl: safeHttpUrl(body.directUrl),
+    platform,
+    storeName: cleanPlainText(body.storeName, 120) || 'معلن غير مسمى',
+    allowsInspection: Boolean(body.allowsInspection),
+    priceIQD: toPositiveIntOrNull(body.priceIQD),
+    deliveryLocalIQD: section === 'products' ? toPositiveIntOrNull(body.deliveryLocalIQD, 1_000_000) : null,
+    deliveryNationalIQD: section === 'products' ? toPositiveIntOrNull(body.deliveryNationalIQD, 1_000_000) : null,
+    governorate,
+    district: cleanPlainText(body.district, 80) || 'المركز',
+    delivery: cleanPlainText(body.delivery, 160),
+    phone: safeIraqiMobile(body.phone) || '',
+    snippet: cleanPlainText(body.snippet, 1000)
+  };
+
+  if (!sql) return res.status(503).json({ saved: false, source: 'memory', error: 'database_unavailable' });
 
   try {
-    const extId = `custom-${Date.now()}`;
+    const extId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // verified=false دائماً: العروض المضافة من المستخدمين لم يتحقق منها أحد
     const inserted = await sql`
       INSERT INTO dalal_iraq_offers (
         external_id, section, specs, title, category, keywords, image_url, platform, store_name,
-        verified, allows_inspection, price_iqd, delivery_local_iqd, delivery_national_iqd,
-        governorate, district, delivery, phone, snippet, posted_ago
+        verified, allows_inspection, trust_rating, reviews_count, price_iqd, delivery_local_iqd, delivery_national_iqd,
+        governorate, district, delivery, phone, snippet, direct_url, posted_ago
       ) VALUES (
-        ${extId}, ${section}, ${JSON.stringify(specs)}, ${title}, ${category},
-        ${Array.isArray(keywords) ? keywords : [title]},
-        ${imageUrl}, ${platform}, ${storeName}, ${verified}, ${Boolean(allowsInspection)},
-        ${priceIQD ? Number(priceIQD) : null}, ${Number(deliveryLocalIQD)}, ${Number(deliveryNationalIQD)},
-        ${governorate}, ${district}, ${delivery}, ${phone}, ${snippet}, 'أضيف الآن'
+        ${extId}, ${offer.section}, ${JSON.stringify(offer.specs)}, ${offer.title}, ${offer.category},
+        ${offer.keywords}, ${offer.imageUrl}, ${offer.platform}, ${offer.storeName}, false, ${offer.allowsInspection},
+        NULL, 0, ${offer.priceIQD}, ${offer.deliveryLocalIQD}, ${offer.deliveryNationalIQD},
+        ${offer.governorate}, ${offer.district}, ${offer.delivery}, ${offer.phone}, ${offer.snippet}, ${offer.directUrl}, NULL
       )
-      RETURNING
-        external_id AS id,
-        section,
-        specs,
-        title,
-        category,
-        keywords,
-        image_url AS "imageUrl",
-        platform,
-        store_name AS "storeName",
-        verified,
-        allows_inspection AS "allowsInspection",
-        trust_rating::float AS "trustRating",
-        reviews_count AS "reviewsCount",
-        price_iqd::bigint AS "priceIQD",
-        delivery_local_iqd AS "deliveryLocalIQD",
-        delivery_national_iqd AS "deliveryNationalIQD",
-        governorate,
-        district,
-        delivery,
-        phone,
-        snippet,
-        posted_ago AS "postedAgo";
+      RETURNING external_id AS id, created_at AS "postedAt";
     `;
     const row = inserted[0];
-    res.status(201).json({ saved: true, source: 'neon', offer: { ...row, priceIQD: row.priceIQD ? Number(row.priceIQD) : null } });
+    res.status(201).json({
+      saved: true,
+      source: 'neon',
+      offer: { ...offer, id: row.id, postedAt: row.postedAt, source: 'user', verified: false, trustRating: null, reviewsCount: 0 }
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('POST /api/offers failed:', err.message);
+    res.status(500).json({ error: 'offer_save_failed' });
   }
 });
 
-app.get('/api/alerts', async (_req, res) => {
-  if (!sql) return res.json({ alerts: [] });
+// التنبيهات: كل مستخدم يرى ويحذف تنبيهاته فقط عبر رقم هاتفه، ولا تُكشف أرقام الآخرين.
+app.get('/api/alerts', async (req, res) => {
+  const phone = safeIraqiMobile(normalizeDigits(String(req.query.phone || '')));
+  if (!phone) return res.json({ alerts: [], deliveryEnabled: FEATURE_FLAGS.alertsDeliveryEnabled });
+  if (!sql) return res.json({ alerts: [], deliveryEnabled: FEATURE_FLAGS.alertsDeliveryEnabled });
   try {
     const rows = await sql`
       SELECT id, keyword, target_price_iqd::bigint AS "targetPriceIQD", governorate,
              contact_phone AS "contactPhone", contact_channel AS "contactChannel", created_at AS "createdAt"
       FROM dalal_iraq_alerts
+      WHERE contact_phone = ${phone}
       ORDER BY created_at DESC
       LIMIT 30;
     `;
-    res.json({ alerts: rows.map((r) => ({ ...r, targetPriceIQD: Number(r.targetPriceIQD) })) });
+    res.json({ alerts: rows.map((r) => ({ ...r, targetPriceIQD: Number(r.targetPriceIQD) })), deliveryEnabled: FEATURE_FLAGS.alertsDeliveryEnabled });
   } catch (err) {
-    res.status(500).json({ error: err.message, alerts: [] });
+    console.error('GET /api/alerts failed:', err.message);
+    res.status(500).json({ error: 'alerts_unavailable', alerts: [] });
   }
 });
 
 app.post('/api/alerts', async (req, res) => {
+  if (!FEATURE_FLAGS.alertsDeliveryEnabled) {
+    return res.status(503).json({ saved: false, error: 'alerts_delivery_disabled' });
+  }
   const { keyword, targetPriceIQD, governorate = 'baghdad', contactPhone, contactChannel = 'whatsapp' } = req.body || {};
-  if (!keyword || !targetPriceIQD || !contactPhone) {
+  const cleanKeyword = cleanPlainText(keyword, 120);
+  const target = toPositiveIntOrNull(targetPriceIQD);
+  const phone = safeIraqiMobile(normalizeDigits(String(contactPhone || '')));
+  if (!cleanKeyword || !target || !phone) {
     return res.status(400).json({ error: 'Missing required alert fields' });
   }
-  if (!sql) return res.status(201).json({ saved: true });
+  if (!sql) return res.status(503).json({ saved: false, error: 'database_unavailable' });
   try {
     const rows = await sql`
       INSERT INTO dalal_iraq_alerts (keyword, target_price_iqd, governorate, contact_phone, contact_channel)
-      VALUES (${keyword}, ${Number(targetPriceIQD)}, ${governorate}, ${contactPhone}, ${contactChannel})
+      VALUES (${cleanKeyword}, ${target}, ${IRAQ_GOV_KEYWORDS[governorate] ? governorate : 'baghdad'}, ${phone},
+              ${contactChannel === 'telegram' ? 'telegram' : 'whatsapp'})
       RETURNING id, keyword, target_price_iqd::bigint AS "targetPriceIQD", governorate,
                 contact_phone AS "contactPhone", contact_channel AS "contactChannel";
     `;
     res.status(201).json({ saved: true, alert: rows[0] });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('POST /api/alerts failed:', err.message);
+    res.status(500).json({ error: 'alert_save_failed' });
   }
 });
 
 app.delete('/api/alerts/:id', async (req, res) => {
-  if (!sql) return res.json({ deleted: true });
+  const phone = safeIraqiMobile(normalizeDigits(String(req.query.phone || '')));
+  const id = toPositiveIntOrNull(req.params.id, 2_147_483_647);
+  if (!phone || !id) return res.status(400).json({ deleted: false, error: 'phone_and_id_required' });
+  if (!sql) return res.status(503).json({ deleted: false, error: 'database_unavailable' });
   try {
-    await sql`DELETE FROM dalal_iraq_alerts WHERE id = ${Number(req.params.id)}`;
-    res.json({ deleted: true });
+    const rows = await sql`DELETE FROM dalal_iraq_alerts WHERE id = ${id} AND contact_phone = ${phone} RETURNING id`;
+    res.json({ deleted: rows.length > 0 });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('DELETE /api/alerts failed:', err.message);
+    res.status(500).json({ error: 'alert_delete_failed' });
   }
 });
 
 app.get('/api/reviews', async (req, res) => {
   if (!sql) return res.json({ reviews: [] });
-  const storeName = req.query.store;
+  const storeName = cleanPlainText(req.query.store, 120);
   try {
     const rows = storeName
-      ? await sql`SELECT * FROM dalal_iraq_reviews WHERE store_name = ${String(storeName)} ORDER BY created_at DESC LIMIT 20`
-      : await sql`SELECT * FROM dalal_iraq_reviews ORDER BY created_at DESC LIMIT 30`;
+      ? await sql`SELECT id, store_name, platform, rating, allows_inspection, comment, reviewer_gov, created_at FROM dalal_iraq_reviews WHERE store_name = ${storeName} ORDER BY created_at DESC LIMIT 20`
+      : await sql`SELECT id, store_name, platform, rating, allows_inspection, comment, reviewer_gov, created_at FROM dalal_iraq_reviews ORDER BY created_at DESC LIMIT 30`;
     res.json({ reviews: rows });
   } catch (err) {
-    res.status(500).json({ error: err.message, reviews: [] });
+    console.error('GET /api/reviews failed:', err.message);
+    res.status(500).json({ error: 'reviews_unavailable', reviews: [] });
   }
 });
 
 app.post('/api/reviews', async (req, res) => {
   const { storeName, platform = 'facebook', rating = 5, allowsInspection = true, comment = '', reviewerGov = 'baghdad' } = req.body || {};
-  if (!storeName) return res.status(400).json({ error: 'Store name required' });
-  if (!sql) return res.status(201).json({ saved: true });
+  const cleanStore = cleanPlainText(storeName, 120);
+  const cleanRating = Math.round(Number(rating));
+  if (!cleanStore) return res.status(400).json({ error: 'Store name required' });
+  if (!(cleanRating >= 1 && cleanRating <= 5)) return res.status(400).json({ error: 'rating_must_be_1_to_5' });
+  if (!sql) return res.status(503).json({ saved: false, error: 'database_unavailable' });
   try {
     const inserted = await sql`
       INSERT INTO dalal_iraq_reviews (store_name, platform, rating, allows_inspection, comment, reviewer_gov)
-      VALUES (${storeName}, ${platform}, ${Number(rating)}, ${Boolean(allowsInspection)}, ${comment}, ${reviewerGov})
-      RETURNING *;
+      VALUES (${cleanStore}, ${ALLOWED_PLATFORMS.includes(platform) ? platform : 'facebook'}, ${cleanRating},
+              ${Boolean(allowsInspection)}, ${cleanPlainText(comment, 600)}, ${IRAQ_GOV_KEYWORDS[reviewerGov] ? reviewerGov : 'baghdad'})
+      RETURNING id, store_name, platform, rating, allows_inspection, comment, reviewer_gov, created_at;
     `;
     res.status(201).json({ saved: true, review: inserted[0] });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('POST /api/reviews failed:', err.message);
+    res.status(500).json({ error: 'review_save_failed' });
   }
 });
 
 app.get('/api/subscription-status', async (req, res) => {
   const cleanPhone = normalizeDigits(String(req.query.phone || '')).replace(/[^\d]/g, '');
   if (!cleanPhone) return res.json({ active: false });
-  if (!sql) {
-    return res.json({
-      active: true,
-      phone: cleanPhone,
-      daysRemaining: 30,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    });
-  }
+  // لا اشتراك وهمياً: بدون بوابة دفع مفعلة أو بدون قاعدة بيانات لا توجد عضوية فعالة
+  if (!FEATURE_FLAGS.paymentsEnabled) return res.json({ active: false, paymentsEnabled: false });
+  if (!sql) return res.json({ active: false, error: 'database_unavailable' });
   try {
     const rows = await sql`
       SELECT
@@ -670,31 +556,25 @@ app.get('/api/subscription-status', async (req, res) => {
       daysRemaining: sub.daysRemaining
     });
   } catch (err) {
-    return res.status(500).json({ active: false, error: err.message });
+    console.error('GET /api/subscription-status failed:', err.message);
+    return res.status(500).json({ active: false, error: 'subscription_status_unavailable' });
   }
 });
 
 app.post('/api/subscribe', async (req, res) => {
+  if (!FEATURE_FLAGS.paymentsEnabled) {
+    return res.status(503).json({ subscribed: false, error: 'payments_disabled' });
+  }
   const rawPhone = req.body?.phone || '';
-  const phone = normalizeDigits(String(rawPhone)).replace(/[^\d]/g, '');
+  const phone = safeIraqiMobile(normalizeDigits(String(rawPhone)));
   const { planType = 'shopper_1000_iqd', paymentMethod = 'zaincash' } = req.body || {};
   if (!phone) return res.status(400).json({ error: 'Phone number required' });
-  if (!sql) {
-    return res.status(201).json({
-      subscribed: true,
-      subscription: {
-        phone,
-        planType,
-        paymentMethod,
-        daysRemaining: 30,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    });
-  }
+  if (!sql) return res.status(503).json({ subscribed: false, error: 'database_unavailable' });
   try {
+    // تنبيه: لا يوجد هنا تحقق من إتمام الدفع. يجب ربط بوابة الدفع والتحقق من معاملتها قبل التفعيل.
     const rows = await sql`
       INSERT INTO dalal_iraq_subscriptions (phone, plan_type, payment_method, status, expires_at)
-      VALUES (${phone}, ${planType}, ${paymentMethod}, 'active', NOW() + INTERVAL '30 days')
+      VALUES (${phone}, ${cleanPlainText(planType, 40)}, ${cleanPlainText(paymentMethod, 40)}, 'active', NOW() + INTERVAL '30 days')
       ON CONFLICT (phone) DO UPDATE
       SET plan_type = EXCLUDED.plan_type,
           payment_method = EXCLUDED.payment_method,
@@ -709,7 +589,8 @@ app.post('/api/subscribe', async (req, res) => {
     `;
     res.status(201).json({ subscribed: true, subscription: rows[0] });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('POST /api/subscribe failed:', err.message);
+    res.status(500).json({ error: 'subscribe_failed' });
   }
 });
 
@@ -720,7 +601,7 @@ app.post('/api/searches', async (req, res) => {
   try {
     await sql`
       INSERT INTO dalal_iraq_searches (query, governorate, max_budget)
-      VALUES (${query}, ${governorate || 'baghdad'}, ${maxBudget ? Number(maxBudget) : null});
+      VALUES (${cleanPlainText(query, 120)}, ${IRAQ_GOV_KEYWORDS[governorate] ? governorate : 'baghdad'}, ${toPositiveIntOrNull(maxBudget)});
     `;
     res.json({ logged: true });
   } catch {
