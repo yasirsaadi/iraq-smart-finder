@@ -1,0 +1,20 @@
+{
+  "name": "iraq-smart-finder",
+  "version": "1.0.0",
+  "description": "Dalal Al-Iraq — Smart Price & Location Finder across Facebook, Instagram, and Google in all 18 Iraqi Governorates (Render + Neon Postgres)",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1"
+  }
+}
