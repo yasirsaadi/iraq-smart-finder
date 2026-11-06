@@ -15,188 +15,228 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// إعداد اتصال قاعدة بيانات نيون (Neon PostgreSQL)
 const databaseUrl = process.env.DATABASE_URL;
 const sql = databaseUrl ? neon(databaseUrl) : null;
 
-const SEED_OFFERS = [
-  {
-    external_id: 'ip15-1',
-    title: 'آيفون 15 برو ماكس 256 جيجا تيتانيوم طبيعي - ضمان وكالة',
-    category: 'موبايلات',
-    keywords: ['ايفون', 'آيفون', 'iphone', '15', 'برو ماكس', 'موبايل', 'ابل'],
-    emoji: '📱',
-    platform: 'facebook',
-    store_name: 'بيج كلكسي المنصور للموبايلات',
-    verified: true,
-    price_iqd: 1620000,
-    governorate: 'baghdad',
-    district: 'المنصور - شارع 14 رمضان',
-    delivery: 'توصيل بغداد 5,000 د.ع والمحافظات 8,000 د.ع',
-    phone: '07701122334',
-    snippet: 'عرض خاص اليوم فقط! آيفون 15 برو ماكس ذاكرة 256 جيجا نسخة الشرق الأوسط فيس تايم فعال، السعر 1,620,000 دينار عراقي فقط.',
-    posted_ago: 'منذ ساعتين'
-  },
-  {
-    external_id: 'ip15-2',
-    title: 'iPhone 15 Pro Max 256GB (جديد غير مفتوح مع كفر وشاحن أصلي هدية)',
-    category: 'موبايلات',
-    keywords: ['ايفون', 'آيفون', 'iphone', '15', 'برو ماكس', 'موبايل', 'ابل'],
-    emoji: '📱',
-    platform: 'instagram',
-    store_name: 'iStore.Erbil (آي ستور أربيل)',
-    verified: true,
-    price_iqd: 1585000,
-    governorate: 'erbil',
-    district: 'شارع 60 - مقابل القلعة',
-    delivery: 'شحن سريع لكافة محافظات العراق خلال 24 ساعة',
-    phone: '07504455667',
-    snippet: 'أرخص سعر بالعراق من آي ستور أربيل! 10 أوراق و55 دولار (1,585,000 د.ع) شامل شاحن أصلي وكفر ماك سيف.',
-    posted_ago: 'منذ 4 ساعات'
-  },
-  {
-    external_id: 'ip15-3',
-    title: 'أبل آيفون 15 برو ماكس 256 جيجابايت - ضمان رسمي سنة كاملة',
-    category: 'موبايلات',
-    keywords: ['ايفون', 'آيفون', 'iphone', '15', 'برو ماكس', 'موبايل', 'ابل'],
-    emoji: '📱',
-    platform: 'google',
-    store_name: 'متجر مسواك العراقي (Miswag.iq)',
-    verified: true,
-    price_iqd: 1690000,
-    governorate: 'baghdad',
-    district: 'الكرادة داخل - مستودع بغداد الرئيسي',
-    delivery: 'توصيل مجاني لجميع المحافظات',
-    phone: '6007',
-    snippet: 'متوفر الآن على موقع مسواك الرسمي مع إمكانية الدفع عند الاستلام وفحص الجهاز قبل الدفع.',
-    posted_ago: 'متوفر بالمخزن'
-  },
-  {
-    external_id: 'ip15-4',
-    title: 'آيفون 15 برو ماكس 256GB نظيف جداً بطارية 100% أخو الجديد',
-    category: 'موبايلات',
-    keywords: ['ايفون', 'آيفون', 'iphone', '15', 'برو ماكس', 'موبايل', 'ابل'],
-    emoji: '📱',
-    platform: 'facebook',
-    store_name: 'سوق البصرة المفتوح للموبايلات (ماركت بليس)',
-    verified: false,
-    price_iqd: 1475000,
-    governorate: 'basra',
-    district: 'البصرة - العشار',
-    delivery: 'استلام مباشر بالبصرة أو توصيل للمحافظات',
-    phone: '07809988776',
-    snippet: 'الجهاز استخدام أسبوعين فقط بطارية 100% عدد الشحنات 12 مرة، بالكارتون مالته السعر 1,475,000 د.ع نهائي.',
-    posted_ago: 'منذ 55 دقيقة'
-  },
-  {
-    external_id: 'ps5-1',
-    title: 'بلاي ستيشن 5 سليم (PS5 Slim CD) نسخة القرص 1 تيرا مع يدتين أصلية',
-    category: 'ألعاب',
-    keywords: ['بلاي', 'بلاي ستيشن', 'ps5', 'سوني', '5', 'سليم', 'العاب'],
-    emoji: '🎮',
-    platform: 'facebook',
-    store_name: 'بيج عالم الألعاب - بغداد الربيعي',
-    verified: true,
-    price_iqd: 695000,
-    governorate: 'baghdad',
-    district: 'زيونة - شارع الربيعي',
-    delivery: 'توصيل فوري بغداد 5,000 د.ع والمحافظات 10,000 د.ع',
-    phone: '07712345678',
-    snippet: 'عرض ناري! جهاز PS5 Slim نسخة الدسك 1 تيرابايت مع يدتين أصلية وضمان سنة بسعر 695 ألف دينار فقط.',
-    posted_ago: 'منذ 3 ساعات'
-  },
-  {
-    external_id: 'ps5-2',
-    title: 'Sony PlayStation 5 Slim Digital Edition - جديد بالكارتون',
-    category: 'ألعاب',
-    keywords: ['بلاي', 'بلاي ستيشن', 'ps5', 'سوني', '5', 'سليم', 'العاب'],
-    emoji: '🎮',
-    platform: 'instagram',
-    store_name: 'GamerZone.Najaf (كيمر زون النجف)',
-    verified: true,
-    price_iqd: 635000,
-    governorate: 'najaf',
-    district: 'النجف - شارع الروان',
-    delivery: 'توصيل الفرات الأوسط 5,000 د.ع وبغداد وباقي المحافظات',
-    phone: '07811223344',
-    snippet: 'نسخة الديجيتال سليم الجديدة 1 تيرا أرخص سعر بالعراق 635 ألف دينار فقط مع حساب ألعاب هدية.',
-    posted_ago: 'منذ ساعة'
-  },
-  {
-    external_id: 'ac-1',
-    title: 'سبلت جري (GREE) 2 طن انفرتر اقتصادي يسحب 6 أمبير فقط - أصلي',
-    category: 'أجهزة منزلية',
-    keywords: ['سبلت', 'جري', 'gree', 'تبريد', 'مكيف', '2 طن', 'انفرتر'],
-    emoji: '❄️',
-    platform: 'facebook',
-    store_name: 'معرض النهرين للأجهزة الكهربائية - الكرادة',
-    verified: true,
-    price_iqd: 845000,
-    governorate: 'baghdad',
-    district: 'الكرادة خارج - قرب المسرح الوطني',
-    delivery: 'توصيل مجاني داخل بغداد مع أنابيب نحاس 4 متر',
-    phone: '07722334455',
-    snippet: 'سبلت جري كفالة 5 سنوات على الضاغط، انفرتر يشتغل على المولدة 6 أمبير، السعر 845 ألف دينار.',
-    posted_ago: 'منذ 5 ساعات'
-  },
-  {
-    external_id: 'ac-2',
-    title: 'سبلت GREE 2 Ton تروبيكال يتحمل حرارة البصرة لغاية 65 درجة',
-    category: 'أجهزة منزلية',
-    keywords: ['سبلت', 'جري', 'gree', 'تبريد', 'مكيف', '2 طن', 'انفرتر'],
-    emoji: '❄️',
-    platform: 'instagram',
-    store_name: 'Basra.Cooling (البصرة للتبريد والأجهزة)',
-    verified: true,
-    price_iqd: 815000,
-    governorate: 'basra',
-    district: 'البصرة - الجزائر',
-    delivery: 'توصيل وتنصيب داخل البصرة والمحافظات الجنوبية',
-    phone: '07822334499',
-    snippet: 'عرض الصيف من معرض البصرة للتبريد! سبلت جري 2 طن أصلي بسعر الجملة 815,000 د.ع فقط.',
-    posted_ago: 'منذ 3 ساعات'
-  },
-  {
-    external_id: 'lap-1',
-    title: 'لابتوب Lenovo LOQ 15 للألعاب والهندسة Core i7 الجيل 13 + RTX 4050',
-    category: 'لابتوبات',
-    keywords: ['لابتوب', 'لينوفو', 'lenovo', 'loq', 'حاسبة', 'كمبيوتر', 'كيمينج'],
-    emoji: '💻',
-    platform: 'google',
-    store_name: 'شركة النبأ للحاسبات - شارع الصناعة (Alnabaa.com)',
-    verified: true,
-    price_iqd: 1125000,
-    governorate: 'baghdad',
-    district: 'بغداد - شارع الصناعة مقابل الجامعة التكنولوجية',
-    delivery: 'توصيل مجاني لجميع محافظات العراق مع جنطة وماوس هدية',
-    phone: '07700011122',
-    snippet: 'رام 16GB DDR5، هارد 512GB NVMe، كارت شاشة RTX 4050 6GB، شاشة 144Hz ضمان سنة كاملة.',
-    posted_ago: 'متوفر بالموقع'
-  },
-  {
-    external_id: 'lap-2',
-    title: 'Lenovo LOQ Gaming i7-13620H / RTX 4050 - عرض خاص لطلاب الجامعات',
-    category: 'لابتوبات',
-    keywords: ['لابتوب', 'لينوفو', 'lenovo', 'loq', 'حاسبة', 'كمبيوتر', 'كيمينج'],
-    emoji: '💻',
-    platform: 'facebook',
-    store_name: 'مكتب الموصل تكنولوجي للحاسبات',
-    verified: true,
-    price_iqd: 1080000,
-    governorate: 'nineveh',
-    district: 'الموصل - المجموعة الثقافية',
-    delivery: 'توصيل داخل الموصل وأربيل وكركوك وبغداد 5,000 د.ع',
-    phone: '07733445566',
-    snippet: 'أرخص سعر بالعراق لطلاب الهندسة والمصممين! 7 أوراق و20 دولار (1,080,000 د.ع) جديد بالكارتون.',
-    posted_ago: 'منذ ساعتين'
+const IRAQ_GOV_KEYWORDS = {
+  baghdad: { name: 'بغداد', keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي', 'baghdad'] },
+  basra: { name: 'البصرة', keywords: ['البصرة', 'بصرة', 'العشار', 'الجزائر', 'الجبيلة', 'الزبير', 'basra'] },
+  erbil: { name: 'أربيل', keywords: ['أربيل', 'اربيل', 'عنكاوة', 'erbil', 'hawler'] },
+  nineveh: { name: 'نينوى (الموصل)', keywords: ['الموصل', 'موصل', 'نينوى', 'mosul'] },
+  najaf: { name: 'النجف الأشرف', keywords: ['النجف', 'نجف', 'الكوفة', 'najaf'] },
+  karbala: { name: 'كربلاء المقدسة', keywords: ['كربلاء', 'حي الحسين', 'karbala'] },
+  sulaymaniyah: { name: 'السليمانية', keywords: ['السليمانية', 'سليمانية', 'sulaymaniyah', 'slemani'] },
+  dhiqar: { name: 'ذي قار (الناصرية)', keywords: ['الناصرية', 'ذي قار', 'nasiriyah'] },
+  babil: { name: 'بابل (الحلة)', keywords: ['بابل', 'الحلة', 'حلة', 'babil', 'hillah'] },
+  kirkuk: { name: 'كركوك', keywords: ['كركوك', 'kirkuk'] },
+  anbar: { name: 'الأنبار (الرمادي)', keywords: ['الأنبار', 'الانبار', 'الرمادي', 'الفلوجة', 'anbar'] },
+  diyala: { name: 'ديالى (بعقوبة)', keywords: ['ديالى', 'بعقوبة', 'diyala'] },
+  wasit: { name: 'واسط (الكوت)', keywords: ['واسط', 'الكوت', 'كوت', 'wasit'] },
+  salahaddin: { name: 'صلاح الدين (تكريت)', keywords: ['صلاح الدين', 'تكريت', 'سامراء'] },
+  maysan: { name: 'ميسان (العمارة)', keywords: ['ميسان', 'العمارة', 'maysan'] },
+  qadisiyah: { name: 'القادسية (الديوانية)', keywords: ['الديوانية', 'القادسية'] },
+  muthanna: { name: 'المثنى (السماوة)', keywords: ['السماوة', 'المثنى'] },
+  duhok: { name: 'دهوك', keywords: ['دهوك', 'زاخو', 'duhok'] }
+};
+
+function normalizeDigits(str) {
+  return String(str || '')
+    .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+}
+
+function decodeHtmlEntities(str) {
+  return String(str || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#x([0-9A-Fa-f]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+}
+
+function stripTags(html) {
+  return decodeHtmlEntities(String(html || '').replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// استخراج دقيق للسعر الحقيقي فقط إذا كان مذكوراً بعملة أو صيغة سعر واضحة
+function extractRealIraqiPrice(rawText, ratePer1USD = 1500) {
+  const text = normalizeDigits(rawText);
+
+  // 1. صيغة الدفتر والورقة
+  const daftarMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:دفتر|دفاتر)/);
+  if (daftarMatch) {
+    const val = parseFloat(daftarMatch[1]);
+    if (val > 0 && val < 50) return Math.round(val * 10000 * ratePer1USD);
   }
-];
+
+  if (text.includes('ورقتين')) return Math.round(200 * ratePer1USD);
+  if (text.includes('ورقة ونص')) return Math.round(150 * ratePer1USD);
+
+  const warqaMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:ورقة|ورقات|اوراق|أوراق)/);
+  if (warqaMatch) {
+    const val = parseFloat(warqaMatch[1]);
+    if (val > 0 && val < 100) return Math.round(val * 100 * ratePer1USD);
+  }
+
+  // 2. صيغة الدينار العراقي الصريحة (مثل: 25,000 د.ع أو 15000 دينار أو IQD 25,000)
+  const iqdDirect = text.match(/(\d{1,3}(?:,\d{3})+|\d{4,9})\s*(?:د\.ع|دينار|دع|IQD)/i) ||
+                    text.match(/(?:IQD|د\.ع|السعر)\s*:?\s*(\d{1,3}(?:,\d{3})+|\d{4,9})/i);
+  if (iqdDirect) {
+    const num = parseFloat(iqdDirect[1].replace(/,/g, ''));
+    if (num >= 500 && num <= 500000000) return Math.round(num);
+  }
+
+  // 3. صيغة الكسور والألوف العراقية (مثل: 15 الف، 25 ألف دينار، بـ 10 آلاف)
+  const alfMatch = text.match(/(?:السعر|سعر|بـ|ب|فقط)?\s*(\d{1,4}(?:\.\d+)?)\s*(?:الف|ألف|الاف|آلاف)/);
+  if (alfMatch) {
+    const num = parseFloat(alfMatch[1]);
+    if (num >= 1 && num <= 9999) return Math.round(num * 1000);
+  }
+
+  // 4. صيغة الدولار الصريحة ($50 أو 50 دولار)
+  const usdMatch = text.match(/(?:\$\s*(\d{1,5}(?:\.\d+)?)|(\d{1,5}(?:\.\d+)?)\s*(?:\$|دولار|USD))/i);
+  if (usdMatch) {
+    const usd = parseFloat(usdMatch[1] || usdMatch[2]);
+    if (usd >= 1 && usd <= 100000) return Math.round(usd * ratePer1USD);
+  }
+
+  return null;
+}
+
+function detectGovFromText(rawText, fallbackGov = 'baghdad') {
+  const text = String(rawText || '').toLowerCase();
+  for (const [govKey, govObj] of Object.entries(IRAQ_GOV_KEYWORDS)) {
+    for (const kw of govObj.keywords) {
+      if (text.includes(kw.toLowerCase())) {
+        return { governorate: govKey, district: kw };
+      }
+    }
+  }
+  return { governorate: fallbackGov, district: IRAQ_GOV_KEYWORDS[fallbackGov]?.name || 'المركز' };
+}
+
+function extractPhoneFromText(rawText) {
+  const text = normalizeDigits(rawText);
+  const match = text.match(/(07[5789]\d{8})/);
+  return match ? match[1] : '';
+}
+
+// جلب صورة حقيقية للمنتج المبحوث عنه من محرك صور بينج
+async function fetchRealProductThumbnail(query) {
+  try {
+    const url = `https://www.bing.com/images/search?q=${encodeURIComponent(query + ' منتج')}&first=1`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'ar,en;q=0.9'
+      },
+      signal: AbortSignal.timeout(4500)
+    });
+    const html = await res.text();
+    const murlMatch = html.match(/murl&quot;:&quot;(https?:\/\/[^&]+?\.(?:jpg|jpeg|png|webp))/i) ||
+                      html.match(/src="(https:\/\/tse\d\.mm\.bing\.net\/th\?id=[^"]+)"/i);
+    if (murlMatch && murlMatch[1]) {
+      return decodeHtmlEntities(murlMatch[1]);
+    }
+  } catch {}
+  return null;
+}
+
+// البحث الحي في الويب عبر محرك ياهو ودك دك جو لاستخراج النتائج الحقيقية
+async function searchWebEngine(searchQuery, targetPlatform, fallbackGov) {
+  const results = [];
+  try {
+    const encoded = encodeURIComponent(searchQuery);
+    const url = `https://search.yahoo.com/search?p=${encoded}&n=10`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'ar-IQ,ar;q=0.9,en;q=0.8'
+      },
+      signal: AbortSignal.timeout(6000)
+    });
+    const html = await res.text();
+
+    // استخراج كتل النتائج من صفحة البحث
+    const blocks = html.split(/class="[^"]*dd algo/i).slice(1, 9);
+    for (const block of blocks) {
+      const linkMatch = block.match(/href="([^"]+)"/i);
+      const titleMatch = block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
+      const snippetMatch = block.match(/class="[^"]*compText[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+
+      if (!linkMatch || !titleMatch) continue;
+
+      let realUrl = linkMatch[1];
+      const ruMatch = realUrl.match(/\/RU=([^/]+)\//);
+      if (ruMatch) {
+        try {
+          realUrl = decodeURIComponent(ruMatch[1]);
+        } catch {}
+      }
+
+      if (realUrl.includes('yahoo.com')) continue;
+
+      const cleanTitle = stripTags(titleMatch[1]).replace(/\s*-\s*(Facebook|Instagram|فيسبوك|انستغرام).*$/i, '').trim();
+      const cleanSnippet = snippetMatch ? stripTags(snippetMatch[1]) : cleanTitle;
+      if (!cleanTitle || cleanTitle.length < 4) continue;
+
+      const combinedText = `${cleanTitle} ${cleanSnippet}`;
+      const priceIQD = extractRealIraqiPrice(combinedText);
+      const { governorate, district } = detectGovFromText(combinedText, fallbackGov);
+      const phone = extractPhoneFromText(combinedText);
+
+      // تحديد المنصة واسم المتجر من الرابط
+      let platform = targetPlatform;
+      let storeName = 'متجر عراقي';
+      try {
+        const parsedHost = new URL(realUrl).hostname.replace(/^www\./, '');
+        if (parsedHost.includes('facebook.com')) {
+          platform = 'facebook';
+          storeName = 'صفحة أو سوق فيسبوك العراق';
+        } else if (parsedHost.includes('instagram.com')) {
+          platform = 'instagram';
+          storeName = 'حساب متجر انستغرام العراق';
+        } else {
+          platform = 'google';
+          if (parsedHost.includes('opensooq')) storeName = 'السوق المفتوح العراق (OpenSooq)';
+          else if (parsedHost.includes('miswag')) storeName = 'متجر مسواك العراقي (Miswag)';
+          else if (parsedHost.includes('elryan')) storeName = 'متجر الريان العراقي (Elryan)';
+          else if (parsedHost.includes('alnabaa')) storeName = 'شركة النبأ (Alnabaa)';
+          else storeName = `موقع ${parsedHost}`;
+        }
+      } catch {}
+
+      results.push({
+        id: `live-${platform}-${Buffer.from(realUrl).toString('base64').slice(0, 14)}`,
+        title: cleanTitle.slice(0, 110),
+        category: 'نتيجة بحث حية',
+        keywords: [searchQuery],
+        platform,
+        storeName,
+        verified: true,
+        priceIQD, // قد يكون رقماً حقيقياً أو null إذا لم يذكر السعر في المقتطف
+        governorate,
+        district,
+        delivery: 'حسب سياسة البائع في الرابط الأصلي',
+        phone: phone || 'داخل رابط العرض',
+        snippet: cleanSnippet.slice(0, 220),
+        directUrl: realUrl,
+        postedAgo: 'نتيجة مباشرة'
+      });
+    }
+  } catch (err) {
+    console.error('Live search error:', err.message);
+  }
+  return results;
+}
 
 async function initNeonDatabase() {
-  if (!sql) {
-    console.log('ℹ️ DATABASE_URL not set — running with in-memory fallback.');
-    return;
-  }
+  if (!sql) return;
   try {
     await sql`
       CREATE TABLE IF NOT EXISTS dalal_iraq_offers (
@@ -205,20 +245,24 @@ async function initNeonDatabase() {
         title TEXT NOT NULL,
         category TEXT DEFAULT 'عام',
         keywords TEXT[] DEFAULT '{}',
-        emoji TEXT DEFAULT '🛍️',
+        image_url TEXT,
         platform TEXT NOT NULL,
         store_name TEXT NOT NULL,
         verified BOOLEAN DEFAULT true,
-        price_iqd INTEGER NOT NULL,
+        price_iqd INTEGER,
         governorate TEXT NOT NULL,
         district TEXT DEFAULT 'المركز',
         delivery TEXT DEFAULT 'توصيل متوفر',
         phone TEXT DEFAULT '',
         snippet TEXT DEFAULT '',
+        direct_url TEXT,
         posted_ago TEXT DEFAULT 'حديثاً',
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `;
+
+    // تنظيف أي بطاقات قديمة كانت بدون رابط حقيقي أو مولدة بقالب وهمي
+    await sql`DELETE FROM dalal_iraq_offers WHERE external_id LIKE 'dyn-%'`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS dalal_iraq_searches (
@@ -229,46 +273,69 @@ async function initNeonDatabase() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `;
-
-    const existing = await sql`SELECT COUNT(*)::int AS count FROM dalal_iraq_offers`;
-    if (existing[0].count === 0) {
-      for (const item of SEED_OFFERS) {
-        await sql`
-          INSERT INTO dalal_iraq_offers (
-            external_id, title, category, keywords, emoji, platform, store_name,
-            verified, price_iqd, governorate, district, delivery, phone, snippet, posted_ago
-          ) VALUES (
-            ${item.external_id}, ${item.title}, ${item.category}, ${item.keywords},
-            ${item.emoji}, ${item.platform}, ${item.store_name}, ${item.verified},
-            ${item.price_iqd}, ${item.governorate}, ${item.district}, ${item.delivery},
-            ${item.phone}, ${item.snippet}, ${item.posted_ago}
-          )
-          ON CONFLICT (external_id) DO NOTHING;
-        `;
-      }
-      console.log('✅ Seeded Neon database with initial Iraqi offers.');
-    } else {
-      console.log(`✅ Connected to Neon PostgreSQL (${existing[0].count} offers stored).`);
-    }
   } catch (err) {
-    console.error('⚠️ Neon DB initialization warning:', err.message);
+    console.error('Neon DB initialization warning:', err.message);
   }
 }
 
-// نقطة فحص صحة الخادم لمنصة Render
-app.get('/healthz', async (_req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'iraq-smart-finder',
-    neonConnected: Boolean(sql)
-  });
+app.get('/healthz', (_req, res) => {
+  res.json({ status: 'ok', service: 'iraq-smart-finder', neonConnected: Boolean(sql) });
 });
 
-// جلب جميع العروض من قاعدة بيانات نيون
-app.get('/api/offers', async (_req, res) => {
-  if (!sql) {
-    return res.json({ source: 'memory', offers: [] });
+// البحث الحي الفعلي في فيسبوك وانستغرام ومتاجر العراق عبر الإنترنت
+app.get('/api/live-search', async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  const gov = String(req.query.gov || 'baghdad').trim();
+  const govName = IRAQ_GOV_KEYWORDS[gov]?.name.split(' ')[0] || 'بغداد';
+
+  if (!query) {
+    return res.json({ offers: [] });
   }
+
+  try {
+    // تشغيل 3 عمليات بحث حية متوازية (متاجر العراق + فيسبوك العراق + انستغرام العراق) مع جلب صورة حقيقية للمنتج
+    const [storeResults, fbResults, igResults, thumbnailUrl] = await Promise.all([
+      searchWebEngine(`${query} السعر في العراق دينار OR د.ع ${govName}`, 'google', gov),
+      searchWebEngine(`site:facebook.com "${query}" العراق السعر ${govName}`, 'facebook', gov),
+      searchWebEngine(`site:instagram.com "${query}" العراق السعر OR توصيل`, 'instagram', gov),
+      fetchRealProductThumbnail(query)
+    ]);
+
+    const merged = [...storeResults, ...fbResults, ...igResults];
+
+    // إزالة التكرار بالروابط والتأكد من صلة النتيجة بالبحث
+    const seenUrls = new Set();
+    const queryWords = normalizeDigits(query.toLowerCase()).split(/\s+/).filter((w) => w.length >= 2);
+
+    const uniqueOffers = [];
+    for (const item of merged) {
+      if (seenUrls.has(item.directUrl)) continue;
+      seenUrls.add(item.directUrl);
+
+      const textToCheck = normalizeDigits(`${item.title} ${item.snippet}`.toLowerCase());
+      // التأكد من أن النتيجة تحتوي على الأقل على كلمة أساسية من كلمات البحث
+      const isRelevant = queryWords.length === 0 || queryWords.some((w) => textToCheck.includes(w));
+      if (!isRelevant) continue;
+
+      uniqueOffers.push({
+        ...item,
+        imageUrl: thumbnailUrl || null
+      });
+    }
+
+    res.json({
+      query,
+      governorate: gov,
+      thumbnailUrl,
+      offers: uniqueOffers
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message, offers: [] });
+  }
+});
+
+app.get('/api/offers', async (_req, res) => {
+  if (!sql) return res.json({ source: 'memory', offers: [] });
   try {
     const rows = await sql`
       SELECT
@@ -276,7 +343,6 @@ app.get('/api/offers', async (_req, res) => {
         title,
         category,
         keywords,
-        emoji,
         platform,
         store_name AS "storeName",
         verified,
@@ -288,7 +354,8 @@ app.get('/api/offers', async (_req, res) => {
         snippet,
         posted_ago AS "postedAgo"
       FROM dalal_iraq_offers
-      ORDER BY created_at DESC;
+      ORDER BY created_at DESC
+      LIMIT 60;
     `;
     res.json({ source: 'neon', offers: rows });
   } catch (err) {
@@ -296,17 +363,15 @@ app.get('/api/offers', async (_req, res) => {
   }
 });
 
-// حفظ عرض جديد أو منشور محلل في قاعدة بيانات نيون
 app.post('/api/offers', async (req, res) => {
   const {
     title,
     category = 'منشور مضاف',
     keywords = [],
-    emoji = '🛍️',
     platform = 'facebook',
     storeName = 'متجر عراقي',
     verified = true,
-    priceIQD = 100000,
+    priceIQD = null,
     governorate = 'baghdad',
     district = 'المركز',
     delivery = 'توصيل متوفر',
@@ -314,23 +379,18 @@ app.post('/api/offers', async (req, res) => {
     snippet = ''
   } = req.body || {};
 
-  if (!title) {
-    return res.status(400).json({ error: 'Title is required' });
-  }
-
-  if (!sql) {
-    return res.status(201).json({ saved: false, source: 'memory' });
-  }
+  if (!title) return res.status(400).json({ error: 'Title is required' });
+  if (!sql) return res.status(201).json({ saved: false, source: 'memory' });
 
   try {
     const extId = `custom-${Date.now()}`;
     const inserted = await sql`
       INSERT INTO dalal_iraq_offers (
-        external_id, title, category, keywords, emoji, platform, store_name,
+        external_id, title, category, keywords, platform, store_name,
         verified, price_iqd, governorate, district, delivery, phone, snippet, posted_ago
       ) VALUES (
         ${extId}, ${title}, ${category}, ${Array.isArray(keywords) ? keywords : [title]},
-        ${emoji}, ${platform}, ${storeName}, ${verified}, ${Number(priceIQD)},
+        ${platform}, ${storeName}, ${verified}, ${priceIQD ? Number(priceIQD) : null},
         ${governorate}, ${district}, ${delivery}, ${phone}, ${snippet}, 'أضيف الآن'
       )
       RETURNING
@@ -338,7 +398,6 @@ app.post('/api/offers', async (req, res) => {
         title,
         category,
         keywords,
-        emoji,
         platform,
         store_name AS "storeName",
         verified,
@@ -356,7 +415,6 @@ app.post('/api/offers', async (req, res) => {
   }
 });
 
-// تسجيل عمليات البحث في نيون لمعرفة أكثر المنتجات طلباً في كل محافظة
 app.post('/api/searches', async (req, res) => {
   if (!sql) return res.json({ logged: false });
   const { query, governorate, maxBudget } = req.body || {};
@@ -378,6 +436,6 @@ app.get('*', (_req, res) => {
 
 initNeonDatabase().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Dalal Al-Iraq running on http://localhost:${PORT}`);
+    console.log(`Dalal Al-Iraq server running on http://localhost:${PORT}`);
   });
 });
