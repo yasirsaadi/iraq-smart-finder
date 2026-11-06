@@ -200,6 +200,213 @@ const INITIAL_OFFERS = [
     snippet: 'جيتور داشينغ 2024 فول مواصفات شاشة عملاقة وبانوراما زيرو رقم بغداد، السعر دفتر و95 ورقة (29,250,000 د.ع).',
     postedAgo: 'منذ ساعة'
   },
+  {
+    id: 'car-nissan-1',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم بغداد', origin: 'خليجي وكالة', brand: 'نيسان' },
+    title: 'نيسان سني 2024 خليجي زيرو الشكل الجديد كاملة المواصفات رقم بغداد',
+    category: 'سيارات',
+    keywords: ['سيارة', 'نيسان', 'سني', '2024', 'خليجي', 'زيرو'],
+    platform: 'facebook',
+    storeName: 'معرض الرصافة للسيارات الحديثة - النهضة',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 37,
+    priceIQD: 24750000, // دفتر و65 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - معارض النهضة',
+    delivery: 'ترقيم بغداد جاهز وفحص كامل في المعرض',
+    phone: '07703344112',
+    snippet: 'نيسان سني 2024 زيرو خليجي شاشة وكاميرا وحساسات، السعر دفتر و65 ورقة (24,750,000 د.ع).',
+    postedAgo: 'منذ ساعتين'
+  },
+  {
+    id: 'car-chevy-1',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم بغداد', origin: 'خليجي وكالة', brand: 'شيفروليه' },
+    title: 'شيفروليه تاهو (Tahoe RST) 2024 زيرو وكالة المنصور رقم بغداد',
+    category: 'سيارات',
+    keywords: ['سيارة', 'شيفروليه', 'تاهو', '2024', 'خليجي', 'زيرو'],
+    platform: 'instagram',
+    storeName: 'معرض المنصور للسيارات الأمريكية - بغداد',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 48,
+    priceIQD: 108000000, // 7 دفاتر و20 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - المنصور',
+    delivery: 'ضمان الوكالة الرسمي • تحويل سنوية فوري',
+    phone: '07809911223',
+    snippet: 'شيفروليه تاهو 2024 فئة RST زيرو مكفولة كفالة عامة، السعر 7 دفاتر و20 ورقة (108,000,000 د.ع).',
+    postedAgo: 'منذ 3 ساعات'
+  },
+  {
+    id: 'car-jeep-1',
+    section: 'cars',
+    specs: { year: '2023', mileage: '14,000 كم', plate: 'رقم أربيل', origin: 'وارد أمريكي', brand: 'جيب' },
+    title: 'جيب غراند شيروكي ليمتد 2023 الشكل الجديد وارد أمريكي كلين',
+    category: 'سيارات',
+    keywords: ['سيارة', 'جيب', 'شيروكي', '2023', 'وارد أمريكي'],
+    platform: 'facebook',
+    storeName: 'معرض أربيل للسيارات الأمريكية',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 29,
+    priceIQD: 57000000, // 3 دفاتر و80 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'erbil',
+    district: 'أربيل - معارض شارع 100',
+    delivery: 'فحص سونار وكارفاكس كامل • وكالة عامة لكافة المحافظات',
+    phone: '07504411889',
+    snippet: 'جيب غراند شيروكي 2023 ليمتد بانوراما فورويل نظيفة جداً، السعر 3 دفاتر و80 ورقة (57,000,000 د.ع).',
+    postedAgo: 'منذ 4 ساعات'
+  },
+  {
+    id: 'car-dodge-1',
+    section: 'cars',
+    specs: { year: '2022', mileage: '22,000 كم', plate: 'رقم بغداد', origin: 'وارد أمريكي', brand: 'دوج' },
+    title: 'دوج تشارجر GT 2022 وارد أمريكي بدون صبغ رقم بغداد ألماني',
+    category: 'سيارات',
+    keywords: ['سيارة', 'دوج', 'تشارجر', '2022', 'وارد أمريكي'],
+    platform: 'facebook',
+    storeName: 'معرض البياع للسيارات الرياضية',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 33,
+    priceIQD: 39000000, // دفترين و60 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - معارض البياع',
+    delivery: 'فحص كمبيوتر وسونار • تحويل فوري',
+    phone: '07716655443',
+    snippet: 'دوج تشارجر GT موديل 2022 كلين تايتل كشنات جلد وفتحة سقف، السعر دفترين و60 ورقة (39,000,000 د.ع).',
+    postedAgo: 'منذ ساعتين'
+  },
+  {
+    id: 'car-changan-1',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم البصرة', origin: 'خليجي وكالة', brand: 'شانجان' },
+    title: 'شانجان يوني كي (Changan UNI-K) 2024 زيرو خليجي ضمان الوكالة',
+    category: 'سيارات',
+    keywords: ['سيارة', 'شانجان', 'يوني كي', '2024', 'خليجي', 'زيرو'],
+    platform: 'instagram',
+    storeName: 'معرض البصرة الدولي للسيارات الحديثة',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 44,
+    priceIQD: 43500000, // دفترين و90 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'basra',
+    district: 'البصرة - العشار',
+    delivery: 'شامل الضمان الرسمي 6 سنوات واللوحات',
+    phone: '07805544331',
+    snippet: 'شانجان يوني كي 2024 زيرو دفع رباعي فول مواصفات، السعر دفترين و90 ورقة (43,500,000 د.ع).',
+    postedAgo: 'منذ 3 ساعات'
+  },
+  {
+    id: 'car-mg-1',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم بغداد', origin: 'خليجي وكالة', brand: 'ام جي' },
+    title: 'إم جي جي تي (MG GT) 2024 تيربو زيرو وكالة العراق مع اللوحات',
+    category: 'سيارات',
+    keywords: ['سيارة', 'ام جي', 'إم جي', 'mg', '2024', 'خليجي', 'زيرو'],
+    platform: 'google',
+    storeName: 'وكالة إم جي العراق - بغداد',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 51,
+    priceIQD: 25500000, // دفتر و70 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - الكرادة',
+    delivery: 'ضمان الوكالة 6 سنوات أو 200 ألف كم',
+    phone: '07709988114',
+    snippet: 'سيارة MG GT موديل 2024 زيرو رياضية فول مواصفات، السعر دفتر و70 ورقة (25,500,000 د.ع).',
+    postedAgo: 'متوفر الآن'
+  },
+  {
+    id: 'car-chery-1',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم بغداد', origin: 'خليجي وكالة', brand: 'شيري' },
+    title: 'شيري تيجو 8 برو ماكس (Chery Tiggo 8 Pro) 2024 سبعة راكب زيرو',
+    category: 'سيارات',
+    keywords: ['سيارة', 'شيري', 'تيجو', '2024', 'خليجي', 'زيرو'],
+    platform: 'facebook',
+    storeName: 'معرض النخبة للسيارات - بغداد',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 38,
+    priceIQD: 33000000, // دفترين و20 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - معارض النهضة',
+    delivery: 'مرقمة جاهزة مع ضمان الوكالة 5 سنوات',
+    phone: '07721133445',
+    snippet: 'شيري تيجو 8 برو 2024 زيرو عائلية 7 راكب بانوراما، السعر دفترين و20 ورقة (33,000,000 د.ع).',
+    postedAgo: 'منذ ساعتين'
+  },
+  {
+    id: 'car-mercedes-1',
+    section: 'cars',
+    specs: { year: '2023', mileage: '9,000 كم', plate: 'رقم أربيل', origin: 'خليجي وكالة', brand: 'مرسيدس' },
+    title: 'مرسيدس بنز E200 AMG 2023 خليجي صبغ وكالة بحالة الزيرو',
+    category: 'سيارات',
+    keywords: ['سيارة', 'مرسيدس', 'بنز', 'e200', '2023', 'خليجي'],
+    platform: 'instagram',
+    storeName: 'معرض رويال موتورز - أربيل',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 5.0,
+    reviewsCount: 62,
+    priceIQD: 87000000, // 5 دفاتر و80 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'erbil',
+    district: 'أربيل - شارع 100',
+    delivery: 'كفالة عامة وفحص شركة مرسيدس',
+    phone: '07508877665',
+    snippet: 'مرسيدس E200 موديل 2023 كت AMG أصلي بانوراما، السعر 5 دفاتر و80 ورقة (87,000,000 د.ع).',
+    postedAgo: 'منذ 3 ساعات'
+  },
+  {
+    id: 'car-bmw-1',
+    section: 'cars',
+    specs: { year: '2023', mileage: '12,000 كم', plate: 'رقم بغداد', origin: 'خليجي وكالة', brand: 'بي ام دبليو' },
+    title: 'بي إم دبليو (BMW X5 M-Package) 2023 خليجي رقم بغداد مميز',
+    category: 'سيارات',
+    keywords: ['سيارة', 'بي ام دبليو', 'bmw', 'x5', '2023', 'خليجي'],
+    platform: 'facebook',
+    storeName: 'معرض الجادرية للسيارات الفارهة',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 47,
+    priceIQD: 117000000, // 7 دفاتر و80 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - الجادرية',
+    delivery: 'فحص وكالة كامل وتحويل فوري',
+    phone: '07705566771',
+    snippet: 'بي إم دبليو X5 موديل 2023 خليجي صبغ وكالة، السعر 7 دفاتر و80 ورقة (117,000,000 د.ع).',
+    postedAgo: 'منذ ساعتين'
+  },
 
   // ==================== ٢. قسم العقارات والأراضي (Real Estate) ====================
   {
@@ -791,7 +998,7 @@ function getProcessedOffers() {
   const query = state.query.trim();
 
   const localMatches = state.offers.filter((offer) => matchesSearch(offer, query));
-  const combinedSource = query ? [...localMatches, ...state.liveOffers] : [...state.offers];
+  const combinedSource = query ? [...localMatches, ...state.liveOffers] : [...state.offers, ...state.liveOffers];
 
   let filtered = combinedSource.filter((offer) => {
     const offerSec = offer.section || 'products';
@@ -1037,6 +1244,12 @@ function renderApp() {
     const nearest = [...allFiltered].sort((a, b) => a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999999) - (b.effectivePriceIQD || 999999999999))[0];
     const smartest = [...allFiltered].sort((a, b) => b.smartScore - a.smartScore)[0];
 
+    state.topCardTargets = {
+      cheapest: cheapest.id,
+      nearest: nearest.id,
+      smart: smartest.id
+    };
+
     document.getElementById('bestPriceTitle').textContent = cheapest.title;
     document.getElementById('bestPriceValue').textContent = formatIQD(cheapest.effectivePriceIQD);
     document.getElementById('bestPricePlatform').textContent = `${getPlatformName(cheapest.platform)} • ${IRAQ_GOVERNORATES[cheapest.governorate].name}`;
@@ -1133,7 +1346,7 @@ function renderApp() {
             : '✔ يقبل فتح وفحص الطلب أمام المندوب';
 
       return `
-      <article class="product-card ${offer.isCheapest ? 'is-cheapest' : ''}">
+      <article id="offer-card-${offer.id}" data-offer-id="${offer.id}" class="product-card ${offer.isCheapest ? 'is-cheapest' : ''}">
         <div class="card-source-bar">
           <div class="source-identity">
             <span class="platform-chip chip-${offer.platform}">
@@ -1469,12 +1682,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // فلاتر السيارات
+  // فلاتر السيارات (مع جلب حي تلقائي لأي ماركة من الـ 38 ماركة في العراق)
   ['carBrandFilter', 'carOriginFilter', 'carPlateFilter'].forEach((id) => {
     document.getElementById(id).addEventListener('change', () => {
       state.carFilters.brand = document.getElementById('carBrandFilter').value;
       state.carFilters.origin = document.getElementById('carOriginFilter').value;
       state.carFilters.plate = document.getElementById('carPlateFilter').value;
+
+      if (id === 'carBrandFilter' && state.carFilters.brand) {
+        const localCount = state.offers.filter(
+          (o) => o.section === 'cars' && `${o.title} ${o.snippet} ${JSON.stringify(o.specs || {})}`.includes(state.carFilters.brand)
+        ).length;
+        if (localCount < 2) {
+          performLiveSearch(`سيارة ${state.carFilters.brand}`);
+          return;
+        }
+      }
       renderApp();
     });
   });
@@ -1612,20 +1835,52 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  let spotlightTimer = null;
+  function scrollAndSpotlightOffer(sortType, targetKey) {
+    state.selectedPlatform = 'all';
+    document.querySelectorAll('.platform-tab').forEach((t) => {
+      t.classList.toggle('active', t.getAttribute('data-platform') === 'all');
+    });
+
+    document.querySelectorAll('.sort-pill').forEach((p) => {
+      p.classList.toggle('active', p.getAttribute('data-sort') === sortType);
+    });
+    state.sortBy = sortType;
+    renderApp();
+
+    const targetId = state.topCardTargets?.[targetKey];
+    const targetCard =
+      (targetId && document.querySelector(`[data-offer-id="${targetId}"]`)) ||
+      document.querySelector('#resultsGrid .product-card');
+
+    if (!targetCard) return;
+
+    document.querySelectorAll('.product-card.is-spotlight-target').forEach((el) => {
+      el.classList.remove('is-spotlight-target');
+    });
+
+    targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // إعادة تشغيل حركة الوميض والتأشير البصري
+    void targetCard.offsetWidth;
+    targetCard.classList.add('is-spotlight-target');
+
+    clearTimeout(spotlightTimer);
+    spotlightTimer = setTimeout(() => {
+      targetCard.classList.remove('is-spotlight-target');
+    }, 4500);
+  }
+
   document.getElementById('jumpToCheapestBtn').addEventListener('click', (e) => {
     e.preventDefault();
-    document.querySelector('[data-sort="cheapest"]').click();
-    document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollAndSpotlightOffer('cheapest', 'cheapest');
   });
   document.getElementById('jumpToNearestBtn').addEventListener('click', (e) => {
     e.preventDefault();
-    document.querySelector('[data-sort="nearest"]').click();
-    document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollAndSpotlightOffer('nearest', 'nearest');
   });
   document.getElementById('jumpToSmartBtn').addEventListener('click', (e) => {
     e.preventDefault();
-    document.querySelector('[data-sort="smart"]').click();
-    document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollAndSpotlightOffer('smart', 'smart');
   });
 
   const siteHeader = document.querySelector('.site-header');
@@ -1868,10 +2123,76 @@ document.addEventListener('DOMContentLoaded', () => {
     await loadStoreReviews(storeName);
   });
 
-  // نافذة الاشتراك الشهري
+  // نافذة الاشتراك الشهري والتحقق السحابي لمدة 30 يوماً
   const subscriptionModal = document.getElementById('subscriptionModal');
-  subBtn.addEventListener('click', () => subscriptionModal.showModal());
+  const subscriptionStatusBox = document.getElementById('subscriptionStatusBox');
+  const restoreSubPhoneInput = document.getElementById('restoreSubPhoneInput');
+  const restoreSubBtn = document.getElementById('restoreSubBtn');
+
+  async function verifySubscriptionFromServer(phoneToCheck, isManualRestore = false) {
+    const cleanPhone = normalizeDigits(String(phoneToCheck || '')).replace(/[^\d]/g, '');
+    if (!cleanPhone) return;
+
+    try {
+      const res = await fetch(`/api/subscription-status?phone=${encodeURIComponent(cleanPhone)}`);
+      const data = await res.json();
+
+      if (data && data.active) {
+        localStorage.setItem('dalal_vip_phone', cleanPhone);
+        state.isSubscribed = true;
+        subBtn.classList.add('is-subscribed');
+        subBtnLabel.textContent = `عضوية فعالة (${data.daysRemaining} يوم متبقي) ✓`;
+
+        if (subscriptionStatusBox) {
+          subscriptionStatusBox.hidden = false;
+          subscriptionStatusBox.innerHTML = `<strong>✔ عضوية فعالة ومؤكدة في قاعدة البيانات:</strong> الرقم <span>${cleanPhone}</span> — متبقي <strong>${data.daysRemaining} يوماً</strong> من أصل 30 يوماً.`;
+        }
+
+        if (isManualRestore) {
+          const banner = document.getElementById('searchStatusBanner');
+          banner.hidden = false;
+          banner.textContent = `تم استعادة عضويتك بنجاح للرقم ${cleanPhone} — متبقي في اشتراكك ${data.daysRemaining} يوماً!`;
+          subscriptionModal.close();
+        }
+      } else {
+        if (!isManualRestore) {
+          localStorage.removeItem('dalal_vip_phone');
+          state.isSubscribed = false;
+          subBtn.classList.remove('is-subscribed');
+          subBtnLabel.textContent = 'اشترك بـ 1,000 د.ع / شهر';
+        }
+        if (subscriptionStatusBox && isManualRestore) {
+          subscriptionStatusBox.hidden = false;
+          subscriptionStatusBox.innerHTML = data?.found
+            ? `<strong>انتهت صلاحية اشتراك الثلاثين يوماً للرقم ${cleanPhone}.</strong> يمكنك تجديده الآن لمدة 30 يوماً إضافية بألف دينار فقط.`
+            : `<strong>لم يتم العثور على اشتراك فعال للرقم ${cleanPhone}.</strong> يمكنك تفعيل العضوية الآن من النموذج أدناه.`;
+        }
+      }
+    } catch {}
+  }
+
+  const savedVipPhone = localStorage.getItem('dalal_vip_phone');
+  if (savedVipPhone) {
+    verifySubscriptionFromServer(savedVipPhone, false);
+  }
+
+  subBtn.addEventListener('click', () => {
+    const currentPhone = localStorage.getItem('dalal_vip_phone');
+    if (currentPhone) {
+      document.getElementById('subPhoneInput').value = currentPhone;
+      verifySubscriptionFromServer(currentPhone, false);
+    }
+    subscriptionModal.showModal();
+  });
   document.getElementById('closeSubscriptionBtn').addEventListener('click', () => subscriptionModal.close());
+
+  if (restoreSubBtn && restoreSubPhoneInput) {
+    restoreSubBtn.addEventListener('click', () => {
+      const phone = restoreSubPhoneInput.value.trim();
+      if (!phone) return;
+      verifySubscriptionFromServer(phone, true);
+    });
+  }
 
   document.getElementById('subscriptionForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1885,14 +2206,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }).catch(() => {});
 
     localStorage.setItem('dalal_vip_phone', phone);
-    state.isSubscribed = true;
-    subBtn.classList.add('is-subscribed');
-    subBtnLabel.textContent = 'عضوية الرادار المفعلة ✓';
+    await verifySubscriptionFromServer(phone, false);
     subscriptionModal.close();
 
     const banner = document.getElementById('searchStatusBanner');
     banner.hidden = false;
-    banner.textContent = `تم تفعيل عضوية رادار أسعار العراق بنجاح للرقم ${phone} — جميع الميزات مفعلة بالكامل!`;
+    banner.textContent = `تم تفعيل عضوية رادار أسعار العراق لمدة 30 يوماً للرقم ${phone} — جميع الميزات مفعلة بالكامل!`;
   });
 
   fetch('/api/offers')

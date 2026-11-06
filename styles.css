@@ -1144,6 +1144,41 @@ body {
   border-color: #86efac;
 }
 
+@keyframes spotlightFlash {
+  0%, 100% {
+    border-color: #d97706;
+    box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.35), 0 12px 24px -4px rgba(217, 119, 6, 0.25);
+    background-color: #fffbeb;
+    transform: translateY(-3px);
+  }
+  50% {
+    border-color: #0b5f4a;
+    box-shadow: 0 0 0 8px rgba(11, 95, 74, 0.32), 0 14px 28px -4px rgba(11, 95, 74, 0.25);
+    background-color: #ecfdf5;
+    transform: translateY(0);
+  }
+}
+
+.product-card.is-spotlight-target {
+  position: relative;
+  border-width: 2px;
+  animation: spotlightFlash 0.85s ease-in-out 5;
+  border-color: #d97706;
+  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.28);
+  scroll-margin-top: 210px;
+}
+
+.product-card.is-spotlight-target::before {
+  content: '★ هذا هو العرض المختار من الملخص العلوي';
+  display: block;
+  background: linear-gradient(90deg, #0b5f4a, #d97706);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 5px 10px;
+}
+
 .card-source-bar {
   display: flex;
   align-items: center;

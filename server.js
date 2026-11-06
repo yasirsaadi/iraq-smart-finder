@@ -139,7 +139,7 @@ function extractRealIraqiPrice(rawText, ratePer1USD = 1500) {
 function detectSectionAndSpecs(rawText) {
   const text = normalizeDigits(String(rawText || ''));
 
-  if (/سيارة|النترا|سوناتا|تاهو|سبورتاج|سورينتو|لاندكروز|جيتور|كامري|كورولا|سنتافي|نيسان|بيك اب|هايلكس|وارد امريكي|رقم بغداد|رقم اربيل|معرض سيارات/i.test(text)) {
+  if (/سيارة|تويوتا|هيونداي|كيا|نيسان|شيفروليه|شفروليه|فورد|جيب|دوج|دودج|كرايسلر|جي ام سي|كاديلاك|ميتسوبيشي|مازدا|هوندا|سوزوكي|لكزس|انفينيتي|مرسيدس|بي ام دبليو|اودي|فولكس واجن|بورش|رينج روفر|لاند روفر|جيتور|شيري|ام جي|شانجان|هافال|جيلي|بي واي دي|بايك|جاك|غريت وول|بيجو|رينو|فولفو|تيسلا|سانغ يونغ|سوبارو|النترا|سوناتا|تاهو|سبورتاج|سورينتو|لاندكروز|كامري|كورولا|سنتافي|بيك اب|هايلكس|توسان|سيراتو|كادينزا|اوبتيما|باترول|سني|التيما|ماكسيما|ماليبو|ترافيرس|تشارجر|تشالنجر| دورانجو|رانجلر|شيروكي|وارد امريكي|رقم بغداد|رقم اربيل|معرض سيارات/i.test(text)) {
     const yearMatch = text.match(/\b(20[12]\d)\b/);
     const kmMatch = text.match(/(\d{1,3}(?:,\d{3})?)\s*(?:كم|كيلومتر|ماشي)/);
     return {
@@ -147,8 +147,8 @@ function detectSectionAndSpecs(rawText) {
       specs: {
         year: yearMatch ? yearMatch[1] : 'حديث',
         mileage: /زيرو|0\s*كم/.test(text) ? 'زيرو (0 كم)' : kmMatch ? `${kmMatch[1]} كم` : 'مفحوص',
-        plate: /اربيل|أربيل|شمالي/.test(text) ? 'رقم أربيل' : /بغداد/.test(text) ? 'رقم بغداد' : 'مرقم جاهز',
-        origin: /امريكي|أمريكي/.test(text) ? 'وارد أمريكي' : /خليجي|وكالة/.test(text) ? 'خليجي وكالة' : 'ضمان كير ومحرك'
+        plate: /اربيل|أربيل|شمالي/.test(text) ? 'رقم أربيل' : /بغداد/.test(text) ? 'رقم بغداد' : /بصرة|البصرة/.test(text) ? 'رقم البصرة' : 'مرقم جاهز',
+        origin: /امريكي|أمريكي/.test(text) ? 'وارد أمريكي' : /خليجي|وكالة/.test(text) ? 'خليجي وكالة' : /كوري/.test(text) ? 'وارد كوري' : 'ضمان كير ومحرك'
       }
     };
   }
@@ -631,11 +631,65 @@ app.post('/api/reviews', async (req, res) => {
   }
 });
 
+app.get('/api/subscription-status', async (req, res) => {
+  const cleanPhone = normalizeDigits(String(req.query.phone || '')).replace(/[^\d]/g, '');
+  if (!cleanPhone) return res.json({ active: false });
+  if (!sql) {
+    return res.json({
+      active: true,
+      phone: cleanPhone,
+      daysRemaining: 30,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    });
+  }
+  try {
+    const rows = await sql`
+      SELECT
+        phone,
+        plan_type AS "planType",
+        payment_method AS "paymentMethod",
+        status,
+        expires_at AS "expiresAt",
+        GREATEST(0, CEIL(EXTRACT(EPOCH FROM (expires_at - NOW())) / 86400.0))::int AS "daysRemaining"
+      FROM dalal_iraq_subscriptions
+      WHERE phone = ${cleanPhone}
+      LIMIT 1;
+    `;
+    if (rows.length === 0) {
+      return res.json({ active: false, found: false });
+    }
+    const sub = rows[0];
+    const isActive = sub.status === 'active' && sub.daysRemaining > 0;
+    return res.json({
+      active: isActive,
+      found: true,
+      phone: sub.phone,
+      planType: sub.planType,
+      paymentMethod: sub.paymentMethod,
+      expiresAt: sub.expiresAt,
+      daysRemaining: sub.daysRemaining
+    });
+  } catch (err) {
+    return res.status(500).json({ active: false, error: err.message });
+  }
+});
+
 app.post('/api/subscribe', async (req, res) => {
-  const { phone, planType = 'shopper_1000_iqd', paymentMethod = 'zaincash' } = req.body || {};
+  const rawPhone = req.body?.phone || '';
+  const phone = normalizeDigits(String(rawPhone)).replace(/[^\d]/g, '');
+  const { planType = 'shopper_1000_iqd', paymentMethod = 'zaincash' } = req.body || {};
   if (!phone) return res.status(400).json({ error: 'Phone number required' });
   if (!sql) {
-    return res.status(201).json({ subscribed: true, phone, planType, paymentMethod });
+    return res.status(201).json({
+      subscribed: true,
+      subscription: {
+        phone,
+        planType,
+        paymentMethod,
+        daysRemaining: 30,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    });
   }
   try {
     const rows = await sql`
@@ -646,7 +700,12 @@ app.post('/api/subscribe', async (req, res) => {
           payment_method = EXCLUDED.payment_method,
           status = 'active',
           expires_at = NOW() + INTERVAL '30 days'
-      RETURNING phone, plan_type AS "planType", payment_method AS "paymentMethod", expires_at AS "expiresAt";
+      RETURNING
+        phone,
+        plan_type AS "planType",
+        payment_method AS "paymentMethod",
+        expires_at AS "expiresAt",
+        30 AS "daysRemaining";
     `;
     res.status(201).json({ subscribed: true, subscription: rows[0] });
   } catch (err) {

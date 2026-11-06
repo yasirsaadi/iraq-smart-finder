@@ -237,12 +237,54 @@
         <div class="spec-select-group">
           <label for="carBrandFilter">الماركة:</label>
           <select id="carBrandFilter">
-            <option value="">جميع الماركات</option>
-            <option value="هيونداي">هيونداي</option>
-            <option value="كيا">كيا</option>
-            <option value="تويوتا">تويوتا</option>
-            <option value="شيفروليه">شيفروليه</option>
-            <option value="جيتور">جيتور</option>
+            <option value="">جميع الماركات في العراق (38 ماركة)</option>
+            <optgroup label="الكوري والياباني (الأكثر طلباً في العراق)">
+              <option value="تويوتا">تويوتا (Toyota)</option>
+              <option value="هيونداي">هيونداي (Hyundai)</option>
+              <option value="كيا">كيا (Kia)</option>
+              <option value="نيسان">نيسان (Nissan)</option>
+              <option value="ميتسوبيشي">ميتسوبيشي (Mitsubishi)</option>
+              <option value="لكزس">لكزس (Lexus)</option>
+              <option value="مازدا">مازدا (Mazda)</option>
+              <option value="هوندا">هوندا (Honda)</option>
+              <option value="سوزوكي">سوزوكي (Suzuki)</option>
+              <option value="انفينيتي">إنفينيتي (Infiniti)</option>
+              <option value="سوبارو">سوبارو (Subaru)</option>
+              <option value="سانغ يونغ">سانغ يونغ / كي جي إم (KGM)</option>
+            </optgroup>
+            <optgroup label="السيارات الأمريكية">
+              <option value="شيفروليه">شيفروليه (Chevrolet)</option>
+              <option value="جيب">جيب (Jeep)</option>
+              <option value="دوج">دوج (Dodge)</option>
+              <option value="فورد">فورد (Ford)</option>
+              <option value="جي ام سي">جي إم سي (GMC)</option>
+              <option value="كاديلاك">كاديلاك (Cadillac)</option>
+              <option value="كرايسلر">كرايسلر (Chrysler)</option>
+              <option value="تيسلا">تيسلا الكهربائية (Tesla)</option>
+            </optgroup>
+            <optgroup label="السيارات الصينية الحديثة (وكالة العراق)">
+              <option value="جيتور">جيتور (Jetour)</option>
+              <option value="شيري">شيري (Chery)</option>
+              <option value="ام جي">إم جي (MG)</option>
+              <option value="شانجان">شانجان (Changan)</option>
+              <option value="هافال">هافال (Haval)</option>
+              <option value="جيلي">جيلي (Geely)</option>
+              <option value="بي واي دي">بي واي دي (BYD)</option>
+              <option value="بايك">بايك (BAIC)</option>
+              <option value="جاك">جاك (JAC)</option>
+              <option value="غريت وول">غريت وول / تانك (Great Wall / Tank)</option>
+            </optgroup>
+            <optgroup label="الألماني والأوروبي الفاخر">
+              <option value="مرسيدس">مرسيدس بنز (Mercedes-Benz)</option>
+              <option value="بي ام دبليو">بي إم دبليو (BMW)</option>
+              <option value="لاند روفر">لاند روفر / رينج روفر (Range Rover)</option>
+              <option value="اودي">أودي (Audi)</option>
+              <option value="فولكس واجن">فولكس واجن (Volkswagen)</option>
+              <option value="بورش">بورش (Porsche)</option>
+              <option value="بيجو">بيجو (Peugeot)</option>
+              <option value="رينو">رينو (Renault)</option>
+              <option value="فولفو">فولفو (Volvo)</option>
+            </optgroup>
           </select>
         </div>
 
@@ -252,6 +294,8 @@
             <option value="">الكل (زيرو ومستعمل)</option>
             <option value="خليجي">خليجي وكالة (زيرو)</option>
             <option value="وارد أمريكي">وارد أمريكي (كلين / حادث خفيف)</option>
+            <option value="وارد كوري">وارد كوري</option>
+            <option value="وارد كندي">وارد كندي / أوروبي</option>
           </select>
         </div>
 
@@ -262,6 +306,12 @@
             <option value="رقم بغداد">رقم بغداد</option>
             <option value="رقم أربيل">رقم أربيل / إقليم كردستان</option>
             <option value="رقم البصرة">رقم البصرة</option>
+            <option value="رقم نينوى">رقم نينوى (الموصل)</option>
+            <option value="رقم النجف">رقم النجف الأشرف</option>
+            <option value="رقم كربلاء">رقم كربلاء المقدسة</option>
+            <option value="رقم السليمانية">رقم السليمانية</option>
+            <option value="رقم دهوك">رقم دهوك</option>
+            <option value="رقم كركوك">رقم كركوك</option>
           </select>
         </div>
       </div>
@@ -741,16 +791,18 @@
     </div>
 
     <form id="subscriptionForm" class="modal-form">
+      <div id="subscriptionStatusBox" class="extraction-summary" hidden></div>
+
       <div class="vip-perks-box">
         <div class="perk-item">✔ مقارنة شاملة للسلع والسيارات والعقارات في جميع محافظات العراق الـ 18</div>
         <div class="perk-item">✔ تفعيل رادار اللقطات وإشعارات واتساب الفورية عند نزول سيارة أو عقار أو سلعة بسعر لقطة</div>
         <div class="perk-item">✔ حساب تلقائي لسعر المتر المربع للعقارات وحساب الدفتر والورقة للسيارات</div>
-        <div class="perk-item">✔ ميزة البحث بلقطة الشاشة وكشف سجل موثوقية المعارض والمكاتب والبيجات</div>
+        <div class="perk-item">✔ العضوية مرتبطة برقم هاتفك في قاعدة البيانات السحابية لمدة 30 يوماً وتعمل تلقائياً على جميع أجهزتك</div>
       </div>
 
       <div class="modal-grid-2">
         <div class="field-block">
-          <label for="subPhoneInput">رقم هاتفك في العراق (لتفعيل العضوية)</label>
+          <label for="subPhoneInput">رقم هاتفك في العراق (لتفعيل أو تجديد 30 يوماً)</label>
           <input type="text" inputmode="numeric" data-numeric-only="true" id="subPhoneInput" placeholder="07701234567" required />
         </div>
         <div class="field-block">
@@ -764,7 +816,24 @@
       </div>
 
       <div class="modal-actions">
-        <button type="submit" class="btn-submit" style="width: 100%; padding: 11px;">تفعيل الاشتراك الشهري الآن (1,000 د.ع)</button>
+        <button type="submit" class="btn-submit" style="width: 100%; padding: 11px;">تفعيل أو تجديد الاشتراك لمدة 30 يوماً (1,000 د.ع)</button>
+      </div>
+
+      <div class="radar-list-section">
+        <h3 class="sub-heading">مشترك مسبقاً وتستخدم جهازاً أو متصفحاً جديداً؟ استعد عضويتك برقم هاتفك:</h3>
+        <div style="display: flex; gap: 8px; align-items: stretch;">
+          <input
+            type="text"
+            inputmode="numeric"
+            data-numeric-only="true"
+            id="restoreSubPhoneInput"
+            placeholder="أدخل رقم هاتفك المشترك (مثال: 07701234567)"
+            style="flex: 1; padding: 8px 11px; border: 1px solid var(--border-medium); border-radius: var(--radius-sm); font-family: inherit; font-size: 0.85rem;"
+          />
+          <button type="button" id="restoreSubBtn" class="btn-secondary" style="white-space: nowrap; font-weight: 700; color: var(--brand-primary); border-color: var(--brand-primary);">
+            تحقق واستعادة العضوية
+          </button>
+        </div>
       </div>
     </form>
   </dialog>
