@@ -564,6 +564,24 @@ export function extractRealEstateSpecs(rawText) {
 // الصلة بكلمات البحث
 // ---------------------------------------------------------------------------
 
+// مرادفات عربية/لاتينية للماركات والطرازات: إعلانات كثيرة تكتب "iPhone 15" والبحث بـ "ايفون 15"
+const TERM_SYNONYMS = [
+  ['ايفون', 'iphone'], ['ابل', 'apple'], ['سامسونج', 'سامسونك', 'samsung'], ['جالكسي', 'كالكسي', 'galaxy'],
+  ['شاومي', 'xiaomi'], ['ريدمي', 'redmi'], ['هواوي', 'huawei'], ['برو', 'pro'], ['ماكس', 'max'], ['الترا', 'ultra'],
+  ['بلايستيشن', 'بلاي ستيشن', 'playstation', 'ps'], ['ايربودز', 'airpods'], ['لابتوب', 'laptop'], ['لينوفو', 'lenovo'],
+  ['ماك بوك', 'macbook'], ['ايباد', 'ipad'], ['شاشه', 'tv'], ['سبلت', 'split'], ['جري', 'gree'],
+  ['هيونداي', 'hyundai'], ['كيا', 'kia'], ['تويوتا', 'toyota'], ['نيسان', 'nissan'], ['شيفروليه', 'شفروليه', 'chevrolet'],
+  ['فورد', 'ford'], ['مرسيدس', 'mercedes', 'benz'], ['النترا', 'elantra'], ['سوناتا', 'sonata'], ['توسان', 'tucson'],
+  ['سبورتاج', 'sportage'], ['سورينتو', 'sorento'], ['كامري', 'camry'], ['كورولا', 'corolla'],
+  ['لاندكروزر', 'لاند كروزر', 'landcruiser', 'land cruiser'], ['تاهو', 'tahoe'], ['جيتور', 'jetour'], ['شيري', 'chery'],
+  ['شانجان', 'changan'], ['جيلي', 'geely'], ['هافال', 'haval']
+].map((group) => group.map((t) => normalizeForMatch(t)));
+
+function synonymsOf(token) {
+  const group = TERM_SYNONYMS.find((g) => g.includes(token));
+  return group || [token];
+}
+
 const QUERY_STOPWORDS = new Set(['في', 'من', 'على', 'الى', 'عن', 'مع', 'او', 'سعر', 'السعر', 'للبيع', 'بيع', 'ارخص', 'افضل', 'العراق']);
 
 export function isRelevantToQuery(query, rawText) {
@@ -580,8 +598,10 @@ export function isRelevantToQuery(query, rawText) {
   if (!digitsOk) return false;
 
   const matchWord = (t) => {
-    if (hay.includes(t)) return true;
-    if (t.startsWith('ال') && t.length > 3 && hay.includes(t.slice(2))) return true;
+    for (const form of synonymsOf(t)) {
+      if (hay.includes(form)) return true;
+      if (form.startsWith('ال') && form.length > 3 && hay.includes(form.slice(2))) return true;
+    }
     return false;
   };
   const matched = wordTokens.filter(matchWord).length;

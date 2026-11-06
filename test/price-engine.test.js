@@ -156,3 +156,10 @@ test('المواصفات لا تُختلق عند غياب الدليل', () => 
   assert.deepEqual(extractRealEstateSpecs('عقار للبيع'), {});
   assert.equal(extractRealEstateSpecs('شقة 120 م² للايجار').areaSqm, 120);
 });
+
+test('الصلة تقبل الكتابة اللاتينية للماركات والطرازات', () => {
+  assert.equal(isRelevantToQuery('ايفون 15', 'iPhone 15 Pro Max for sale Baghdad'), true);
+  assert.equal(isRelevantToQuery('كيا سبورتاج', 'KIA Sportage 2023 clean'), true);
+  assert.equal(isRelevantToQuery('ايفون 15', 'iPhone 13 used'), false);
+  assert.equal(isRelevantToQuery('لاندكروزر', 'Toyota Land Cruiser GXR'), true);
+});
