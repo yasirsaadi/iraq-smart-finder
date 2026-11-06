@@ -8,6 +8,8 @@ import { normalizeDigits, hasTerm, normalizeForMatch } from './shared/price-engi
 import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities } from './shared/sanitize.js';
 import { parseYahooResults, buildLiveOffer } from './lib/live-results.js';
 import { attachListingImages } from './lib/listing-images.js';
+import { createSearchStore, initSearchStoreTables, readEconomicsConfig, quotaSubjectFor } from './lib/search-store.js';
+import { timingSafeEqual } from 'node:crypto';
 import { isSerperConfigured, buildSerperQueries, serperSearchRaw, needsResolve, serperResolve, mapSerperOrganic } from './lib/serper-provider.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -234,6 +236,8 @@ async function initNeonDatabase() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `;
+    await sql`ALTER TABLE dalal_iraq_searches ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'all'`;
+    await initSearchStoreTables(sql);
   } catch (err) {
     console.error('Neon DB initialization warning:', err.message);
   }
@@ -247,25 +251,12 @@ function liveSearchProviderName() {
   return isSerperConfigured() ? 'serper' : 'yahoo-html-experimental';
 }
 
-// ذاكرة مؤقتة لنتائج البحث الحي: نفس البحث خلال 30 دقيقة لا يستهلك رصيداً جديداً من المزود
-const LIVE_CACHE_TTL_MS = 30 * 60 * 1000;
-const LIVE_CACHE_MAX = 500;
-const liveCache = new Map();
-function cacheGet(key) {
-  const hit = liveCache.get(key);
-  if (!hit) return null;
-  if (Date.now() - hit.at > LIVE_CACHE_TTL_MS) {
-    liveCache.delete(key);
-    return null;
-  }
-  return hit.value;
-}
-function cacheSet(key, value) {
-  if (liveCache.size >= LIVE_CACHE_MAX) liveCache.delete(liveCache.keys().next().value);
-  liveCache.set(key, { at: Date.now(), value });
-}
+const ECONOMICS = readEconomicsConfig();
+const searchStore = createSearchStore({ sql, config: ECONOMICS });
+// الأسعار تُحسب على سعر صرف ثابت وتُخزَّن مع أساسها بالدولار، والمتصفح يعيد حسابها بسعر الزائر
+const STORED_USD_RATE = 1500;
 
-// حد بسيط لكل زائر: يحمي رصيد المزود المدفوع من الاستهلاك الآلي أو المسيء
+// حد بسيط لكل زائر في الدقيقة: يحمي من الطلبات الآلية المتلاحقة
 const RATE_WINDOW_MS = 60 * 1000;
 const RATE_MAX_REQUESTS = 20;
 const rateBuckets = new Map();
@@ -282,7 +273,7 @@ function isRateLimited(ip) {
   return bucket.count > RATE_MAX_REQUESTS;
 }
 
-// عمليات استعادة الروابط الجارية في الخلفية، حتى لا تتكرر الاستعادة لنفس البحث
+// عمليات المرحلة الثانية الجارية في الخلفية، حتى لا يتكرر البحث نفسه ولا يُدفع ثمنه مرتين
 const liveInflight = new Map();
 
 function toProviderResult(data, error) {
@@ -291,13 +282,96 @@ function toProviderResult(data, error) {
   return { ok: results.length > 0, httpOk: true, results, bytes: null };
 }
 
+function liveCacheKey(query, gov, sectionHint) {
+  return `${liveSearchProviderName()}|${normalizeForMatch(query)}|${gov}|${sectionHint}`;
+}
+
+function buildLivePayload({ query, gov, sectionHint, lists, provider, pending, debug = false }) {
+  const merged = lists.flatMap((r) => r.results);
+  const seenUrls = new Set();
+  const uniqueOffers = [];
+  for (const raw of merged) {
+    if (seenUrls.has(raw.url)) continue;
+    seenUrls.add(raw.url);
+    const offer = buildLiveOffer(raw, { query, sectionHint, detectGov: detectGovFromText, usdRate: STORED_USD_RATE });
+    if (offer) uniqueOffers.push(offer);
+  }
+  return {
+    query,
+    governorate: gov,
+    section: sectionHint,
+    provider,
+    providerOk: lists.some((r) => r.ok),
+    // pending=true: بقية النتائج قيد الاستكمال (روابط أصلية وصور)؛ يعيد المتصفح الطلب مع wait=1
+    pending,
+    // تشخيص بلا بيانات حساسة: كم نتيجة خام قُرئت من كل استعلام، وكم بقي بعد فلاتر الصلة والقسم
+    diagnostics: {
+      rawCounts: lists.map((r) => r.results.length),
+      httpOk: lists.map((r) => r.httpOk),
+      responseBytes: lists.map((r) => r.bytes),
+      kept: uniqueOffers.length,
+      ...(debug ? { sampleTitles: merged.slice(0, 30).map((r) => `${r.host} | ${r.title.slice(0, 90)}`) } : {})
+    },
+    offers: uniqueOffers
+  };
+}
+
+/**
+ * خط البحث عبر سيربر بمرحلتيه. يعيد { first, full } حيث full وعد يكتمل بعد استعادة الروابط والصور
+ * ويُحفظ في الذاكرة المشتركة تلقائياً.
+ */
+async function runSerperPipeline({ query, gov, sectionHint, debug = false }) {
+  const govName = IRAQ_GOV_KEYWORDS[gov].name.split(' ')[0];
+  const plans = buildSerperQueries(query, govName, sectionHint);
+  const raws = await Promise.all(
+    plans.map((plan) =>
+      serperSearchRaw(plan.q).catch((err) => {
+        console.error('Serper search error:', err.message);
+        return null;
+      })
+    )
+  );
+  const anyResults = raws.some((d) => d && Array.isArray(d.organic) && d.organic.length > 0);
+  const pending = anyResults && !debug;
+  const first = buildLivePayload({ query, gov, sectionHint, lists: raws.map((d) => toProviderResult(d, !d)), provider: 'serper', pending, debug });
+  if (!pending) return { first, full: Promise.resolve(first) };
+
+  const key = liveCacheKey(query, gov, sectionHint);
+  const full = (async () => {
+    const resolved = await Promise.all(raws.map((d) => (needsResolve(d) ? serperResolve(d) : d)));
+    const payload = buildLivePayload({ query, gov, sectionHint, lists: resolved.map((d) => toProviderResult(d, !d)), provider: 'serper', pending: false });
+    payload.offers = await attachListingImages(payload.offers, { imageQuery: `${query} ${govName}` });
+    payload.diagnostics.withImages = payload.offers.filter((o) => o.imageUrl).length;
+    if (payload.providerOk) await searchStore.setCached(key, payload, { query, governorate: gov, section: sectionHint });
+    return payload;
+  })();
+  liveInflight.set(key, { first, job: full });
+  full.catch(() => {}).finally(() => liveInflight.delete(key));
+  return { first, full };
+}
+
+async function subscriberLimitFor(req) {
+  // حصة المشترك لا تُطبَّق إلا مع بوابة دفع مفعلة واشتراك فعال في قاعدة البيانات
+  if (!FEATURE_FLAGS.paymentsEnabled || !sql) return null;
+  const phone = safeIraqiMobile(normalizeDigits(String(req.get('x-subscriber-phone') || '')));
+  if (!phone) return null;
+  try {
+    const rows = await sql`SELECT 1 FROM dalal_iraq_subscriptions WHERE phone = ${phone} AND status = 'active' AND expires_at > NOW() LIMIT 1`;
+    return rows.length ? { subject: `s:${phone}`, limit: ECONOMICS.subscriberNewSearchesPerMonth } : null;
+  } catch {
+    return null;
+  }
+}
+
 app.set('trust proxy', 1); // رندر يمرر عنوان الزائر الحقيقي عبر الوسيط
 
 app.get('/api/config', (_req, res) => {
   res.json({
     ...FEATURE_FLAGS,
     liveSearchProvider: liveSearchProviderName(),
-    databaseConnected: Boolean(sql)
+    databaseConnected: Boolean(sql),
+    cacheTtlHours: ECONOMICS.cacheTtlHours,
+    freeNewSearchesPerMonth: ECONOMICS.freeNewSearchesPerMonth
   });
 });
 
@@ -306,23 +380,28 @@ app.get('/api/live-search', async (req, res) => {
   const gov = IRAQ_GOV_KEYWORDS[String(req.query.gov || '')] ? String(req.query.gov) : 'baghdad';
   const sectionRaw = String(req.query.section || 'all').trim();
   const sectionHint = ['all', 'products', 'cars', 'realestate'].includes(sectionRaw) ? sectionRaw : 'all';
-  const rate100 = Number(req.query.rate);
-  const usdRate = rate100 >= 100000 && rate100 <= 300000 ? rate100 / 100 : 1500;
-  const govName = IRAQ_GOV_KEYWORDS[gov].name.split(' ')[0];
+  const debug = req.query.debug === '1';
 
   if (!query) return res.json({ offers: [] });
   if (isRateLimited(req.ip || 'unknown')) {
     return res.status(429).json({ error: 'rate_limited', providerOk: false, offers: [] });
   }
 
-  const debug = req.query.debug === '1';
-  const cacheKey = `${liveSearchProviderName()}|${query.toLowerCase()}|${gov}|${sectionHint}|${usdRate}`;
-  const cached = debug ? null : cacheGet(cacheKey);
-  if (cached) return res.json({ ...cached, cached: true });
+  const key = liveCacheKey(query, gov, sectionHint);
 
-  // بحث مماثل قيد الاستكمال: لا نعيد البحث (لا رصيد جديد).
-  // wait=1 ينتظر اكتمال استعادة الروابط، وبدونه تُعاد النتائج الأولى فوراً.
-  const inflight = debug ? null : liveInflight.get(cacheKey);
+  // تسجيل البحث لقائمة الأكثر طلباً (التحديث الليلي يعتمد عليها). طلب wait=1 هو استكمال للبحث نفسه فلا يُسجَّل.
+  if (sql && !debug && req.query.wait !== '1') {
+    sql`INSERT INTO dalal_iraq_searches (query, governorate, section) VALUES (${query}, ${gov}, ${sectionHint})`.catch(() => {});
+  }
+
+  // ١) الذاكرة المشتركة: مجانية دائماً ولا تُحسب من حصة الزائر
+  if (!debug) {
+    const hit = await searchStore.getCached(key);
+    if (hit) return res.json({ ...hit.value, pending: false, cached: true, cachedAt: hit.cachedAt });
+  }
+
+  // ٢) بحث مماثل قيد الاستكمال: لا رصيد جديد
+  const inflight = debug ? null : liveInflight.get(key);
   if (inflight) {
     if (req.query.wait !== '1') return res.json(inflight.first);
     try {
@@ -332,87 +411,93 @@ app.get('/api/live-search', async (req, res) => {
     }
   }
 
-  const buildPayload = (lists, thumbnailUrl, provider, pending) => {
-    const [storeResults, fbResults, igResults] = lists;
-    const merged = [...storeResults.results, ...fbResults.results, ...igResults.results];
-    const seenUrls = new Set();
-    const uniqueOffers = [];
-    for (const raw of merged) {
-      if (seenUrls.has(raw.url)) continue;
-      seenUrls.add(raw.url);
-      const offer = buildLiveOffer(raw, { query, sectionHint, detectGov: detectGovFromText, usdRate, thumbnailUrl });
-      if (offer) uniqueOffers.push(offer);
-    }
-    return {
-      query,
-      governorate: gov,
-      provider,
-      providerOk: lists.some((r) => r.ok),
-      // pending=true: بقية النتائج قيد استعادة روابطها الأصلية؛ يعيد المتصفح الطلب مع wait=1
-      pending,
-      // تشخيص بلا بيانات حساسة: كم نتيجة خام قُرئت من كل استعلام، وكم بقي بعد فلاتر الصلة والقسم
-      diagnostics: {
-        rawCounts: lists.map((r) => r.results.length),
-        httpOk: lists.map((r) => r.httpOk),
-        responseBytes: lists.map((r) => r.bytes),
-        kept: uniqueOffers.length,
-        // عند ?debug=1 فقط: عناوين النتائج الخام العامة لتشخيص سبب الاستبعاد (لا بيانات مستخدمين)
-        ...(debug ? { sampleTitles: merged.slice(0, 30).map((r) => `${r.host} | ${r.title.slice(0, 90)}`) } : {})
-      },
-      thumbnailUrl: safeHttpUrl(thumbnailUrl),
-      offers: uniqueOffers
-    };
-  };
-
   try {
     if (isSerperConfigured()) {
-      const plans = buildSerperQueries(query, govName, sectionHint);
-      const raws = await Promise.all(
-        plans.map((plan) =>
-          serperSearchRaw(plan.q).catch((err) => {
-            console.error('Serper search error:', err.message);
-            return null;
-          })
-        )
-      );
-      const anyResults = raws.some((d) => d && Array.isArray(d.organic) && d.organic.length > 0);
-      // المرحلة الثانية تعمل دائماً عند وجود نتائج: استعادة الروابط (إن لزم) وجلب صور الإعلانات الحقيقية
-      const pending = anyResults && !debug;
-      const firstPayload = buildPayload(raws.map((d) => toProviderResult(d, !d)), null, 'serper', pending);
-
-      if (pending) {
-        const job = (async () => {
-          const resolved = await Promise.all(raws.map((d) => (needsResolve(d) ? serperResolve(d) : d)));
-          const full = buildPayload(resolved.map((d) => toProviderResult(d, !d)), null, 'serper', false);
-          full.offers = await attachListingImages(full.offers, { imageQuery: `${query} ${govName}` });
-          full.diagnostics.withImages = full.offers.filter((o) => o.imageUrl).length;
-          if (full.providerOk) cacheSet(cacheKey, full);
-          return full;
-        })();
-        liveInflight.set(cacheKey, { first: firstPayload, job });
-        job.catch(() => {}).finally(() => liveInflight.delete(cacheKey));
-      } else if (firstPayload.providerOk && !debug) {
-        cacheSet(cacheKey, firstPayload);
+      // ٣) سقف الرصيد اليومي للموقع كله، ثم حصة الزائر الشهرية من عمليات البحث الجديدة
+      const reserved = await searchStore.reserveCredits(ECONOMICS.creditsPerSearch);
+      if (!reserved) {
+        return res.json({ query, providerOk: false, budgetExhausted: true, offers: [] });
       }
-      return res.json(firstPayload);
+      const subscriber = await subscriberLimitFor(req);
+      const subject = subscriber ? subscriber.subject : quotaSubjectFor(req);
+      const limit = subscriber ? subscriber.limit : ECONOMICS.freeNewSearchesPerMonth;
+      const quota = await searchStore.consumeNewSearch(subject, limit);
+      if (!quota.allowed) {
+        await searchStore.refundCredits(ECONOMICS.creditsPerSearch);
+        return res.json({ query, providerOk: false, quotaExceeded: true, quotaLimit: quota.limit, offers: [] });
+      }
+
+      const { first } = await runSerperPipeline({ query, gov, sectionHint, debug });
+      if (!first.providerOk) {
+        // لم تُرجع أي نتيجة: لا نحسبها على الزائر
+        await searchStore.releaseNewSearch(subject);
+      }
+      return res.json({ ...first, quotaUsed: quota.used, quotaLimit: quota.limit });
     }
 
+    // المصدر الاحتياطي المجاني (بلا مفتاح سيربر)
+    const govName = IRAQ_GOV_KEYWORDS[gov].name.split(' ')[0];
     let extraContext = 'السعر في العراق دينار OR د.ع';
     if (sectionHint === 'cars') extraContext = 'للبيع في العراق السعر دفتر OR ورقة OR مليون';
     else if (sectionHint === 'realestate') extraContext = 'عقار للبيع او ايجار في العراق السعر مليون OR دفتر';
-    const [storeResults, fbResults, igResults, thumbnailUrl] = await Promise.all([
+    const lists = await Promise.all([
       searchWebEngine(`${query} ${extraContext} ${govName}`),
       searchWebEngine(`site:facebook.com "${query}" العراق ${govName} السعر`),
-      searchWebEngine(`site:instagram.com "${query}" العراق ${govName}`),
-      fetchRealProductThumbnail(query)
+      searchWebEngine(`site:instagram.com "${query}" العراق ${govName}`)
     ]);
-    const payload = buildPayload([storeResults, fbResults, igResults], thumbnailUrl, 'yahoo-html-experimental', false);
-    if (payload.providerOk && !debug) cacheSet(cacheKey, payload);
+    const payload = buildLivePayload({ query, gov, sectionHint, lists, provider: 'yahoo-html-experimental', pending: false, debug });
+    if (payload.providerOk && !debug) await searchStore.setCached(key, payload, { query, governorate: gov, section: sectionHint });
     res.json(payload);
   } catch (err) {
     console.error('live-search failed:', err.message);
     res.status(500).json({ error: 'live_search_failed', offers: [] });
   }
+});
+
+// ===== التحديث الليلي لأشهر عمليات البحث =====
+// تستدعيه مهمة مجدولة (.github/workflows/nightly-refresh.yml) على دفعات صغيرة كي لا ينام خادم رندر أثناء العمل.
+function isAuthorizedRefresh(req) {
+  const expected = String(process.env.ADMIN_REFRESH_TOKEN || '');
+  const given = String(req.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (expected.length < 24 || given.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+}
+
+app.post('/api/admin/refresh-popular', async (req, res) => {
+  if (!isAuthorizedRefresh(req)) return res.status(401).json({ error: 'unauthorized' });
+  if (!isSerperConfigured()) return res.status(503).json({ error: 'serper_not_configured' });
+
+  const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0);
+  const batch = Math.min(10, Math.max(1, Number.parseInt(req.query.limit, 10) || 5));
+  const popular = await searchStore.popularSearches(ECONOMICS.refreshTopN);
+  const slice = popular.slice(offset, offset + batch);
+  // لا نعيد تحديث نتيجة ما زال أمامها أكثر من نصف عمرها
+  const freshEnoughMs = (ECONOMICS.cacheTtlHours * 3600 * 1000) / 2;
+
+  const report = { total: popular.length, offset, refreshed: 0, skipped: 0, failed: 0 };
+  for (const row of slice) {
+    const query = cleanPlainText(row.query, 120);
+    const gov = IRAQ_GOV_KEYWORDS[row.governorate] ? row.governorate : 'baghdad';
+    const sectionHint = ['all', 'products', 'cars', 'realestate'].includes(row.section) ? row.section : 'all';
+    const key = liveCacheKey(query, gov, sectionHint);
+    const age = await searchStore.cachedAgeMs(key);
+    if (age !== null && age < freshEnoughMs) {
+      report.skipped += 1;
+      continue;
+    }
+    try {
+      await searchStore.reserveCredits(ECONOMICS.creditsPerSearch, { enforce: false });
+      const { full } = await runSerperPipeline({ query, gov, sectionHint });
+      const payload = await full;
+      if (payload.providerOk) report.refreshed += 1;
+      else report.failed += 1;
+    } catch (err) {
+      console.error('nightly refresh failed for one query:', err.message);
+      report.failed += 1;
+    }
+  }
+  const nextOffset = offset + slice.length;
+  res.json({ ...report, nextOffset, done: nextOffset >= popular.length, creditsUsedToday: await searchStore.creditsUsedToday() });
 });
 
 const ALLOWED_SECTIONS = ['products', 'cars', 'realestate'];
@@ -721,12 +806,13 @@ app.post('/api/subscribe', async (req, res) => {
 
 app.post('/api/searches', async (req, res) => {
   if (!sql) return res.json({ logged: false });
-  const { query, governorate, maxBudget } = req.body || {};
+  const { query, governorate, maxBudget, section } = req.body || {};
   if (!query) return res.json({ logged: false });
+  const cleanSection = ['all', 'products', 'cars', 'realestate'].includes(section) ? section : 'all';
   try {
     await sql`
-      INSERT INTO dalal_iraq_searches (query, governorate, max_budget)
-      VALUES (${cleanPlainText(query, 120)}, ${IRAQ_GOV_KEYWORDS[governorate] ? governorate : 'baghdad'}, ${toPositiveIntOrNull(maxBudget)});
+      INSERT INTO dalal_iraq_searches (query, governorate, max_budget, section)
+      VALUES (${cleanPlainText(query, 120)}, ${IRAQ_GOV_KEYWORDS[governorate] ? governorate : 'baghdad'}, ${toPositiveIntOrNull(maxBudget)}, ${cleanSection});
     `;
     res.json({ logged: true });
   } catch {
