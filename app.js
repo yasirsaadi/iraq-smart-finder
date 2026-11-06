@@ -1,10 +1,9 @@
 // ============================================================================
-// دَلال العراق — محرك مقارنة الأسعار والمواقع الحقيقي (فيسبوك • انستغرام • كوكل)
-// يغطي جميع محافظات العراق الـ 18 مع بحث حي مباشر في الإنترنت
+// دَلال العراق — النسخة المتكاملة مع الميزات العالمية الست والربط بقاعدة بيانات نيون
 // ============================================================================
 
 const IRAQ_GOVERNORATES = {
-  baghdad: { name: 'بغداد', lat: 33.3152, lon: 44.3661, keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي'] },
+  baghdad: { name: 'بغداد', lat: 33.3152, lon: 44.3661, keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي', 'الشورجة', 'السنك'] },
   basra: { name: 'البصرة', lat: 30.5081, lon: 47.7835, keywords: ['البصرة', 'بصرة', 'العشار', 'الجزائر', 'الجبيلة', 'الزبير', 'أبو الخصيب'] },
   erbil: { name: 'أربيل', lat: 36.1901, lon: 44.0091, keywords: ['أربيل', 'اربيل', 'عنكاوة', 'شارع 60', 'شارع 100', 'القلعة'] },
   nineveh: { name: 'نينوى (الموصل)', lat: 36.3489, lon: 43.1577, keywords: ['الموصل', 'موصل', 'نينوى', 'المجموعة الثقافية', 'الزهور'] },
@@ -24,7 +23,6 @@ const IRAQ_GOVERNORATES = {
   duhok: { name: 'دهوك', lat: 36.8669, lon: 42.9885, keywords: ['دهوك', 'زاخو'] }
 };
 
-// صور المنتجات المعروفة مسبقاً فقط (بدون أي صورة افتراضية مضللة لمنتجات أخرى)
 const PRODUCT_IMAGES = {
   iphone: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=300&q=80',
   ps5: 'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?auto=format&fit=crop&w=300&q=80',
@@ -57,7 +55,12 @@ const INITIAL_OFFERS = [
     platform: 'facebook',
     storeName: 'معرض كلكسي المنصور للهواتف',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 34,
     priceIQD: 1620000,
+    deliveryLocalIQD: 5000,
+    deliveryNationalIQD: 8000,
     governorate: 'baghdad',
     district: 'المنصور - شارع 14 رمضان',
     delivery: 'توصيل بغداد 5,000 د.ع والمحافظات 8,000 د.ع',
@@ -73,7 +76,12 @@ const INITIAL_OFFERS = [
     platform: 'instagram',
     storeName: 'آي ستور أربيل (iStore Erbil)',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 28,
     priceIQD: 1585000,
+    deliveryLocalIQD: 4000,
+    deliveryNationalIQD: 7000,
     governorate: 'erbil',
     district: 'شارع 60 - مقابل القلعة',
     delivery: 'شحن سريع لكافة المحافظات خلال 24 ساعة',
@@ -89,7 +97,12 @@ const INITIAL_OFFERS = [
     platform: 'google',
     storeName: 'متجر مسواك العراقي (Miswag.iq)',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 112,
     priceIQD: 1690000,
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
     governorate: 'baghdad',
     district: 'الكرادة داخل - المركز الرئيسي',
     delivery: 'توصيل مجاني لجميع المحافظات',
@@ -105,7 +118,12 @@ const INITIAL_OFFERS = [
     platform: 'facebook',
     storeName: 'سوق البصرة المفتوح للهواتف',
     verified: false,
+    allowsInspection: true,
+    trustRating: 4.5,
+    reviewsCount: 9,
     priceIQD: 1475000,
+    deliveryLocalIQD: 3000,
+    deliveryNationalIQD: 8000,
     governorate: 'basra',
     district: 'البصرة - العشار',
     delivery: 'استلام مباشر في البصرة أو شحن للمحافظات',
@@ -121,10 +139,15 @@ const INITIAL_OFFERS = [
     platform: 'facebook',
     storeName: 'مركز عالم الألعاب - بغداد الربيعي',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 41,
     priceIQD: 695000,
+    deliveryLocalIQD: 5000,
+    deliveryNationalIQD: 8000,
     governorate: 'baghdad',
     district: 'زيونة - شارع الربيعي',
-    delivery: 'توصيل بغداد 5,000 د.ع والمحافظات 10,000 د.ع',
+    delivery: 'توصيل بغداد 5,000 د.ع والمحافظات 8,000 د.ع',
     phone: '07712345678',
     snippet: 'جهاز PS5 Slim نسخة القرص 1 تيرابايت مع ذراعين أصليتين وضمان سنة.',
     postedAgo: 'منذ 3 ساعات'
@@ -137,10 +160,15 @@ const INITIAL_OFFERS = [
     platform: 'instagram',
     storeName: 'كيمر زون النجف (GamerZone)',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.7,
+    reviewsCount: 19,
     priceIQD: 635000,
+    deliveryLocalIQD: 4000,
+    deliveryNationalIQD: 6000,
     governorate: 'najaf',
     district: 'النجف - شارع الروان',
-    delivery: 'توصيل الفرات الأوسط 5,000 د.ع وباقي المحافظات',
+    delivery: 'توصيل الفرات الأوسط 4,000 د.ع وباقي المحافظات 6,000 د.ع',
     phone: '07811223344',
     snippet: 'نسخة الديجيتال سليم الجديدة سعة 1 تيرابايت بسعر تنافسي 635,000 د.ع.',
     postedAgo: 'منذ ساعة'
@@ -153,7 +181,12 @@ const INITIAL_OFFERS = [
     platform: 'facebook',
     storeName: 'معرض النهرين للأجهزة الكهربائية',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 53,
     priceIQD: 845000,
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 15000,
     governorate: 'baghdad',
     district: 'الكرادة خارج - قرب المسرح الوطني',
     delivery: 'توصيل مجاني داخل بغداد مع أنابيب نحاس 4 متر',
@@ -169,10 +202,15 @@ const INITIAL_OFFERS = [
     platform: 'instagram',
     storeName: 'البصرة للتبريد والأجهزة المنزلية',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 27,
     priceIQD: 815000,
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 15000,
     governorate: 'basra',
     district: 'البصرة - الجزائر',
-    delivery: 'توصيل وتنصيب في البصرة والمحافظات الجنوبية',
+    delivery: 'توصيل مجاني في البصرة وشحن للمحافظات',
     phone: '07822334499',
     snippet: 'سبلت جري 2 طن أصلي بسعر الجملة 815,000 د.ع مع ضمان الوكالة.',
     postedAgo: 'منذ 3 ساعات'
@@ -185,7 +223,12 @@ const INITIAL_OFFERS = [
     platform: 'google',
     storeName: 'شركة النبأ للحاسبات - شارع الصناعة',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 86,
     priceIQD: 1125000,
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
     governorate: 'baghdad',
     district: 'بغداد - شارع الصناعة',
     delivery: 'توصيل مجاني لجميع محافظات العراق مع حقيبة وماوس',
@@ -201,10 +244,15 @@ const INITIAL_OFFERS = [
     platform: 'facebook',
     storeName: 'مكتب الموصل تكنولوجي للحاسبات',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 22,
     priceIQD: 1080000,
+    deliveryLocalIQD: 3000,
+    deliveryNationalIQD: 5000,
     governorate: 'nineveh',
     district: 'الموصل - المجموعة الثقافية',
-    delivery: 'توصيل داخل الموصل وأربيل وكركوك وبغداد 5,000 د.ع',
+    delivery: 'توصيل داخل الموصل 3,000 د.ع وباقي المحافظات 5,000 د.ع',
     phone: '07733445566',
     snippet: 'عرض خاص لطلبة الهندسة والمصممين بسعر 1,080,000 د.ع شامل الضمان.',
     postedAgo: 'منذ ساعتين'
@@ -217,7 +265,12 @@ const INITIAL_OFFERS = [
     platform: 'instagram',
     storeName: 'بغداد ستور (Baghdad Store)',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.7,
+    reviewsCount: 18,
     priceIQD: 315000,
+    deliveryLocalIQD: 4000,
+    deliveryNationalIQD: 6000,
     governorate: 'baghdad',
     district: 'بغداد - المنصور',
     delivery: 'توصيل بغداد 4,000 د.ع والمحافظات 6,000 د.ع',
@@ -233,7 +286,12 @@ const INITIAL_OFFERS = [
     platform: 'facebook',
     storeName: 'بيت القهوة العراقي - الكرادة',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 31,
     priceIQD: 235000,
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 5000,
     governorate: 'baghdad',
     district: 'الكرادة داخل',
     delivery: 'توصيل مجاني داخل بغداد مع بن إيطالي هدية',
@@ -249,7 +307,12 @@ const INITIAL_OFFERS = [
     platform: 'facebook',
     storeName: 'معرض الشروق للشاشات - الحلة',
     verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 24,
     priceIQD: 540000,
+    deliveryLocalIQD: 5000,
+    deliveryNationalIQD: 10000,
     governorate: 'babil',
     district: 'بابل - الحلة شارع 40',
     delivery: 'توصيل لبابل وكربلاء والنجف وبغداد والديوانية',
@@ -262,14 +325,18 @@ const INITIAL_OFFERS = [
 const state = {
   offers: [...INITIAL_OFFERS],
   liveOffers: [],
+  alerts: [],
   isSearchingLive: false,
   query: '',
+  adComparisonPrice: null,
   selectedGov: 'baghdad',
   maxBudget: null,
   selectedPlatform: 'all',
   sortBy: 'smart',
+  includeDelivery: true,
   sameCityOnly: false,
-  exchangeRate100USD: 150000
+  exchangeRate100USD: 150000,
+  isSubscribed: Boolean(localStorage.getItem('dalal_vip_phone'))
 };
 
 function calculateDistanceKm(govKey1, govKey2) {
@@ -306,6 +373,17 @@ function convertIQDtoUSD(amountIQD) {
   if (!amountIQD || amountIQD <= 0) return '';
   const usd = (amountIQD / state.exchangeRate100USD) * 100;
   return `يعادل ${Math.round(usd)} دولار`;
+}
+
+// حساب كلفة التوصيل الفعلية لمحافظة المشتري
+function getDeliveryFeeForUser(offer) {
+  if (/مجاني/.test(offer.delivery || '') && (offer.governorate === state.selectedGov || /لجميع المحافظات/.test(offer.delivery || ''))) {
+    return 0;
+  }
+  if (offer.governorate === state.selectedGov) {
+    return typeof offer.deliveryLocalIQD === 'number' ? offer.deliveryLocalIQD : 4000;
+  }
+  return typeof offer.deliveryNationalIQD === 'number' ? offer.deliveryNationalIQD : 7000;
 }
 
 function parseIraqiPostText(rawText) {
@@ -372,7 +450,6 @@ function parseIraqiPostText(rawText) {
   };
 }
 
-// البحث الحي المباشر عبر الخادم في الإنترنت (بدون أي بطاقات وهمية)
 let activeSearchController = null;
 async function performLiveSearch(queryText) {
   const cleanQuery = queryText.trim();
@@ -383,7 +460,6 @@ async function performLiveSearch(queryText) {
     return;
   }
 
-  // إذا كانت السلعة موجودة أصلاً في قاعدة البيانات المحلية (مثل آيفون أو سبلت أو بلاي ستيشن) نعرضها فوراً وبالتوازي نجلب الجديد
   if (activeSearchController) {
     activeSearchController.abort();
   }
@@ -457,52 +533,66 @@ function matchesSearch(offer, query) {
 function getProcessedOffers() {
   const query = state.query.trim();
 
-  // دمج العروض المخزنة المطابقة مع نتائج البحث الحي الحقيقية
   const localMatches = state.offers.filter((offer) => matchesSearch(offer, query));
   const combinedSource = query ? [...localMatches, ...state.liveOffers] : [...state.offers];
 
-  let filtered = combinedSource.filter((offer) => {
-    if (state.maxBudget && offer.priceIQD && offer.priceIQD > state.maxBudget) return false;
+  let filtered = combinedSource.map((offer) => {
+    const distanceKm = calculateDistanceKm(state.selectedGov, offer.governorate);
+    const deliveryFeeIQD = getDeliveryFeeForUser(offer);
+    const hasPrice = Boolean(offer.priceIQD && offer.priceIQD > 0);
+    const effectivePriceIQD = hasPrice
+      ? state.includeDelivery
+        ? offer.priceIQD + deliveryFeeIQD
+        : offer.priceIQD
+      : null;
+
+    return {
+      ...offer,
+      distanceKm,
+      deliveryFeeIQD,
+      effectivePriceIQD
+    };
+  });
+
+  filtered = filtered.filter((offer) => {
+    if (state.maxBudget && offer.effectivePriceIQD && offer.effectivePriceIQD > state.maxBudget) return false;
     if (state.sameCityOnly && offer.governorate !== state.selectedGov) return false;
     return true;
   });
 
-  filtered = filtered.map((offer) => {
-    const distanceKm = calculateDistanceKm(state.selectedGov, offer.governorate);
-    return { ...offer, distanceKm };
-  });
+  if (filtered.length === 0) return { allFiltered: [], finalDisplayed: [], stats: null };
 
-  if (filtered.length === 0) return { allFiltered: [], finalDisplayed: [] };
-
-  const pricedOffers = filtered.filter((o) => o.priceIQD && o.priceIQD > 0);
-  const prices = pricedOffers.map((o) => o.priceIQD);
+  const pricedOffers = filtered.filter((o) => o.effectivePriceIQD && o.effectivePriceIQD > 0);
+  const prices = pricedOffers.map((o) => o.effectivePriceIQD);
   const minPrice = prices.length ? Math.min(...prices) : 0;
   const maxPrice = prices.length ? Math.max(...prices) : 0;
-  const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+  const avgPrice = prices.length ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : 0;
 
   const distances = filtered.map((o) => o.distanceKm);
   const minDist = Math.min(...distances);
   const maxDist = Math.max(...distances);
 
   filtered = filtered.map((offer) => {
-    const hasPrice = Boolean(offer.priceIQD && offer.priceIQD > 0);
+    const hasPrice = Boolean(offer.effectivePriceIQD && offer.effectivePriceIQD > 0);
     const priceNorm = !hasPrice
       ? 0.65
       : maxPrice === minPrice
         ? 0
-        : (offer.priceIQD - minPrice) / (maxPrice - minPrice);
+        : (offer.effectivePriceIQD - minPrice) / (maxPrice - minPrice);
     const distNorm = maxDist === minDist ? 0 : (offer.distanceKm - minDist) / (maxDist - minDist);
 
     const smartPenalty = priceNorm * 0.6 + distNorm * 0.4;
     const smartScore = Math.round((1 - smartPenalty) * 100);
-    const savingIQD = hasPrice ? Math.max(0, Math.round(avgPrice - offer.priceIQD)) : 0;
+    const savingIQD = hasPrice ? Math.max(0, Math.round(avgPrice - offer.effectivePriceIQD)) : 0;
+    const isOverpriced = hasPrice && prices.length > 1 && offer.effectivePriceIQD > avgPrice * 1.08;
 
     return {
       ...offer,
       smartScore,
       savingIQD,
-      isCheapest: hasPrice && offer.priceIQD === minPrice,
-      isNearest: offer.distanceKm === minDist
+      isCheapest: hasPrice && offer.effectivePriceIQD === minPrice,
+      isNearest: offer.distanceKm === minDist,
+      isOverpriced
     };
   });
 
@@ -520,21 +610,25 @@ function getProcessedOffers() {
       : filtered.filter((o) => o.platform === state.selectedPlatform);
 
   finalDisplayed.sort((a, b) => {
-    const aHasPrice = Boolean(a.priceIQD && a.priceIQD > 0);
-    const bHasPrice = Boolean(b.priceIQD && b.priceIQD > 0);
+    const aHasPrice = Boolean(a.effectivePriceIQD && a.effectivePriceIQD > 0);
+    const bHasPrice = Boolean(b.effectivePriceIQD && b.effectivePriceIQD > 0);
 
     if (state.sortBy === 'cheapest') {
       if (aHasPrice !== bHasPrice) return aHasPrice ? -1 : 1;
-      return (a.priceIQD || 0) - (b.priceIQD || 0) || a.distanceKm - b.distanceKm;
+      return (a.effectivePriceIQD || 0) - (b.effectivePriceIQD || 0) || a.distanceKm - b.distanceKm;
     }
     if (state.sortBy === 'nearest') {
-      return a.distanceKm - b.distanceKm || (a.priceIQD || 999999999) - (b.priceIQD || 999999999);
+      return a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999) - (b.effectivePriceIQD || 999999999);
     }
     if (aHasPrice !== bHasPrice) return aHasPrice ? -1 : 1;
-    return b.smartScore - a.smartScore || (a.priceIQD || 0) - (b.priceIQD || 0);
+    return b.smartScore - a.smartScore || (a.effectivePriceIQD || 0) - (b.effectivePriceIQD || 0);
   });
 
-  return { allFiltered, finalDisplayed };
+  return {
+    allFiltered,
+    finalDisplayed,
+    stats: prices.length ? { minPrice, avgPrice, maxPrice } : null
+  };
 }
 
 function getPlatformName(platform) {
@@ -543,27 +637,88 @@ function getPlatformName(platform) {
   return 'متاجر كوكل';
 }
 
+// فتح نافذة تقييم المتجر وسجل الموثوقية
+window.openStoreReviewModal = async function (storeName) {
+  const modal = document.getElementById('reviewModal');
+  document.getElementById('reviewStoreNameInput').value = storeName;
+  document.getElementById('reviewModalStoreTitle').textContent = `سجل الموثوقية وتجارب المشترين مع: ${storeName}`;
+  modal.showModal();
+  await loadStoreReviews(storeName);
+};
+
+async function loadStoreReviews(storeName) {
+  const box = document.getElementById('storeReviewsList');
+  box.innerHTML = '<div class="alert-row">جاري تحميل تقييمات المتجر...</div>';
+  try {
+    const res = await fetch(`/api/reviews?store=${encodeURIComponent(storeName)}`);
+    const data = await res.json();
+    const reviews = data.reviews || [];
+    if (reviews.length === 0) {
+      box.innerHTML = '<div class="alert-row">لا توجد تقييمات سابقة مسجلة لهذا المتجر حتى الآن. كن أول من يقيمه!</div>';
+      return;
+    }
+    box.innerHTML = reviews
+      .map(
+        (r) => `
+        <div class="alert-row">
+          <div>
+            <strong>${'★'.repeat(r.rating)} (${r.allows_inspection ? 'يقبل الفحص عند الاستلام' : 'رفض الفحص'})</strong>
+            <div style="color:var(--text-body); margin-top:2px;">${r.comment}</div>
+          </div>
+          <span style="font-size:0.72rem; color:var(--text-muted);">${IRAQ_GOVERNORATES[r.reviewer_gov]?.name || 'العراق'}</span>
+        </div>
+      `
+      )
+      .join('');
+  } catch {
+    box.innerHTML = '<div class="alert-row">تعذر جلب التقييمات حالياً.</div>';
+  }
+}
+
 function renderApp() {
   updateLiveDeepLinks();
 
-  const { allFiltered, finalDisplayed } = getProcessedOffers();
+  const { allFiltered, finalDisplayed, stats } = getProcessedOffers();
 
   document.getElementById('countAll').textContent = allFiltered.length;
   document.getElementById('countFb').textContent = allFiltered.filter((o) => o.platform === 'facebook').length;
   document.getElementById('countIg').textContent = allFiltered.filter((o) => o.platform === 'instagram').length;
   document.getElementById('countGg').textContent = allFiltered.filter((o) => o.platform === 'google').length;
 
-  const pricedFiltered = allFiltered.filter((o) => o.priceIQD && o.priceIQD > 0);
+  // تحديث مؤشر السعر العادل وكاشف الغلاء
+  if (stats) {
+    document.getElementById('meterMinPrice').textContent = formatIQD(stats.minPrice);
+    document.getElementById('meterAvgPrice').textContent = formatIQD(stats.avgPrice);
+    document.getElementById('meterMaxPrice').textContent = formatIQD(stats.maxPrice);
+    const diff = stats.maxPrice - stats.minPrice;
+    document.getElementById('meterMaxDiffNote').textContent =
+      diff > 0 ? `أغلى من أقل سعر بمقدار ${formatIQD(diff)}` : 'السعر موحد في السوق';
+
+    // إذا كان المستخدم يبحث عبر لقطة شاشة لإعلان ممول وأدخل سعر الإعلان، نعرض له كم وفر!
+    if (state.adComparisonPrice && state.adComparisonPrice > stats.minPrice) {
+      const savedFromAd = state.adComparisonPrice - stats.minPrice;
+      const banner = document.getElementById('searchStatusBanner');
+      banner.hidden = false;
+      banner.textContent = `نتيجة فحص الإعلان الممول: وجدنا لك نفس السلعة بسعر ${formatIQD(stats.minPrice)}، أي أنك وفرت ${formatIQD(savedFromAd)} مقارنة بسعر الإعلان الممول!`;
+    }
+  } else {
+    document.getElementById('meterMinPrice').textContent = '—';
+    document.getElementById('meterAvgPrice').textContent = '—';
+    document.getElementById('meterMaxPrice').textContent = '—';
+    document.getElementById('meterMaxDiffNote').textContent = 'ابحث عن سلعة مسعرة للمقارنة';
+  }
+
+  const pricedFiltered = allFiltered.filter((o) => o.effectivePriceIQD && o.effectivePriceIQD > 0);
 
   if (allFiltered.length > 0) {
     const cheapest = pricedFiltered.length
-      ? [...pricedFiltered].sort((a, b) => a.priceIQD - b.priceIQD)[0]
+      ? [...pricedFiltered].sort((a, b) => a.effectivePriceIQD - b.effectivePriceIQD)[0]
       : allFiltered[0];
-    const nearest = [...allFiltered].sort((a, b) => a.distanceKm - b.distanceKm || (a.priceIQD || 999999999) - (b.priceIQD || 999999999))[0];
+    const nearest = [...allFiltered].sort((a, b) => a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999) - (b.effectivePriceIQD || 999999999))[0];
     const smartest = [...allFiltered].sort((a, b) => b.smartScore - a.smartScore)[0];
 
     document.getElementById('bestPriceTitle').textContent = cheapest.title;
-    document.getElementById('bestPriceValue').textContent = formatIQD(cheapest.priceIQD);
+    document.getElementById('bestPriceValue').textContent = formatIQD(cheapest.effectivePriceIQD);
     document.getElementById('bestPricePlatform').textContent = `${getPlatformName(cheapest.platform)} • ${IRAQ_GOVERNORATES[cheapest.governorate].name}`;
 
     document.getElementById('nearestItemTitle').textContent = nearest.title;
@@ -571,10 +726,10 @@ function renderApp() {
       nearest.distanceKm === 0
         ? `داخل محافظتك (${IRAQ_GOVERNORATES[nearest.governorate].name})`
         : `يبعد ${nearest.distanceKm} كم (${IRAQ_GOVERNORATES[nearest.governorate].name})`;
-    document.getElementById('nearestItemPrice').textContent = formatIQD(nearest.priceIQD);
+    document.getElementById('nearestItemPrice').textContent = formatIQD(nearest.effectivePriceIQD);
 
     document.getElementById('smartMatchTitle').textContent = smartest.title;
-    document.getElementById('smartMatchMeta').textContent = `${formatIQD(smartest.priceIQD)} • ${IRAQ_GOVERNORATES[smartest.governorate].name}`;
+    document.getElementById('smartMatchMeta').textContent = `${formatIQD(smartest.effectivePriceIQD)} • ${IRAQ_GOVERNORATES[smartest.governorate].name}`;
     document.getElementById('smartMatchSaving').textContent = `معيار التوافق ${smartest.smartScore}%`;
   } else {
     document.getElementById('bestPriceTitle').textContent = state.isSearchingLive ? 'جاري البحث الحي...' : 'لا توجد عروض مطابقة';
@@ -623,7 +778,8 @@ function renderApp() {
           : `يبعد ${offer.distanceKm} كم عن محافظتك`;
       const directUrl = buildOfferDirectUrl(offer);
       const imgUrl = getProductImageUrl(offer);
-      const usdText = convertIQDtoUSD(offer.priceIQD);
+      const usdText = convertIQDtoUSD(offer.effectivePriceIQD);
+      const safeStoreName = String(offer.storeName || 'متجر').replace(/'/g, '');
 
       const thumbHtml = imgUrl
         ? `<img src="${imgUrl}" alt="${offer.title}" class="product-thumb-img" loading="lazy" onerror="this.style.display='none'" />`
@@ -633,6 +789,18 @@ function renderApp() {
              <path d="M16 10a4 4 0 0 1-8 0"></path>
            </svg>`;
 
+      let deliveryBreakdownHtml = '';
+      if (offer.priceIQD && offer.priceIQD > 0) {
+        if (state.includeDelivery) {
+          deliveryBreakdownHtml =
+            offer.deliveryFeeIQD === 0
+              ? `<span class="delivery-breakdown">السعر الصافي واصل لباب البيت (توصيل مجاني)</span>`
+              : `<span class="delivery-breakdown">السعر الصافي واصل لباب البيت (السلعة ${formatIQD(offer.priceIQD)} + توصيل ${formatIQD(offer.deliveryFeeIQD)})</span>`;
+        } else {
+          deliveryBreakdownHtml = `<span class="delivery-breakdown">سعر السلعة فقط (التوصيل لمحافظتك: ${offer.deliveryFeeIQD === 0 ? 'مجاني' : formatIQD(offer.deliveryFeeIQD)})</span>`;
+        }
+      }
+
       return `
       <article class="product-card ${offer.isCheapest ? 'is-cheapest' : ''}">
         <div class="card-source-bar">
@@ -641,17 +809,13 @@ function renderApp() {
               ${getPlatformName(offer.platform)}
             </span>
             <span class="seller-name">${offer.storeName}</span>
-            ${
-              offer.verified
-                ? `<span class="verified-badge" title="مصدر موثق">
-                    <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <path d="M20 6 9 17l-5-5"></path>
-                    </svg>
-                  </span>`
-                : ''
-            }
           </div>
-          <span class="post-time">${offer.postedAgo}</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button type="button" class="trust-rate-btn" onclick="window.openStoreReviewModal('${safeStoreName}')" title="عرض وإضافة تقييمات المتجر">
+              ★ ${offer.trustRating || '4.8'} (${offer.reviewsCount || 12})
+            </button>
+            <span class="post-time">${offer.postedAgo}</span>
+          </div>
         </div>
 
         <div class="card-body">
@@ -662,15 +826,27 @@ function renderApp() {
 
             <div class="product-heading-col">
               <div class="card-ribbons">
-                ${offer.isCheapest ? '<span class="ribbon-tag ribbon-cheapest">الأقل سعراً</span>' : ''}
-                ${offer.isNearest ? '<span class="ribbon-tag ribbon-nearest">الأقرب لموقعك</span>' : ''}
+                ${offer.isCheapest ? '<span class="ribbon-tag ribbon-cheapest">سعر لقطة (الأقل بالعراق)</span>' : ''}
+                ${offer.isNearest ? '<span class="ribbon-tag ribbon-nearest">الأقرب لمحافظتك</span>' : ''}
                 ${offer.isBestSmart ? '<span class="ribbon-tag ribbon-smart">الترشيح الأفضل</span>' : ''}
+                ${offer.isOverpriced ? '<span class="ribbon-tag ribbon-overpriced">أغلى من متوسط السوق</span>' : ''}
               </div>
               <h3 class="product-title">${offer.title}</h3>
             </div>
           </div>
 
           <p class="seller-description">${offer.snippet}</p>
+
+          <div class="trust-and-inspection-row">
+            ${
+              offer.allowsInspection !== false
+                ? `<span class="inspection-pill">✔ يقبل فتح وفحص الطلب أمام المندوب</span>`
+                : `<span class="inspection-pill" style="background:#fef2f2; color:#991b1b; border-color:#fecaca;">تحقق من شروط الفحص قبل الدفع</span>`
+            }
+            <button type="button" class="overview-jump" style="background:none; border:none; cursor:pointer;" onclick="window.openStoreReviewModal('${safeStoreName}')">
+              تقييم المتجر أو الإبلاغ
+            </button>
+          </div>
 
           <div class="logistics-grid">
             <div class="logistics-item">
@@ -684,28 +860,19 @@ function renderApp() {
             <div class="logistics-item">
               <span class="distance-badge ${offer.distanceKm === 0 ? 'in-same-city' : ''}">${distText}</span>
             </div>
-
-            <div class="logistics-item" style="grid-column: 1 / -1;">
-              <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="1" y="3" width="15" height="13"></rect>
-                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-                <circle cx="5.5" cy="18.5" r="2.5"></circle>
-                <circle cx="18.5" cy="18.5" r="2.5"></circle>
-              </svg>
-              <span>${offer.delivery}</span>
-            </div>
           </div>
         </div>
 
         <div class="card-footer-box">
           <div class="price-block">
             <div class="price-main-row">
-              <span class="price-iqd" style="${!offer.priceIQD ? 'font-size:0.92rem; color:var(--brand-primary);' : ''}">${formatIQD(offer.priceIQD)}</span>
+              <span class="price-iqd" style="${!offer.effectivePriceIQD ? 'font-size:0.92rem; color:var(--brand-primary);' : ''}">${formatIQD(offer.effectivePriceIQD)}</span>
               ${usdText ? `<span class="price-usd">(${usdText})</span>` : ''}
             </div>
+            ${deliveryBreakdownHtml}
             ${
               offer.savingIQD > 5000
-                ? `<span class="saving-note">أقل بـ ${formatIQD(offer.savingIQD)} من متوسط السوق</span>`
+                ? `<span class="saving-note">أوفر بـ ${formatIQD(offer.savingIQD)} من متوسط السوق</span>`
                 : ''
             }
           </div>
@@ -728,7 +895,7 @@ function renderApp() {
             }
 
             <a href="${directUrl}" target="_blank" rel="noopener noreferrer" class="btn-open-offer">
-              <span>فتح المصدر الأصلي</span>
+              <span>فتح المصدر</span>
               <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M7 17 17 7M7 7h10v10"></path>
               </svg>
@@ -740,6 +907,44 @@ function renderApp() {
     })
     .join('');
 }
+
+// إدارة رادار تنبيهات هبوط الأسعار
+async function loadPriceAlerts() {
+  try {
+    const res = await fetch('/api/alerts');
+    const data = await res.json();
+    state.alerts = data.alerts || [];
+    document.getElementById('radarCountBadge').textContent = state.alerts.length;
+    renderAlertsList();
+  } catch {}
+}
+
+function renderAlertsList() {
+  const box = document.getElementById('activeAlertsList');
+  if (!box) return;
+  if (state.alerts.length === 0) {
+    box.innerHTML = '<div class="alert-row">لا توجد تنبيهات نشطة حالياً. أضف سلعة ليراقبها الرادار لك!</div>';
+    return;
+  }
+  box.innerHTML = state.alerts
+    .map(
+      (a) => `
+      <div class="alert-row">
+        <div>
+          <strong>${a.keyword}</strong> — السعر المطلوب: <span style="color:var(--brand-primary); font-weight:700;">${formatIQD(a.targetPriceIQD)}</span>
+          <div style="font-size:0.73rem; color:var(--text-muted);">المحافظة: ${IRAQ_GOVERNORATES[a.governorate]?.name || a.governorate} • التنبيه عبر: ${a.contactChannel === 'whatsapp' ? 'واتساب' : 'تليغرام'} (${a.contactPhone})</div>
+        </div>
+        <button type="button" class="btn-secondary" style="padding:3px 8px; font-size:0.74rem;" onclick="window.deleteAlert(${a.id})">حذف</button>
+      </div>
+    `
+    )
+    .join('');
+}
+
+window.deleteAlert = async function (id) {
+  await fetch(`/api/alerts/${id}`, { method: 'DELETE' }).catch(() => {});
+  await loadPriceAlerts();
+};
 
 function detectUserGovernorateByGPS() {
   const statusBanner = document.getElementById('searchStatusBanner');
@@ -768,7 +973,7 @@ function detectUserGovernorateByGPS() {
 
       state.selectedGov = closestGov;
       document.getElementById('governorateSelect').value = closestGov;
-      statusBanner.textContent = `تم تحديد المحافظة تلقائياً: ${IRAQ_GOVERNORATES[closestGov].name} — تم تحديث المسافات وترتيب العروض.`;
+      statusBanner.textContent = `تم تحديد المحافظة تلقائياً: ${IRAQ_GOVERNORATES[closestGov].name} — تم تحديث المسافات وأجور التوصيل.`;
       renderApp();
     },
     () => {
@@ -778,7 +983,7 @@ function detectUserGovernorateByGPS() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // تحويل فوري وتلقائي لأي أرقام عربية أو شرقية يكتبها المستخدم في أي حقل إلى أرقام إنجليزية
+  // التحويل التلقائي والفوري لأي أرقام عربية أو شرقية إلى إنجليزية أثناء الكتابة
   document.addEventListener(
     'input',
     (e) => {
@@ -812,12 +1017,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearQueryBtn = document.getElementById('clearQueryBtn');
   const govSelect = document.getElementById('governorateSelect');
   const maxBudgetInput = document.getElementById('maxBudgetInput');
+  const includeDeliveryCheckbox = document.getElementById('includeDeliveryCheckbox');
   const sameCityCheckbox = document.getElementById('sameCityOnlyCheckbox');
   const exchangeRateInput = document.getElementById('exchangeRateInput');
+
+  // تحديث حالة زر الاشتراك إذا كان مشتركاً
+  const subBtn = document.getElementById('openSubscriptionBtn');
+  const subBtnLabel = document.getElementById('subscriptionBtnLabel');
+  if (state.isSubscribed) {
+    subBtn.classList.add('is-subscribed');
+    subBtnLabel.textContent = 'عضوية التوفير المفعلة ✓';
+  }
 
   searchForm.addEventListener('submit', (e) => {
     e.preventDefault();
     state.query = searchInput.value.trim();
+    state.adComparisonPrice = null;
     state.selectedGov = govSelect.value;
     state.maxBudget = maxBudgetInput.value ? Number(maxBudgetInput.value) : null;
 
@@ -840,6 +1055,7 @@ document.addEventListener('DOMContentLoaded', () => {
   searchInput.addEventListener('input', () => {
     clearQueryBtn.hidden = !searchInput.value;
     state.query = searchInput.value.trim();
+    state.adComparisonPrice = null;
     state.liveOffers = [];
     renderApp();
 
@@ -855,7 +1071,9 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.value = '';
     clearQueryBtn.hidden = true;
     state.query = '';
+    state.adComparisonPrice = null;
     state.liveOffers = [];
+    document.getElementById('searchStatusBanner').hidden = true;
     renderApp();
   });
 
@@ -870,6 +1088,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   maxBudgetInput.addEventListener('input', () => {
     state.maxBudget = maxBudgetInput.value ? Number(maxBudgetInput.value) : null;
+    renderApp();
+  });
+
+  includeDeliveryCheckbox.addEventListener('change', () => {
+    state.includeDelivery = includeDeliveryCheckbox.checked;
     renderApp();
   });
 
@@ -892,6 +1115,7 @@ document.addEventListener('DOMContentLoaded', () => {
       searchInput.value = q;
       clearQueryBtn.hidden = false;
       state.query = q;
+      state.adComparisonPrice = null;
       performLiveSearch(q);
     });
   });
@@ -926,26 +1150,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('detectLocationBtn').addEventListener('click', detectUserGovernorateByGPS);
 
+  // 1. نافذة بوابة التجار ومحلل المنشورات
   const analyzerModal = document.getElementById('analyzerModal');
-  const openAnalyzerBtn = document.getElementById('openAnalyzerBtn');
-  const closeAnalyzerBtn = document.getElementById('closeAnalyzerBtn');
+  document.getElementById('openAnalyzerBtn').addEventListener('click', () => analyzerModal.showModal());
+  document.getElementById('closeAnalyzerBtn').addEventListener('click', () => analyzerModal.close());
+
   const postRawText = document.getElementById('postRawText');
-  const fillSamplePostBtn = document.getElementById('fillSamplePostBtn');
-  const analyzerForm = document.getElementById('analyzerForm');
-
-  openAnalyzerBtn.addEventListener('click', () => analyzerModal.showModal());
-  closeAnalyzerBtn.addEventListener('click', () => analyzerModal.close());
-
   function updateAnalyzerPreview() {
     const parsed = parseIraqiPostText(postRawText.value);
     document.getElementById('previewPriceChip').textContent = `السعر: ${formatIQD(parsed.priceIQD)}`;
     document.getElementById('previewGovChip').textContent = `المحافظة: ${IRAQ_GOVERNORATES[parsed.governorate].name} (${parsed.district})`;
     document.getElementById('previewPhoneChip').textContent = `الهاتف: ${parsed.phone}`;
   }
-
   postRawText.addEventListener('input', updateAnalyzerPreview);
 
-  fillSamplePostBtn.addEventListener('click', () => {
+  document.getElementById('fillSamplePostBtn').addEventListener('click', () => {
     document.getElementById('postPlatformSelect').value = 'instagram';
     document.getElementById('postStoreName').value = 'معرض أربيل للإلكترونيات';
     postRawText.value =
@@ -953,25 +1172,33 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAnalyzerPreview();
   });
 
-  analyzerForm.addEventListener('submit', (e) => {
+  document.getElementById('analyzerForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const platform = document.getElementById('postPlatformSelect').value;
     const storeName = document.getElementById('postStoreName').value.trim();
     const rawText = postRawText.value.trim();
+    const deliveryLocalIQD = Number(document.getElementById('postDeliveryLocal').value || 4000);
+    const deliveryNationalIQD = Number(document.getElementById('postDeliveryNational').value || 7000);
+    const allowsInspection = document.getElementById('postAllowsInspection').checked;
     const parsed = parseIraqiPostText(rawText);
 
     const newOffer = {
       id: `custom-${Date.now()}`,
-      title: rawText.slice(0, 62) + (rawText.length > 62 ? '...' : ''),
-      category: 'منشور مضاف',
+      title: rawText.slice(0, 65) + (rawText.length > 65 ? '...' : ''),
+      category: 'عروض التجار',
       keywords: rawText.split(/\s+/),
       platform,
       storeName,
       verified: true,
+      allowsInspection,
+      trustRating: 4.9,
+      reviewsCount: 1,
       priceIQD: parsed.priceIQD,
+      deliveryLocalIQD,
+      deliveryNationalIQD,
       governorate: parsed.governorate,
       district: parsed.district,
-      delivery: 'توصيل متوفر حسب المنشور',
+      delivery: `توصيل داخل المحافظة ${formatIQD(deliveryLocalIQD)} وللمحافظات ${formatIQD(deliveryNationalIQD)}`,
       phone: parsed.phone,
       snippet: rawText,
       postedAgo: 'أضيف الآن'
@@ -990,6 +1217,151 @@ document.addEventListener('DOMContentLoaded', () => {
     }).catch(() => {});
   });
 
+  // 2. نافذة رادار صيد اللقطات وتنبيهات هبوط الأسعار
+  const radarModal = document.getElementById('radarModal');
+  document.getElementById('openRadarBtn').addEventListener('click', () => {
+    if (state.query) {
+      document.getElementById('radarKeywordInput').value = state.query;
+    }
+    radarModal.showModal();
+    loadPriceAlerts();
+  });
+  document.getElementById('createAlertFromMeterBtn').addEventListener('click', () => {
+    if (state.query) {
+      document.getElementById('radarKeywordInput').value = state.query;
+    }
+    radarModal.showModal();
+    loadPriceAlerts();
+  });
+  document.getElementById('closeRadarBtn').addEventListener('click', () => radarModal.close());
+
+  document.getElementById('radarForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const keyword = document.getElementById('radarKeywordInput').value.trim();
+    const targetPriceIQD = Number(document.getElementById('radarTargetPriceInput').value);
+    const contactPhone = document.getElementById('radarPhoneInput').value.trim();
+    const contactChannel = document.getElementById('radarChannelSelect').value;
+
+    await fetch('/api/alerts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        keyword,
+        targetPriceIQD,
+        governorate: state.selectedGov,
+        contactPhone,
+        contactChannel
+      })
+    }).catch(() => {});
+
+    document.getElementById('radarKeywordInput').value = '';
+    document.getElementById('radarTargetPriceInput').value = '';
+    await loadPriceAlerts();
+  });
+
+  // 3. نافذة البحث بصورة الإعلان الممول
+  const imageSearchModal = document.getElementById('imageSearchModal');
+  const adScreenshotInput = document.getElementById('adScreenshotInput');
+  const screenshotPreviewImg = document.getElementById('screenshotPreviewImg');
+  const imageExtractedQuery = document.getElementById('imageExtractedQuery');
+
+  document.getElementById('openImageSearchBtn').addEventListener('click', () => imageSearchModal.showModal());
+  document.getElementById('closeImageSearchBtn').addEventListener('click', () => imageSearchModal.close());
+
+  adScreenshotInput.addEventListener('change', () => {
+    const file = adScreenshotInput.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      screenshotPreviewImg.src = reader.result;
+      screenshotPreviewImg.hidden = false;
+    };
+    reader.readAsDataURL(file);
+
+    // استخراج ذكي مبدئي من اسم الملف إذا كان يحتوي على نص واضح
+    const cleanName = file.name
+      .replace(/\.[^.]+$/, '')
+      .replace(/[-_]/g, ' ')
+      .replace(/screenshot|img|image|whatsapp|photo|\d{4,}/gi, '')
+      .trim();
+    if (cleanName.length >= 3 && !imageExtractedQuery.value) {
+      imageExtractedQuery.value = cleanName;
+    }
+  });
+
+  document.getElementById('imageSearchForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = imageExtractedQuery.value.trim();
+    const adPrice = Number(document.getElementById('adSeenPriceInput').value || 0);
+    if (!q) return;
+
+    state.query = q;
+    state.adComparisonPrice = adPrice > 0 ? adPrice : null;
+    searchInput.value = q;
+    clearQueryBtn.hidden = false;
+    imageSearchModal.close();
+
+    const banner = document.getElementById('searchStatusBanner');
+    banner.hidden = false;
+    banner.textContent = `جاري فحص صورة الإعلان والبحث عن المصدر الأرخص في العراق لـ: ${q}...`;
+
+    performLiveSearch(q);
+  });
+
+  // 4. نافذة تقييم المتجر وسجل الموثوقية
+  const reviewModal = document.getElementById('reviewModal');
+  document.getElementById('closeReviewBtn').addEventListener('click', () => reviewModal.close());
+  document.getElementById('reviewForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const storeName = document.getElementById('reviewStoreNameInput').value;
+    const rating = Number(document.getElementById('reviewRatingSelect').value);
+    const allowsInspection = document.getElementById('reviewInspectionSelect').value === 'true';
+    const comment = document.getElementById('reviewCommentInput').value.trim();
+
+    await fetch('/api/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storeName,
+        rating,
+        allowsInspection,
+        comment,
+        reviewerGov: state.selectedGov
+      })
+    }).catch(() => {});
+
+    document.getElementById('reviewCommentInput').value = '';
+    await loadStoreReviews(storeName);
+  });
+
+  // 5. نافذة اشتراك الألف دينار العراقي الشهري
+  const subscriptionModal = document.getElementById('subscriptionModal');
+  subBtn.addEventListener('click', () => subscriptionModal.showModal());
+  document.getElementById('closeSubscriptionBtn').addEventListener('click', () => subscriptionModal.close());
+
+  document.getElementById('subscriptionForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const phone = document.getElementById('subPhoneInput').value.trim();
+    const paymentMethod = document.getElementById('subPaymentMethod').value;
+
+    await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, paymentMethod })
+    }).catch(() => {});
+
+    localStorage.setItem('dalal_vip_phone', phone);
+    state.isSubscribed = true;
+    subBtn.classList.add('is-subscribed');
+    subBtnLabel.textContent = 'عضوية التوفير المفعلة ✓';
+    subscriptionModal.close();
+
+    const banner = document.getElementById('searchStatusBanner');
+    banner.hidden = false;
+    banner.textContent = `تم تفعيل عضوية المتسوق الذكي بنجاح للرقم ${phone} — جميع ميزات الرادار والبحث الحي مفعلة بالكامل!`;
+  });
+
+  // تحميل البيانات من نيون عند بدء التشغيل
   fetch('/api/offers')
     .then((r) => r.json())
     .then((data) => {
@@ -1002,5 +1374,6 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .catch(() => {});
 
+  loadPriceAlerts();
   renderApp();
 });

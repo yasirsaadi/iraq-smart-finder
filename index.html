@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- الشريط العلوي الخدمي (على غرار المتاجر الكبرى) -->
+  <!-- الشريط العلوي الخدمي -->
   <div class="utility-bar">
     <div class="container utility-inner">
       <div class="utility-right">
@@ -19,7 +19,7 @@
             <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
             <circle cx="12" cy="10" r="3"></circle>
           </svg>
-          <span class="utility-label">نطاق البحث والتوصيل:</span>
+          <span class="utility-label">التوصيل والمحافظة:</span>
           <select id="governorateSelect" aria-label="اختر المحافظة">
             <option value="baghdad">بغداد</option>
             <option value="basra">البصرة</option>
@@ -48,20 +48,36 @@
             <span>تحديد تلقائي</span>
           </button>
         </div>
-      </div>
 
-      <div class="utility-left">
         <div class="exchange-box" title="سعر صرف المئة دولار لحساب عروض البيجات المسعرة بالورقة">
-          <span class="utility-label">سعر الصرف التقديري (100 دولار):</span>
+          <span class="utility-label">صرف 100 دولار:</span>
           <input type="text" inputmode="numeric" data-numeric-only="true" id="exchangeRateInput" value="150000" aria-label="سعر صرف 100 دولار بالدينار" />
           <span class="currency-unit">د.ع</span>
         </div>
+      </div>
 
-        <button type="button" class="utility-action-btn" id="openAnalyzerBtn">
+      <div class="utility-left">
+        <button type="button" class="utility-nav-btn" id="openRadarBtn">
+          <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <span>رادار اللقطات</span>
+          <span class="radar-badge-count" id="radarCountBadge">0</span>
+        </button>
+
+        <button type="button" class="utility-nav-btn" id="openAnalyzerBtn">
           <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 5v14M5 12h14"></path>
           </svg>
-          <span>إضافة منشور للمقارنة</span>
+          <span>بوابة التجار وإضافة عرض</span>
+        </button>
+
+        <button type="button" class="utility-vip-btn" id="openSubscriptionBtn">
+          <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span id="subscriptionBtnLabel">اشتراك التوفير (1,000 د.ع)</span>
         </button>
       </div>
     </div>
@@ -84,7 +100,7 @@
         </div>
       </a>
 
-      <!-- شريط البحث التجاري الموحد -->
+      <!-- شريط البحث التجاري الموحد مع زر البحث بلقطة الشاشة -->
       <form id="searchForm" class="commercial-search-form" autocomplete="off">
         <div class="search-main-field">
           <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -94,12 +110,21 @@
           <input
             type="text"
             id="searchQuery"
-            placeholder="ابحث عن منتج، موديل، أو جهاز (مثال: آيفون 15 برو، سبلت جري 2 طن، بلاي ستيشن 5)..."
+            placeholder="ابحث عن أي سلعة أو الصق اسم منتج (مثال: آيفون 15، سبلت جري، مصيدة فئران)..."
           />
           <button type="button" id="clearQueryBtn" class="clear-input-btn" hidden aria-label="مسح البحث">
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6 6 18M6 6l12 12"></path>
             </svg>
+          </button>
+
+          <!-- زر البحث بصورة الإعلان الممول -->
+          <button type="button" id="openImageSearchBtn" class="image-search-trigger" title="ارفع لقطة شاشة لإعلان ممول للبحث عن مصدره الأرخص">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+              <circle cx="12" cy="13" r="3"></circle>
+            </svg>
+            <span>بحث بصورة إعلان</span>
           </button>
         </div>
 
@@ -136,7 +161,7 @@
   </header>
 
   <main class="container main-content">
-    <!-- تنبيه تحديد الموقع -->
+    <!-- تنبيهات النظام والرادار -->
     <div id="searchStatusBanner" class="notice-banner" hidden></div>
 
     <!-- شريط الملخص السعري والجغرافي -->
@@ -174,6 +199,39 @@
         <div class="overview-footer">
           <span class="overview-score" id="smartMatchMeta">—</span>
           <span class="overview-sub" id="smartMatchSaving">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- مؤشر السعر العادل وكاشف الغلاء في السوق العراقي -->
+    <section class="fair-price-meter-panel" id="fairPriceMeterPanel">
+      <div class="fair-meter-header">
+        <div>
+          <h2 class="fair-meter-title">مؤشر السعر العادل وكاشف الغلاء في السوق العراقي</h2>
+          <p class="fair-meter-subtitle">يحسب لك متوسط السعر الحقيقي عبر المحافظات لتعرف هل السعر المعروض أمامك لقطة أم مبالغ فيه:</p>
+        </div>
+        <button type="button" class="btn-create-alert-inline" id="createAlertFromMeterBtn">
+          + راقب هبوط سعر هذه السلعة
+        </button>
+      </div>
+
+      <div class="fair-meter-Grid">
+        <div class="meter-zone zone-deal">
+          <span class="zone-label">سعر لقطة (أقل سعر بالعراق)</span>
+          <strong class="zone-value" id="meterMinPrice">—</strong>
+          <span class="zone-desc">ينصح بالشراء الفوري بعد الفحص</span>
+        </div>
+
+        <div class="meter-zone zone-fair">
+          <span class="zone-label">متوسط سعر السوق العادل</span>
+          <strong class="zone-value" id="meterAvgPrice">—</strong>
+          <span class="zone-desc">السعر الطبيعي المتداول في البيجات</span>
+        </div>
+
+        <div class="meter-zone zone-high">
+          <span class="zone-label">أعلى سعر معروض (احذر الغلاء)</span>
+          <strong class="zone-value" id="meterMaxPrice">—</strong>
+          <span class="zone-desc" id="meterMaxDiffNote">فرق السعر عن الأرخص</span>
         </div>
       </div>
     </section>
@@ -233,7 +291,7 @@
       </div>
     </section>
 
-    <!-- شريط التحكم والفرز التجاري -->
+    <!-- شريط التحكم والفرز التجاري مع حاسبة السعر الصافي شامل التوصيل -->
     <section class="catalog-toolbar" aria-label="أدوات الفلترة والترتيب">
       <div class="platform-filter-group" role="tablist">
         <button type="button" class="platform-tab active" data-platform="all">
@@ -258,12 +316,17 @@
       </div>
 
       <div class="sorting-group">
-        <span class="toolbar-label">ترتيب النتائج:</span>
+        <span class="toolbar-label">ترتيب حسب:</span>
         <div class="sort-segmented" id="sortPills">
           <button type="button" class="sort-pill active" data-sort="smart">الأفضل قيمةً ومسافةً</button>
           <button type="button" class="sort-pill" data-sort="cheapest">الأقل سعراً</button>
           <button type="button" class="sort-pill" data-sort="nearest">الأقرب لمحافظتي</button>
         </div>
+
+        <label class="local-only-toggle" title="جمع كلفة التوصيل لمحافظتك مع سعر السلعة لمعرفة التكلفة الصافية">
+          <input type="checkbox" id="includeDeliveryCheckbox" checked />
+          <span>شامل كلفة التوصيل لمحافظتي</span>
+        </label>
 
         <label class="local-only-toggle">
           <input type="checkbox" id="sameCityOnlyCheckbox" />
@@ -276,12 +339,12 @@
     <section id="resultsGrid" class="commercial-grid" aria-live="polite"></section>
   </main>
 
-  <!-- نافذة إضافة وتحليل منشور جديد -->
+  <!-- 1. نافذة بوابة التجار ومحلل المنشورات -->
   <dialog id="analyzerModal" class="commercial-modal">
     <div class="modal-top">
       <div>
-        <h2>إضافة وتحليل منشور بيع من فيسبوك أو انستغرام</h2>
-        <p>الصق نص المنشور كما هو (حتى لو كان السعر مكتوباً باللهجة العراقية مثل: ورقة ونص، دفتر، أو ألف دينار) وسيتم استخراج السعر والمحافظة ورقم الهاتف تلقائياً.</p>
+        <h2>بوابة التجار وإضافة عروض البيجات للمقارنة</h2>
+        <p>يمكن لأصحاب المتاجر إضافة عروضهم مباشرة، أو لصق نص أي منشور من فيسبوك وانستغرام ليقوم النظام باستخراج السعر والمحافظة ورقم الهاتف تلقائياً.</p>
       </div>
       <button type="button" class="modal-close" id="closeAnalyzerBtn" aria-label="إغلاق">✕</button>
     </div>
@@ -297,13 +360,13 @@
           </select>
         </div>
         <div class="field-block">
-          <label for="postStoreName">اسم المتجر أو الصفحة</label>
+          <label for="postStoreName">اسم المتجر أو البيج</label>
           <input type="text" id="postStoreName" placeholder="مثال: معرض المنصور للهواتف" required />
         </div>
       </div>
 
       <div class="field-block">
-        <label for="postRawText">نص المنشور الكامل</label>
+        <label for="postRawText">نص العرض أو المنشور الكامل</label>
         <textarea
           id="postRawText"
           rows="4"
@@ -311,6 +374,22 @@
           required
         ></textarea>
       </div>
+
+      <div class="modal-grid-2">
+        <div class="field-block">
+          <label for="postDeliveryLocal">أجرة التوصيل داخل المحافظة (د.ع)</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="postDeliveryLocal" value="4000" />
+        </div>
+        <div class="field-block">
+          <label for="postDeliveryNational">أجرة التوصيل لباقي المحافظات (د.ع)</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="postDeliveryNational" value="7000" />
+        </div>
+      </div>
+
+      <label class="local-only-toggle" style="width: fit-content;">
+        <input type="checkbox" id="postAllowsInspection" checked />
+        <span>المتجر يقبل فتح وفحص الطلب أمام المندوب قبل الدفع</span>
+      </label>
 
       <div class="extraction-summary" id="parsedPreviewBox">
         <span class="extraction-title">البيانات المستخرجة تلقائياً:</span>
@@ -321,7 +400,182 @@
 
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="fillSamplePostBtn">تعبئة مثال تجريبي</button>
-        <button type="submit" class="btn-submit">حفظ وإضافة إلى جدول المقارنة</button>
+        <button type="submit" class="btn-submit">حفظ العرض في قاعدة البيانات</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 2. نافذة رادار صيد اللقطات وتنبيهات هبوط الأسعار -->
+  <dialog id="radarModal" class="commercial-modal">
+    <div class="modal-top">
+      <div>
+        <h2>رادار صيد اللقطات وتنبيهات هبوط الأسعار</h2>
+        <p>حدد السلعة والسعر الذي يناسبك، وسيقوم الرادار بمراقبة السوق وتنبيهك فوراً عبر واتساب أو تليغرام عند توفرها بهذا السعر أو أقل.</p>
+      </div>
+      <button type="button" class="modal-close" id="closeRadarBtn" aria-label="إغلاق">✕</button>
+    </div>
+
+    <form id="radarForm" class="modal-form">
+      <div class="modal-grid-2">
+        <div class="field-block">
+          <label for="radarKeywordInput">اسم السلعة المطلوب مراقبتها</label>
+          <input type="text" id="radarKeywordInput" placeholder="مثال: آيفون 15 برو ماكس، سبلت جري..." required />
+        </div>
+        <div class="field-block">
+          <label for="radarTargetPriceInput">السعر المستهدف (د.ع)</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="radarTargetPriceInput" placeholder="مثال: 1450000" required />
+        </div>
+      </div>
+
+      <div class="modal-grid-2">
+        <div class="field-block">
+          <label for="radarPhoneInput">رقم الهاتف لاستلام التنبيه (واتساب / تليغرام)</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="radarPhoneInput" placeholder="07701234567" required />
+        </div>
+        <div class="field-block">
+          <label for="radarChannelSelect">طريقة التنبيه المفضلة</label>
+          <select id="radarChannelSelect">
+            <option value="whatsapp">رسالة واتساب فورية</option>
+            <option value="telegram">إشعار تليغرام</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-submit">تفعيل رادار المراقبة الآن</button>
+      </div>
+
+      <div class="radar-list-section">
+        <h3 class="sub-heading">التنبيهات النشطة حالياً في قاعدة البيانات:</h3>
+        <div id="activeAlertsList" class="alerts-list-box"></div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 3. نافذة البحث بصورة الإعلان الممول (Screenshot Search) -->
+  <dialog id="imageSearchModal" class="commercial-modal">
+    <div class="modal-top">
+      <div>
+        <h2>البحث بلقطة الشاشة لكشف المصدر الأرخص</h2>
+        <p>هل رأيت إعلاناً ممولاً في فيسبوك أو انستغرام بسعر مرتفع؟ ارفع لقطة شاشة للإعلان هنا لنستخرج اسم المنتج ونبحث لك عن أرخص تاجر يبيعه في العراق.</p>
+      </div>
+      <button type="button" class="modal-close" id="closeImageSearchBtn" aria-label="إغلاق">✕</button>
+    </div>
+
+    <form id="imageSearchForm" class="modal-form">
+      <label for="adScreenshotInput" class="upload-dropzone" id="dropzoneArea">
+        <input type="file" id="adScreenshotInput" accept="image/*" hidden />
+        <img id="screenshotPreviewImg" class="screenshot-preview" hidden alt="معاينة لقطة الشاشة" />
+        <div id="dropzonePrompt">
+          <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="#0b5f4a" stroke-width="1.8" style="margin-bottom:6px;">
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
+            <circle cx="9" cy="9" r="2"></circle>
+            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
+          </svg>
+          <strong>اضغط هنا لرفع صورة الإعلان أو لقطة الشاشة</strong>
+          <span>يدعم جميع صور الهواتف ولقطات شاشة فيسبوك وانستغرام</span>
+        </div>
+      </label>
+
+      <div class="field-block">
+        <label for="imageExtractedQuery">اسم السلعة المكتوب في الإعلان (يمكنك تعديله أو كتابته لدقة أعلى)</label>
+        <input type="text" id="imageExtractedQuery" placeholder="مثال: ماكينة قهوة ديلونجي، خلاط بوش، عطر سوفاج..." required />
+      </div>
+
+      <div class="field-block">
+        <label for="adSeenPriceInput">السعر الذي رأيته في الإعلان الممول (اختياري - لنحسب لك كم ستوفر)</label>
+        <input type="text" inputmode="numeric" data-numeric-only="true" id="adSeenPriceInput" placeholder="مثال: 275000" />
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-submit">ابحث عن المصدر الأرخص في العراق</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 4. نافذة تقييم موثوقية البيج وكشف الغش التجاري -->
+  <dialog id="reviewModal" class="commercial-modal">
+    <div class="modal-top">
+      <div>
+        <h2>تقييم موثوقية المتجر وفحص الاستلام</h2>
+        <p id="reviewModalStoreTitle">شارك تجربتك مع هذا المتجر لحماية المشترين في العراق من الصفحات الوهمية.</p>
+      </div>
+      <button type="button" class="modal-close" id="closeReviewBtn" aria-label="إغلاق">✕</button>
+    </div>
+
+    <form id="reviewForm" class="modal-form">
+      <input type="hidden" id="reviewStoreNameInput" />
+      <div class="modal-grid-2">
+        <div class="field-block">
+          <label for="reviewRatingSelect">تقييمك للمتجر</label>
+          <select id="reviewRatingSelect">
+            <option value="5">ممتاز وموثوق جداً (5 نجوم)</option>
+            <option value="4">جيد وصادق في التعامل (4 نجوم)</option>
+            <option value="3">متوسط (3 نجوم)</option>
+            <option value="2">غير مطابق للمواصفات (نجمتان)</option>
+            <option value="1">تحذير: صفحة وهمية أو ترفض الفحص (نجمة واحدة)</option>
+          </select>
+        </div>
+        <div class="field-block">
+          <label for="reviewInspectionSelect">هل سمح لك بفحص الطلب أمام المندوب؟</label>
+          <select id="reviewInspectionSelect">
+            <option value="true">نعم، يقبل فتح وفحص الطلب قبل الدفع</option>
+            <option value="false">لا، يرفض فتح الطلب قبل الاستلام</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <label for="reviewCommentInput">تفاصيل تجربتك مع المتجر أو البضاعة</label>
+        <textarea id="reviewCommentInput" rows="3" placeholder="اكتب ملاحظتك حول جودة البضاعة، سرعة التوصيل، ومصداقية السعر..." required></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-submit">نشر التقييم في سجل الموثوقية</button>
+      </div>
+
+      <div class="radar-list-section">
+        <h3 class="sub-heading">آراء وتجارب المشترين السابقين:</h3>
+        <div id="storeReviewsList" class="alerts-list-box"></div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 5. نافذة الاشتراك الشهري (ألف دينار عراقي) -->
+  <dialog id="subscriptionModal" class="commercial-modal">
+    <div class="modal-top">
+      <div>
+        <h2>عضوية المتسوق الذكي في دلال العراق — 1,000 د.ع شهرياً فقط</h2>
+        <p>وفر عشرات الآلاف في كل شروة مقابل اشتراك شهري رمزي بقيمة ألف دينار عراقي فقط.</p>
+      </div>
+      <button type="button" class="modal-close" id="closeSubscriptionBtn" aria-label="إغلاق">✕</button>
+    </div>
+
+    <form id="subscriptionForm" class="modal-form">
+      <div class="vip-perks-box">
+        <div class="perk-item">✔ بحث حي غير محدود في فيسبوك وانستغرام ومتاجر العراق</div>
+        <div class="perk-item">✔ تفعيل رادار صيد اللقطات وإشعارات واتساب الفورية عند هبوط الأسعار</div>
+        <div class="perk-item">✔ ميزة البحث بلقطة الشاشة لكشف المصادر الأرخص للإعلانات الممولة</div>
+        <div class="perk-item">✔ كشف سجل موثوقية البيجات وحاسبة السعر الصافي شامل التوصيل</div>
+      </div>
+
+      <div class="modal-grid-2">
+        <div class="field-block">
+          <label for="subPhoneInput">رقم هاتفك في العراق (لتفعيل العضوية)</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="subPhoneInput" placeholder="07701234567" required />
+        </div>
+        <div class="field-block">
+          <label for="subPaymentMethod">وسيلة الدفع المحلية (1,000 د.ع)</label>
+          <select id="subPaymentMethod">
+            <option value="zaincash">محفظة زين كاش (ZainCash)</option>
+            <option value="superqi">سوبر كي / كي كارد (SuperQi)</option>
+            <option value="asiacell">رصيد آسيا سيل أو زين العراق</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-submit" style="width: 100%; padding: 11px;">تفعيل الاشتراك الشهري الآن (1,000 د.ع)</button>
       </div>
     </form>
   </dialog>
@@ -332,7 +586,7 @@
         <strong>دَلال العراق</strong> — منصة مقارنة الأسعار والبحث التجاري في المحافظات العراقية الثماني عشرة.
       </div>
       <div class="footer-left">
-        يتم تحديث الأسعار وحساب المسافات الجغرافية بالدينار العراقي والدولار.
+        يتم تحديث الأسعار وحساب المسافات الجغرافية وكلفة التوصيل بالدينار العراقي والدولار.
       </div>
     </div>
   </footer>

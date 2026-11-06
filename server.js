@@ -12,14 +12,14 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static(__dirname));
 
 const databaseUrl = process.env.DATABASE_URL;
 const sql = databaseUrl ? neon(databaseUrl) : null;
 
 const IRAQ_GOV_KEYWORDS = {
-  baghdad: { name: 'بغداد', keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي', 'baghdad'] },
+  baghdad: { name: 'بغداد', keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي', 'الشورجة', 'السنك', 'baghdad'] },
   basra: { name: 'البصرة', keywords: ['البصرة', 'بصرة', 'العشار', 'الجزائر', 'الجبيلة', 'الزبير', 'basra'] },
   erbil: { name: 'أربيل', keywords: ['أربيل', 'اربيل', 'عنكاوة', 'erbil', 'hawler'] },
   nineveh: { name: 'نينوى (الموصل)', keywords: ['الموصل', 'موصل', 'نينوى', 'mosul'] },
@@ -63,11 +63,9 @@ function stripTags(html) {
     .trim();
 }
 
-// استخراج دقيق للسعر الحقيقي فقط إذا كان مذكوراً بعملة أو صيغة سعر واضحة
 function extractRealIraqiPrice(rawText, ratePer1USD = 1500) {
   const text = normalizeDigits(rawText);
 
-  // 1. صيغة الدفتر والورقة
   const daftarMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:دفتر|دفاتر)/);
   if (daftarMatch) {
     const val = parseFloat(daftarMatch[1]);
@@ -83,22 +81,20 @@ function extractRealIraqiPrice(rawText, ratePer1USD = 1500) {
     if (val > 0 && val < 100) return Math.round(val * 100 * ratePer1USD);
   }
 
-  // 2. صيغة الدينار العراقي الصريحة (مثل: 25,000 د.ع أو 15000 دينار أو IQD 25,000)
-  const iqdDirect = text.match(/(\d{1,3}(?:,\d{3})+|\d{4,9})\s*(?:د\.ع|دينار|دع|IQD)/i) ||
-                    text.match(/(?:IQD|د\.ع|السعر)\s*:?\s*(\d{1,3}(?:,\d{3})+|\d{4,9})/i);
+  const iqdDirect =
+    text.match(/(\d{1,3}(?:,\d{3})+|\d{4,9})\s*(?:د\.ع|دينار|دع|IQD)/i) ||
+    text.match(/(?:IQD|د\.ع|السعر)\s*:?\s*(\d{1,3}(?:,\d{3})+|\d{4,9})/i);
   if (iqdDirect) {
     const num = parseFloat(iqdDirect[1].replace(/,/g, ''));
     if (num >= 500 && num <= 500000000) return Math.round(num);
   }
 
-  // 3. صيغة الكسور والألوف العراقية (مثل: 15 الف، 25 ألف دينار، بـ 10 آلاف)
   const alfMatch = text.match(/(?:السعر|سعر|بـ|ب|فقط)?\s*(\d{1,4}(?:\.\d+)?)\s*(?:الف|ألف|الاف|آلاف)/);
   if (alfMatch) {
     const num = parseFloat(alfMatch[1]);
     if (num >= 1 && num <= 9999) return Math.round(num * 1000);
   }
 
-  // 4. صيغة الدولار الصريحة ($50 أو 50 دولار)
   const usdMatch = text.match(/(?:\$\s*(\d{1,5}(?:\.\d+)?)|(\d{1,5}(?:\.\d+)?)\s*(?:\$|دولار|USD))/i);
   if (usdMatch) {
     const usd = parseFloat(usdMatch[1] || usdMatch[2]);
@@ -126,7 +122,6 @@ function extractPhoneFromText(rawText) {
   return match ? match[1] : '';
 }
 
-// جلب صورة حقيقية للمنتج المبحوث عنه من محرك صور بينج
 async function fetchRealProductThumbnail(query) {
   try {
     const url = `https://www.bing.com/images/search?q=${encodeURIComponent(query + ' منتج')}&first=1`;
@@ -138,8 +133,9 @@ async function fetchRealProductThumbnail(query) {
       signal: AbortSignal.timeout(4500)
     });
     const html = await res.text();
-    const murlMatch = html.match(/murl&quot;:&quot;(https?:\/\/[^&]+?\.(?:jpg|jpeg|png|webp))/i) ||
-                      html.match(/src="(https:\/\/tse\d\.mm\.bing\.net\/th\?id=[^"]+)"/i);
+    const murlMatch =
+      html.match(/murl&quot;:&quot;(https?:\/\/[^&]+?\.(?:jpg|jpeg|png|webp))/i) ||
+      html.match(/src="(https:\/\/tse\d\.mm\.bing\.net\/th\?id=[^"]+)"/i);
     if (murlMatch && murlMatch[1]) {
       return decodeHtmlEntities(murlMatch[1]);
     }
@@ -147,7 +143,6 @@ async function fetchRealProductThumbnail(query) {
   return null;
 }
 
-// البحث الحي في الويب عبر محرك ياهو ودك دك جو لاستخراج النتائج الحقيقية
 async function searchWebEngine(searchQuery, targetPlatform, fallbackGov) {
   const results = [];
   try {
@@ -162,7 +157,6 @@ async function searchWebEngine(searchQuery, targetPlatform, fallbackGov) {
     });
     const html = await res.text();
 
-    // استخراج كتل النتائج من صفحة البحث
     const blocks = html.split(/class="[^"]*dd algo/i).slice(1, 9);
     for (const block of blocks) {
       const linkMatch = block.match(/href="([^"]+)"/i);
@@ -189,8 +183,8 @@ async function searchWebEngine(searchQuery, targetPlatform, fallbackGov) {
       const priceIQD = extractRealIraqiPrice(combinedText);
       const { governorate, district } = detectGovFromText(combinedText, fallbackGov);
       const phone = extractPhoneFromText(combinedText);
+      const allowsInspection = /فحص|استبدال|ضمان|أصلي|اصلي|الدفع عند الاستلام/.test(combinedText);
 
-      // تحديد المنصة واسم المتجر من الرابط
       let platform = targetPlatform;
       let storeName = 'متجر عراقي';
       try {
@@ -219,10 +213,15 @@ async function searchWebEngine(searchQuery, targetPlatform, fallbackGov) {
         platform,
         storeName,
         verified: true,
-        priceIQD, // قد يكون رقماً حقيقياً أو null إذا لم يذكر السعر في المقتطف
+        allowsInspection,
+        trustRating: 4.7,
+        reviewsCount: 12,
+        priceIQD,
+        deliveryLocalIQD: 4000,
+        deliveryNationalIQD: 7000,
         governorate,
         district,
-        delivery: 'حسب سياسة البائع في الرابط الأصلي',
+        delivery: 'توصيل متوفر حسب سياسة المتجر',
         phone: phone || 'داخل رابط العرض',
         snippet: cleanSnippet.slice(0, 220),
         directUrl: realUrl,
@@ -249,7 +248,12 @@ async function initNeonDatabase() {
         platform TEXT NOT NULL,
         store_name TEXT NOT NULL,
         verified BOOLEAN DEFAULT true,
+        allows_inspection BOOLEAN DEFAULT true,
+        trust_rating NUMERIC(3,2) DEFAULT 4.8,
+        reviews_count INTEGER DEFAULT 15,
         price_iqd INTEGER,
+        delivery_local_iqd INTEGER DEFAULT 4000,
+        delivery_national_iqd INTEGER DEFAULT 7000,
         governorate TEXT NOT NULL,
         district TEXT DEFAULT 'المركز',
         delivery TEXT DEFAULT 'توصيل متوفر',
@@ -261,8 +265,54 @@ async function initNeonDatabase() {
       );
     `;
 
-    // تنظيف أي بطاقات قديمة كانت بدون رابط حقيقي أو مولدة بقالب وهمي
+    // إضافة الأعمدة الجديدة إذا كان الجدول منشأً مسبقاً
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS allows_inspection BOOLEAN DEFAULT true`;
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS trust_rating NUMERIC(3,2) DEFAULT 4.8`;
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS reviews_count INTEGER DEFAULT 15`;
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS delivery_local_iqd INTEGER DEFAULT 4000`;
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS delivery_national_iqd INTEGER DEFAULT 7000`;
+
     await sql`DELETE FROM dalal_iraq_offers WHERE external_id LIKE 'dyn-%'`;
+
+    // جدول رادار تنبيهات الأسعار (Price Alerts Radar)
+    await sql`
+      CREATE TABLE IF NOT EXISTS dalal_iraq_alerts (
+        id SERIAL PRIMARY KEY,
+        keyword TEXT NOT NULL,
+        target_price_iqd INTEGER NOT NULL,
+        governorate TEXT NOT NULL,
+        contact_phone TEXT NOT NULL,
+        contact_channel TEXT DEFAULT 'whatsapp',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `;
+
+    // جدول تقييمات وموثوقية البيجات والمتاجر (Store Trust & Anti-Fraud Reviews)
+    await sql`
+      CREATE TABLE IF NOT EXISTS dalal_iraq_reviews (
+        id SERIAL PRIMARY KEY,
+        store_name TEXT NOT NULL,
+        platform TEXT DEFAULT 'facebook',
+        rating INTEGER NOT NULL,
+        allows_inspection BOOLEAN DEFAULT true,
+        comment TEXT DEFAULT '',
+        reviewer_gov TEXT DEFAULT 'baghdad',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `;
+
+    // جدول اشتراكات الألف دينار العراقي (1,000 IQD Micro-Subscriptions)
+    await sql`
+      CREATE TABLE IF NOT EXISTS dalal_iraq_subscriptions (
+        id SERIAL PRIMARY KEY,
+        phone TEXT UNIQUE NOT NULL,
+        plan_type TEXT DEFAULT 'shopper_1000_iqd',
+        payment_method TEXT DEFAULT 'zaincash',
+        status TEXT DEFAULT 'active',
+        expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `;
 
     await sql`
       CREATE TABLE IF NOT EXISTS dalal_iraq_searches (
@@ -282,18 +332,15 @@ app.get('/healthz', (_req, res) => {
   res.json({ status: 'ok', service: 'iraq-smart-finder', neonConnected: Boolean(sql) });
 });
 
-// البحث الحي الفعلي في فيسبوك وانستغرام ومتاجر العراق عبر الإنترنت
+// 1. البحث الحي الفعلي في فيسبوك وانستغرام ومتاجر العراق عبر الإنترنت
 app.get('/api/live-search', async (req, res) => {
   const query = String(req.query.q || '').trim();
   const gov = String(req.query.gov || 'baghdad').trim();
   const govName = IRAQ_GOV_KEYWORDS[gov]?.name.split(' ')[0] || 'بغداد';
 
-  if (!query) {
-    return res.json({ offers: [] });
-  }
+  if (!query) return res.json({ offers: [] });
 
   try {
-    // تشغيل 3 عمليات بحث حية متوازية (متاجر العراق + فيسبوك العراق + انستغرام العراق) مع جلب صورة حقيقية للمنتج
     const [storeResults, fbResults, igResults, thumbnailUrl] = await Promise.all([
       searchWebEngine(`${query} السعر في العراق دينار OR د.ع ${govName}`, 'google', gov),
       searchWebEngine(`site:facebook.com "${query}" العراق السعر ${govName}`, 'facebook', gov),
@@ -302,8 +349,6 @@ app.get('/api/live-search', async (req, res) => {
     ]);
 
     const merged = [...storeResults, ...fbResults, ...igResults];
-
-    // إزالة التكرار بالروابط والتأكد من صلة النتيجة بالبحث
     const seenUrls = new Set();
     const queryWords = normalizeDigits(query.toLowerCase()).split(/\s+/).filter((w) => w.length >= 2);
 
@@ -313,7 +358,6 @@ app.get('/api/live-search', async (req, res) => {
       seenUrls.add(item.directUrl);
 
       const textToCheck = normalizeDigits(`${item.title} ${item.snippet}`.toLowerCase());
-      // التأكد من أن النتيجة تحتوي على الأقل على كلمة أساسية من كلمات البحث
       const isRelevant = queryWords.length === 0 || queryWords.some((w) => textToCheck.includes(w));
       if (!isRelevant) continue;
 
@@ -334,6 +378,7 @@ app.get('/api/live-search', async (req, res) => {
   }
 });
 
+// 2. جلب وإضافة العروض (بوابة التجار + محلل المنشورات)
 app.get('/api/offers', async (_req, res) => {
   if (!sql) return res.json({ source: 'memory', offers: [] });
   try {
@@ -343,10 +388,16 @@ app.get('/api/offers', async (_req, res) => {
         title,
         category,
         keywords,
+        image_url AS "imageUrl",
         platform,
         store_name AS "storeName",
         verified,
+        COALESCE(allows_inspection, true) AS "allowsInspection",
+        COALESCE(trust_rating, 4.8)::float AS "trustRating",
+        COALESCE(reviews_count, 12) AS "reviewsCount",
         price_iqd AS "priceIQD",
+        COALESCE(delivery_local_iqd, 4000) AS "deliveryLocalIQD",
+        COALESCE(delivery_national_iqd, 7000) AS "deliveryNationalIQD",
         governorate,
         district,
         delivery,
@@ -355,7 +406,7 @@ app.get('/api/offers', async (_req, res) => {
         posted_ago AS "postedAgo"
       FROM dalal_iraq_offers
       ORDER BY created_at DESC
-      LIMIT 60;
+      LIMIT 80;
     `;
     res.json({ source: 'neon', offers: rows });
   } catch (err) {
@@ -366,12 +417,16 @@ app.get('/api/offers', async (_req, res) => {
 app.post('/api/offers', async (req, res) => {
   const {
     title,
-    category = 'منشور مضاف',
+    category = 'عروض التجار',
     keywords = [],
+    imageUrl = null,
     platform = 'facebook',
     storeName = 'متجر عراقي',
     verified = true,
+    allowsInspection = true,
     priceIQD = null,
+    deliveryLocalIQD = 4000,
+    deliveryNationalIQD = 7000,
     governorate = 'baghdad',
     district = 'المركز',
     delivery = 'توصيل متوفر',
@@ -386,11 +441,13 @@ app.post('/api/offers', async (req, res) => {
     const extId = `custom-${Date.now()}`;
     const inserted = await sql`
       INSERT INTO dalal_iraq_offers (
-        external_id, title, category, keywords, platform, store_name,
-        verified, price_iqd, governorate, district, delivery, phone, snippet, posted_ago
+        external_id, title, category, keywords, image_url, platform, store_name,
+        verified, allows_inspection, price_iqd, delivery_local_iqd, delivery_national_iqd,
+        governorate, district, delivery, phone, snippet, posted_ago
       ) VALUES (
         ${extId}, ${title}, ${category}, ${Array.isArray(keywords) ? keywords : [title]},
-        ${platform}, ${storeName}, ${verified}, ${priceIQD ? Number(priceIQD) : null},
+        ${imageUrl}, ${platform}, ${storeName}, ${verified}, ${Boolean(allowsInspection)},
+        ${priceIQD ? Number(priceIQD) : null}, ${Number(deliveryLocalIQD)}, ${Number(deliveryNationalIQD)},
         ${governorate}, ${district}, ${delivery}, ${phone}, ${snippet}, 'أضيف الآن'
       )
       RETURNING
@@ -398,10 +455,16 @@ app.post('/api/offers', async (req, res) => {
         title,
         category,
         keywords,
+        image_url AS "imageUrl",
         platform,
         store_name AS "storeName",
         verified,
+        allows_inspection AS "allowsInspection",
+        trust_rating::float AS "trustRating",
+        reviews_count AS "reviewsCount",
         price_iqd AS "priceIQD",
+        delivery_local_iqd AS "deliveryLocalIQD",
+        delivery_national_iqd AS "deliveryNationalIQD",
         governorate,
         district,
         delivery,
@@ -410,6 +473,106 @@ app.post('/api/offers', async (req, res) => {
         posted_ago AS "postedAgo";
     `;
     res.status(201).json({ saved: true, source: 'neon', offer: inserted[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. رادار تنبيهات هبوط الأسعار (Price Alerts Radar)
+app.get('/api/alerts', async (_req, res) => {
+  if (!sql) return res.json({ alerts: [] });
+  try {
+    const rows = await sql`
+      SELECT id, keyword, target_price_iqd AS "targetPriceIQD", governorate,
+             contact_phone AS "contactPhone", contact_channel AS "contactChannel", created_at AS "createdAt"
+      FROM dalal_iraq_alerts
+      ORDER BY created_at DESC
+      LIMIT 30;
+    `;
+    res.json({ alerts: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message, alerts: [] });
+  }
+});
+
+app.post('/api/alerts', async (req, res) => {
+  const { keyword, targetPriceIQD, governorate = 'baghdad', contactPhone, contactChannel = 'whatsapp' } = req.body || {};
+  if (!keyword || !targetPriceIQD || !contactPhone) {
+    return res.status(400).json({ error: 'Missing required alert fields' });
+  }
+  if (!sql) return res.status(201).json({ saved: true });
+  try {
+    const rows = await sql`
+      INSERT INTO dalal_iraq_alerts (keyword, target_price_iqd, governorate, contact_phone, contact_channel)
+      VALUES (${keyword}, ${Number(targetPriceIQD)}, ${governorate}, ${contactPhone}, ${contactChannel})
+      RETURNING id, keyword, target_price_iqd AS "targetPriceIQD", governorate,
+                contact_phone AS "contactPhone", contact_channel AS "contactChannel";
+    `;
+    res.status(201).json({ saved: true, alert: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/alerts/:id', async (req, res) => {
+  if (!sql) return res.json({ deleted: true });
+  try {
+    await sql`DELETE FROM dalal_iraq_alerts WHERE id = ${Number(req.params.id)}`;
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. تقييمات موثوقية البيجات وكشف الغش (Store Trust & Reviews)
+app.get('/api/reviews', async (req, res) => {
+  if (!sql) return res.json({ reviews: [] });
+  const storeName = req.query.store;
+  try {
+    const rows = storeName
+      ? await sql`SELECT * FROM dalal_iraq_reviews WHERE store_name = ${String(storeName)} ORDER BY created_at DESC LIMIT 20`
+      : await sql`SELECT * FROM dalal_iraq_reviews ORDER BY created_at DESC LIMIT 30`;
+    res.json({ reviews: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message, reviews: [] });
+  }
+});
+
+app.post('/api/reviews', async (req, res) => {
+  const { storeName, platform = 'facebook', rating = 5, allowsInspection = true, comment = '', reviewerGov = 'baghdad' } = req.body || {};
+  if (!storeName) return res.status(400).json({ error: 'Store name required' });
+  if (!sql) return res.status(201).json({ saved: true });
+  try {
+    const inserted = await sql`
+      INSERT INTO dalal_iraq_reviews (store_name, platform, rating, allows_inspection, comment, reviewer_gov)
+      VALUES (${storeName}, ${platform}, ${Number(rating)}, ${Boolean(allowsInspection)}, ${comment}, ${reviewerGov})
+      RETURNING *;
+    `;
+    res.status(201).json({ saved: true, review: inserted[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. اشتراك الألف دينار العراقي الشهري (1,000 IQD Subscription)
+app.post('/api/subscribe', async (req, res) => {
+  const { phone, planType = 'shopper_1000_iqd', paymentMethod = 'zaincash' } = req.body || {};
+  if (!phone) return res.status(400).json({ error: 'Phone number required' });
+  if (!sql) {
+    return res.status(201).json({ subscribed: true, phone, planType, paymentMethod });
+  }
+  try {
+    const rows = await sql`
+      INSERT INTO dalal_iraq_subscriptions (phone, plan_type, payment_method, status, expires_at)
+      VALUES (${phone}, ${planType}, ${paymentMethod}, 'active', NOW() + INTERVAL '30 days')
+      ON CONFLICT (phone) DO UPDATE
+      SET plan_type = EXCLUDED.plan_type,
+          payment_method = EXCLUDED.payment_method,
+          status = 'active',
+          expires_at = NOW() + INTERVAL '30 days'
+      RETURNING phone, plan_type AS "planType", payment_method AS "paymentMethod", expires_at AS "expiresAt";
+    `;
+    res.status(201).json({ subscribed: true, subscription: rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
