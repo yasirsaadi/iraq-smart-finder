@@ -146,11 +146,11 @@
       </form>
     </div>
 
-    <!-- شريط القطاعات الرئيسية (السلع • السيارات • العقارات) + الاختصارات السريعة القابلة للتحريك -->
+    <!-- شريط القطاعات الرئيسية (السلع • السيارات • العقارات) + القائمة المنسدلة الشاملة + الاختصارات السريعة -->
     <div class="categories-strip">
       <div class="container verticals-and-tags-bar">
         <div class="verticals-tabs" id="verticalsTabsBar" role="tablist" aria-label="الأقسام الرئيسية">
-          <button type="button" class="vertical-tab active" data-section="all">
+          <button type="button" class="vertical-tab active" id="allSectorsDropdownBtn" data-section="all" aria-expanded="false">
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7"></rect>
               <rect x="14" y="3" width="7" height="7"></rect>
@@ -159,6 +159,7 @@
             </svg>
             <span>جميع القطاعات</span>
             <span class="sec-count-badge" id="secCountAll">0</span>
+            <span class="dropdown-caret" id="allSectorsCaret">▾</span>
           </button>
 
           <button type="button" class="vertical-tab" data-section="products">
@@ -218,6 +219,94 @@
           <button type="button" class="strip-scroll-btn" id="scrollStripLeft" aria-label="تحريك لليسار" title="تحريك القائمة لليسار">
             &#8250;
           </button>
+        </div>
+      </div>
+
+      <!-- القائمة المنسدلة الشاملة لجميع القطاعات والأقسام الفرعية (تفتح عند الضغط على "جميع القطاعات") -->
+      <div class="container">
+        <div id="sectorsMegaMenu" class="sectors-mega-menu" hidden>
+          <div class="mega-menu-top-bar">
+            <div class="mega-menu-title">
+              <strong>دليل القطاعات والأقسام في رادار أسعار العراق</strong>
+              <span>اختر أي قسم أو فئة لتصفح ومقارنة أسعارها مباشرة بدون الحاجة للكتابة في مربع البحث</span>
+            </div>
+            <div class="mega-menu-actions">
+              <button type="button" class="mega-reset-all-btn" id="megaShowAllOffersBtn">
+                عرض كافة العروض من جميع القطاعات
+              </button>
+              <button type="button" class="mega-close-btn" id="closeMegaMenuBtn" aria-label="إغلاق القائمة">
+                ✕ إغلاق
+              </button>
+            </div>
+          </div>
+
+          <div class="mega-menu-grid">
+            <!-- العمود الأول: السيارات -->
+            <div class="mega-col">
+              <button type="button" class="mega-col-heading" data-mega-section="cars" data-mega-query="">
+                <span>🚗 معارض وسوق السيارات</span>
+                <span class="mega-go-arrow">عرض الكل ←</span>
+              </button>
+              <ul class="mega-links-list">
+                <li><button type="button" class="mega-item-btn" data-mega-section="cars" data-mega-query="هيونداي">سيارات هيونداي (النترا • سوناتا • توسان)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="cars" data-mega-query="كيا">سيارات كيا (سبورتاج • سورينتو • كادينزا)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="cars" data-mega-query="تويوتا">سيارات تويوتا (لاندكروزر • كامري • كورولا)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="cars" data-mega-query="نيسان">سيارات نيسان (سني • باترول • التيما)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="cars" data-mega-query="شيفروليه">سيارات شيفروليه وتاهو وأمريكي</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="cars" data-mega-query="جيب">سيارات جيب ودوج الرياضية</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="cars" data-mega-query="جيتور">السيارات الصينية (جيتور • شانجان • شيري • إم جي)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="cars" data-mega-query="مرسيدس">السيارات الألمانية (مرسيدس • بي إم دبليو)</button></li>
+              </ul>
+            </div>
+
+            <!-- العمود الثاني: العقارات والأراضي -->
+            <div class="mega-col">
+              <button type="button" class="mega-col-heading" data-mega-section="realestate" data-mega-query="">
+                <span>🏠 العقارات والأراضي والاستثمار</span>
+                <span class="mega-go-arrow">عرض الكل ←</span>
+              </button>
+              <ul class="mega-links-list">
+                <li><button type="button" class="mega-item-btn" data-mega-section="realestate" data-mega-query="شقة في مجمع بسماية">شقق مجمع بسماية السكني (بغداد)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="realestate" data-mega-query="دار سكنية طابو صرف">دور وبيوت سكنية تمليك (طابو صرف)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="realestate" data-mega-query="شقة فاخرة للتمليك">شقق المجمعات الاستثمارية في بغداد وأربيل</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="realestate" data-mega-query="قطعة أرض سكنية">قطع أراضي سكنية وتجارية (طابو صرف)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="realestate" data-mega-query="دار للإيجار">بيوت وشقق سكنية للإيجار</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="realestate" data-mega-query="عقار تجاري">محلات وبنايات تجارية واستثمارية</button></li>
+              </ul>
+            </div>
+
+            <!-- العمود الثالث: الهواتف والحواسيب والألعاب -->
+            <div class="mega-col">
+              <button type="button" class="mega-col-heading" data-mega-section="products" data-mega-query="">
+                <span>📱 الهواتف والحواسيب والألعاب</span>
+                <span class="mega-go-arrow">عرض الكل ←</span>
+              </button>
+              <ul class="mega-links-list">
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="آيفون 15 برو ماكس">هواتف آيفون وأبل (آيفون 15 و 16 برو ماكس)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="سامسونج الترا">هواتف سامسونج جالكسي ألترا وأندرويد</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="لابتوب لينوفو">لابتوبات الألعاب والهندسة والدراسة</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="بلاي ستيشن 5">بلاي ستيشن 5 وأجهزة الألعاب الإلكترونية</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="ايربودز برو">سماعات أبل ايربودز والساعات الذكية</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="آيباد">أجهزة آيباد والأجهزة اللوحية</button></li>
+              </ul>
+            </div>
+
+            <!-- العمود الرابع: الأجهزة المنزلية والكهربائية -->
+            <div class="mega-col">
+              <button type="button" class="mega-col-heading" data-mega-section="products" data-mega-query="">
+                <span>❄️ الأجهزة المنزلية والكهربائية</span>
+                <span class="mega-go-arrow">عرض الكل ←</span>
+              </button>
+              <ul class="mega-links-list">
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="سبلت جري">أجهزة التبريد والسبالت (جري • الحافظ • توسوت)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="شاشة سامسونج">الشاشات والتلفزيونات الذكية (55 و 65 بوصة)</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="ماكينة قهوة ديلونجي">ماكينات القهوة وأجهزة المطبخ الحديثة</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="ثلاجة">الثلاجات والغسالات الأوتوماتيك والمجمدات</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="منظومة طاقة شمسية">منظومات الطاقة الشمسية والانفرتر والبطاريات</button></li>
+                <li><button type="button" class="mega-item-btn" data-mega-section="products" data-mega-query="مكنسة كهربائية">المكانس الذكية وأجهزة العناية بالمنزل</button></li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>

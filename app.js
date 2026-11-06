@@ -1636,50 +1636,132 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // تبويبات القطاعات الرئيسية (الكل / السلع / السيارات / العقارات)
-  document.querySelectorAll('.vertical-tab').forEach((vTab) => {
-    vTab.addEventListener('click', () => {
-      if (activeSearchController) {
-        activeSearchController.abort();
-      }
-      state.isSearchingLive = false;
+  const allSectorsDropdownBtn = document.getElementById('allSectorsDropdownBtn');
+  const sectorsMegaMenu = document.getElementById('sectorsMegaMenu');
+  const closeMegaMenuBtn = document.getElementById('closeMegaMenuBtn');
+  const megaShowAllOffersBtn = document.getElementById('megaShowAllOffersBtn');
 
-      document.querySelectorAll('.vertical-tab').forEach((t) => t.classList.remove('active'));
-      vTab.classList.add('active');
-
-      const sec = vTab.getAttribute('data-section') || 'all';
-      state.selectedSection = sec;
-
-      // تصفير البحث النصي والفلاتر الفرعية لعرض جميع عروض القطاع المختار فوراً
-      state.query = '';
-      searchInput.value = '';
-      clearQueryBtn.hidden = true;
-      state.liveOffers = [];
-      state.adComparisonPrice = null;
-
-      state.carFilters = { brand: '', origin: '', plate: '' };
-      state.propFilters = { deal: '', type: '', deed: '' };
-      ['carBrandFilter', 'carOriginFilter', 'carPlateFilter', 'propDealFilter', 'propTypeFilter', 'propDeedFilter'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-      });
-
-      document.querySelectorAll('.tag-chip').forEach((c) => c.classList.remove('active-tag'));
-      syncQuickTagsForSection(sec);
-
-      const sectionNames = {
-        all: 'جميع القطاعات (السلع والأجهزة • معارض السيارات • العقارات والأراضي)',
-        products: 'قطاع السلع والأجهزة والمنزل',
-        cars: 'قطاع معارض وسوق السيارات في العراق',
-        realestate: 'قطاع العقارات والأراضي والاستثمار السكني'
-      };
-      const banner = document.getElementById('searchStatusBanner');
-      banner.hidden = false;
-      banner.textContent = `تم عرض: ${sectionNames[sec] || sectionNames.all}`;
-
-      renderApp();
+  function closeSectorsMegaMenu() {
+    if (sectorsMegaMenu && !sectorsMegaMenu.hidden) {
+      sectorsMegaMenu.hidden = true;
+      if (allSectorsDropdownBtn) allSectorsDropdownBtn.setAttribute('aria-expanded', 'false');
       syncFixedHeaderHeight();
+    }
+  }
+
+  function resetAndSwitchToSector(sec) {
+    if (activeSearchController) {
+      activeSearchController.abort();
+    }
+    state.isSearchingLive = false;
+
+    document.querySelectorAll('.vertical-tab').forEach((t) => {
+      t.classList.toggle('active', t.getAttribute('data-section') === sec);
     });
+
+    state.selectedSection = sec;
+    state.query = '';
+    searchInput.value = '';
+    clearQueryBtn.hidden = true;
+    state.liveOffers = [];
+    state.adComparisonPrice = null;
+
+    state.carFilters = { brand: '', origin: '', plate: '' };
+    state.propFilters = { deal: '', type: '', deed: '' };
+    ['carBrandFilter', 'carOriginFilter', 'carPlateFilter', 'propDealFilter', 'propTypeFilter', 'propDeedFilter'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+
+    document.querySelectorAll('.tag-chip').forEach((c) => c.classList.remove('active-tag'));
+    syncQuickTagsForSection(sec);
+
+    const sectionNames = {
+      all: 'جميع القطاعات (السلع والأجهزة • معارض السيارات • العقارات والأراضي)',
+      products: 'قطاع السلع والأجهزة والمنزل',
+      cars: 'قطاع معارض وسوق السيارات في العراق',
+      realestate: 'قطاع العقارات والأراضي والاستثمار السكني'
+    };
+    const banner = document.getElementById('searchStatusBanner');
+    banner.hidden = false;
+    banner.textContent = `تم عرض: ${sectionNames[sec] || sectionNames.all}`;
+
+    renderApp();
+    syncFixedHeaderHeight();
+  }
+
+  // تبويبات القطاعات الرئيسية (الضغط على "جميع القطاعات" يفتح/يغلق القائمة المنسدلة الشاملة)
+  document.querySelectorAll('.vertical-tab').forEach((vTab) => {
+    vTab.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const sec = vTab.getAttribute('data-section') || 'all';
+
+      if (sec === 'all' && sectorsMegaMenu) {
+        const willOpen = sectorsMegaMenu.hidden;
+        sectorsMegaMenu.hidden = !willOpen;
+        vTab.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        if (state.selectedSection !== 'all' || state.query) {
+          resetAndSwitchToSector('all');
+        } else {
+          syncFixedHeaderHeight();
+        }
+        return;
+      }
+
+      closeSectorsMegaMenu();
+      resetAndSwitchToSector(sec);
+    });
+  });
+
+  if (closeMegaMenuBtn) {
+    closeMegaMenuBtn.addEventListener('click', () => {
+      closeSectorsMegaMenu();
+    });
+  }
+
+  if (megaShowAllOffersBtn) {
+    megaShowAllOffersBtn.addEventListener('click', () => {
+      closeSectorsMegaMenu();
+      resetAndSwitchToSector('all');
+    });
+  }
+
+  document.querySelectorAll('[data-mega-section]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetSec = btn.getAttribute('data-mega-section') || 'all';
+      const targetQuery = (btn.getAttribute('data-mega-query') || '').trim();
+      closeSectorsMegaMenu();
+
+      if (!targetQuery) {
+        resetAndSwitchToSector(targetSec);
+        return;
+      }
+
+      document.querySelectorAll('.vertical-tab').forEach((t) => {
+        t.classList.toggle('active', t.getAttribute('data-section') === targetSec);
+      });
+      state.selectedSection = targetSec;
+      syncQuickTagsForSection(targetSec);
+
+      searchInput.value = targetQuery;
+      clearQueryBtn.hidden = false;
+      state.query = targetQuery;
+      state.adComparisonPrice = null;
+      syncFixedHeaderHeight();
+      performLiveSearch(targetQuery);
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (
+      sectorsMegaMenu &&
+      !sectorsMegaMenu.hidden &&
+      !sectorsMegaMenu.contains(e.target) &&
+      allSectorsDropdownBtn &&
+      !allSectorsDropdownBtn.contains(e.target)
+    ) {
+      closeSectorsMegaMenu();
+    }
   });
 
   // فلاتر السيارات (مع جلب حي تلقائي لأي ماركة من الـ 38 ماركة في العراق)
