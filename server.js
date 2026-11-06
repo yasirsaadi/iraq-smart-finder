@@ -130,10 +130,15 @@ async function fetchSearchResultsHtml(searchQuery) {
 async function searchWebEngine(searchQuery) {
   try {
     const html = await fetchSearchResultsHtml(searchQuery);
-    return { ok: true, results: parseYahooResults(html) };
+    const results = parseYahooResults(html);
+    // استجابة HTTP ناجحة لا تعني نجاح المصدر: قد تكون صفحة تحقق أو بنية تغيرت
+    if (results.length === 0) {
+      console.warn(`Live search: provider returned ${html.length} bytes but 0 parsable results`);
+    }
+    return { ok: results.length > 0, httpOk: true, results, bytes: html.length };
   } catch (err) {
     console.error('Live search error:', err.message);
-    return { ok: false, results: [] };
+    return { ok: false, httpOk: false, results: [], bytes: 0 };
   }
 }
 
@@ -282,6 +287,13 @@ app.get('/api/live-search', async (req, res) => {
       governorate: gov,
       provider: 'yahoo-html-experimental',
       providerOk: storeResults.ok || fbResults.ok || igResults.ok,
+      // تشخيص بلا بيانات حساسة: كم نتيجة خام قُرئت من كل استعلام، وكم بقي بعد فلاتر الصلة والقسم
+      diagnostics: {
+        rawCounts: [storeResults, fbResults, igResults].map((r) => r.results.length),
+        httpOk: [storeResults, fbResults, igResults].map((r) => r.httpOk),
+        responseBytes: [storeResults, fbResults, igResults].map((r) => r.bytes),
+        kept: uniqueOffers.length
+      },
       thumbnailUrl: safeHttpUrl(thumbnailUrl),
       offers: uniqueOffers
     });
