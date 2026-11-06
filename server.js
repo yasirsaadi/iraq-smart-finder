@@ -15,8 +15,23 @@ app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(__dirname));
 
-const databaseUrl = process.env.DATABASE_URL;
-const sql = databaseUrl ? neon(databaseUrl) : null;
+function extractCleanPostgresUrl(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  const match = trimmed.match(/postgres(?:ql)?:\/\/[^\s"'`]+/i);
+  return match ? match[0].trim() : null;
+}
+
+const databaseUrl = extractCleanPostgresUrl(process.env.DATABASE_URL);
+let sql = null;
+if (databaseUrl) {
+  try {
+    sql = neon(databaseUrl);
+  } catch (err) {
+    console.error('Invalid DATABASE_URL format, running with in-memory fallback:', err.message);
+    sql = null;
+  }
+}
 
 const IRAQ_GOV_KEYWORDS = {
   baghdad: { name: 'بغداد', keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي', 'الشورجة', 'السنك', 'النهضة', 'البياع', 'اليرموك', 'بسماية', 'الجادرية', 'العامرية', 'baghdad'] },
@@ -658,8 +673,9 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-initNeonDatabase().then(() => {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Iraq Price Radar server running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Iraq Price Radar server running on http://0.0.0.0:${PORT}`);
+  initNeonDatabase().catch((err) => {
+    console.error('Database init warning:', err.message);
   });
 });
