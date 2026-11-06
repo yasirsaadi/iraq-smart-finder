@@ -7,6 +7,7 @@ import { neon } from '@neondatabase/serverless';
 import { normalizeDigits, hasTerm, normalizeForMatch } from './shared/price-engine.js';
 import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities } from './shared/sanitize.js';
 import { parseYahooResults, buildLiveOffer } from './lib/live-results.js';
+import { isSerperConfigured, buildSerperQueries, serperSearchRaw, needsResolve, serperResolve, mapSerperOrganic } from './lib/serper-provider.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -241,10 +242,60 @@ app.get('/healthz', (_req, res) => {
   res.json({ status: 'ok', service: 'iraq-price-radar', neonConnected: Boolean(sql) });
 });
 
+function liveSearchProviderName() {
+  return isSerperConfigured() ? 'serper' : 'yahoo-html-experimental';
+}
+
+// ذاكرة مؤقتة لنتائج البحث الحي: نفس البحث خلال 30 دقيقة لا يستهلك رصيداً جديداً من المزود
+const LIVE_CACHE_TTL_MS = 30 * 60 * 1000;
+const LIVE_CACHE_MAX = 500;
+const liveCache = new Map();
+function cacheGet(key) {
+  const hit = liveCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > LIVE_CACHE_TTL_MS) {
+    liveCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+function cacheSet(key, value) {
+  if (liveCache.size >= LIVE_CACHE_MAX) liveCache.delete(liveCache.keys().next().value);
+  liveCache.set(key, { at: Date.now(), value });
+}
+
+// حد بسيط لكل زائر: يحمي رصيد المزود المدفوع من الاستهلاك الآلي أو المسيء
+const RATE_WINDOW_MS = 60 * 1000;
+const RATE_MAX_REQUESTS = 20;
+const rateBuckets = new Map();
+function isRateLimited(ip) {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip) || { start: now, count: 0 };
+  if (now - bucket.start > RATE_WINDOW_MS) {
+    bucket.start = now;
+    bucket.count = 0;
+  }
+  bucket.count += 1;
+  rateBuckets.set(ip, bucket);
+  if (rateBuckets.size > 5000) rateBuckets.clear();
+  return bucket.count > RATE_MAX_REQUESTS;
+}
+
+// عمليات استعادة الروابط الجارية في الخلفية، حتى لا تتكرر الاستعادة لنفس البحث
+const liveInflight = new Map();
+
+function toProviderResult(data, error) {
+  if (error || !data) return { ok: false, httpOk: false, results: [], bytes: 0 };
+  const results = mapSerperOrganic(data.organic);
+  return { ok: results.length > 0, httpOk: true, results, bytes: null };
+}
+
+app.set('trust proxy', 1); // رندر يمرر عنوان الزائر الحقيقي عبر الوسيط
+
 app.get('/api/config', (_req, res) => {
   res.json({
     ...FEATURE_FLAGS,
-    liveSearchProvider: 'yahoo-html-experimental',
+    liveSearchProvider: liveSearchProviderName(),
     databaseConnected: Boolean(sql)
   });
 });
@@ -259,19 +310,29 @@ app.get('/api/live-search', async (req, res) => {
   const govName = IRAQ_GOV_KEYWORDS[gov].name.split(' ')[0];
 
   if (!query) return res.json({ offers: [] });
+  if (isRateLimited(req.ip || 'unknown')) {
+    return res.status(429).json({ error: 'rate_limited', providerOk: false, offers: [] });
+  }
 
-  let extraContext = 'السعر في العراق دينار OR د.ع';
-  if (sectionHint === 'cars') extraContext = 'للبيع في العراق السعر دفتر OR ورقة OR مليون';
-  else if (sectionHint === 'realestate') extraContext = 'عقار للبيع او ايجار في العراق السعر مليون OR دفتر';
+  const debug = req.query.debug === '1';
+  const cacheKey = `${liveSearchProviderName()}|${query.toLowerCase()}|${gov}|${sectionHint}|${usdRate}`;
+  const cached = debug ? null : cacheGet(cacheKey);
+  if (cached) return res.json({ ...cached, cached: true });
 
-  try {
-    const [storeResults, fbResults, igResults, thumbnailUrl] = await Promise.all([
-      searchWebEngine(`${query} ${extraContext} ${govName}`),
-      searchWebEngine(`site:facebook.com "${query}" العراق ${govName} السعر`),
-      searchWebEngine(`site:instagram.com "${query}" العراق ${govName}`),
-      fetchRealProductThumbnail(query)
-    ]);
+  // بحث مماثل قيد الاستكمال: لا نعيد البحث (لا رصيد جديد).
+  // wait=1 ينتظر اكتمال استعادة الروابط، وبدونه تُعاد النتائج الأولى فوراً.
+  const inflight = debug ? null : liveInflight.get(cacheKey);
+  if (inflight) {
+    if (req.query.wait !== '1') return res.json(inflight.first);
+    try {
+      return res.json(await inflight.job);
+    } catch {
+      return res.status(500).json({ error: 'live_search_failed', offers: [] });
+    }
+  }
 
+  const buildPayload = (lists, thumbnailUrl, provider, pending) => {
+    const [storeResults, fbResults, igResults] = lists;
     const merged = [...storeResults.results, ...fbResults.results, ...igResults.results];
     const seenUrls = new Set();
     const uniqueOffers = [];
@@ -281,27 +342,69 @@ app.get('/api/live-search', async (req, res) => {
       const offer = buildLiveOffer(raw, { query, sectionHint, detectGov: detectGovFromText, usdRate, thumbnailUrl });
       if (offer) uniqueOffers.push(offer);
     }
-
-    res.json({
+    return {
       query,
       governorate: gov,
-      provider: 'yahoo-html-experimental',
-      providerOk: storeResults.ok || fbResults.ok || igResults.ok,
+      provider,
+      providerOk: lists.some((r) => r.ok),
+      // pending=true: بقية النتائج قيد استعادة روابطها الأصلية؛ يعيد المتصفح الطلب مع wait=1
+      pending,
       // تشخيص بلا بيانات حساسة: كم نتيجة خام قُرئت من كل استعلام، وكم بقي بعد فلاتر الصلة والقسم
       diagnostics: {
-        rawCounts: [storeResults, fbResults, igResults].map((r) => r.results.length),
-        httpOk: [storeResults, fbResults, igResults].map((r) => r.httpOk),
-        responseBytes: [storeResults, fbResults, igResults].map((r) => r.bytes),
+        rawCounts: lists.map((r) => r.results.length),
+        httpOk: lists.map((r) => r.httpOk),
+        responseBytes: lists.map((r) => r.bytes),
         kept: uniqueOffers.length,
         // عند ?debug=1 فقط: عناوين النتائج الخام العامة لتشخيص سبب الاستبعاد (لا بيانات مستخدمين)
-        ...(req.query.debug === '1'
-          ? { sampleTitles: merged.slice(0, 12).map((r) => `${r.host} | ${r.title.slice(0, 90)}`) }
-          : {})
+        ...(debug ? { sampleTitles: merged.slice(0, 30).map((r) => `${r.host} | ${r.title.slice(0, 90)}`) } : {})
       },
       thumbnailUrl: safeHttpUrl(thumbnailUrl),
       offers: uniqueOffers
-    });
+    };
+  };
+
+  try {
+    if (isSerperConfigured()) {
+      const plans = buildSerperQueries(query, govName, sectionHint);
+      const [raws, thumbnailUrl] = await Promise.all([
+        Promise.all(plans.map((plan) => serperSearchRaw(plan.q).catch((err) => {
+          console.error('Serper search error:', err.message);
+          return null;
+        }))),
+        fetchRealProductThumbnail(query)
+      ]);
+      const pending = raws.some((d) => needsResolve(d));
+      const firstPayload = buildPayload(raws.map((d) => toProviderResult(d, !d)), thumbnailUrl, 'serper', pending);
+
+      if (pending && !debug) {
+        const job = (async () => {
+          const resolved = await Promise.all(raws.map((d) => (needsResolve(d) ? serperResolve(d) : d)));
+          const full = buildPayload(resolved.map((d) => toProviderResult(d, !d)), thumbnailUrl, 'serper', false);
+          if (full.providerOk) cacheSet(cacheKey, full);
+          return full;
+        })();
+        liveInflight.set(cacheKey, { first: firstPayload, job });
+        job.catch(() => {}).finally(() => liveInflight.delete(cacheKey));
+      } else if (firstPayload.providerOk && !debug) {
+        cacheSet(cacheKey, firstPayload);
+      }
+      return res.json(firstPayload);
+    }
+
+    let extraContext = 'السعر في العراق دينار OR د.ع';
+    if (sectionHint === 'cars') extraContext = 'للبيع في العراق السعر دفتر OR ورقة OR مليون';
+    else if (sectionHint === 'realestate') extraContext = 'عقار للبيع او ايجار في العراق السعر مليون OR دفتر';
+    const [storeResults, fbResults, igResults, thumbnailUrl] = await Promise.all([
+      searchWebEngine(`${query} ${extraContext} ${govName}`),
+      searchWebEngine(`site:facebook.com "${query}" العراق ${govName} السعر`),
+      searchWebEngine(`site:instagram.com "${query}" العراق ${govName}`),
+      fetchRealProductThumbnail(query)
+    ]);
+    const payload = buildPayload([storeResults, fbResults, igResults], thumbnailUrl, 'yahoo-html-experimental', false);
+    if (payload.providerOk && !debug) cacheSet(cacheKey, payload);
+    res.json(payload);
   } catch (err) {
+    console.error('live-search failed:', err.message);
     res.status(500).json({ error: 'live_search_failed', offers: [] });
   }
 });

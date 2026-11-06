@@ -175,6 +175,7 @@ function formatPostedTime(offer) {
     return `أضيف منذ ${Math.round(hours / 24)} يوم`;
   }
   if (offer.source === 'demo' && offer.postedAgo) return offer.postedAgo;
+  if (offer.searchDateText) return `حسب البحث: ${offer.searchDateText}`;
   return 'بلا تاريخ نشر';
 }
 
@@ -228,27 +229,53 @@ async function performLiveSearch(queryText) {
   state.isSearchingLive = true;
   renderApp();
 
-  try {
-    const res = await fetch(
-      `/api/live-search?q=${encodeURIComponent(cleanQuery)}&gov=${encodeURIComponent(state.selectedGov)}&section=${encodeURIComponent(state.selectedSection)}&rate=${encodeURIComponent(state.exchangeRate100USD)}`,
-      { signal: activeSearchController.signal }
-    );
-    const data = await res.json();
+  const controller = activeSearchController;
+  const url = `/api/live-search?q=${encodeURIComponent(cleanQuery)}&gov=${encodeURIComponent(state.selectedGov)}&section=${encodeURIComponent(state.selectedSection)}&rate=${encodeURIComponent(state.exchangeRate100USD)}`;
+  const banner = document.getElementById('searchStatusBanner');
+  const applyData = (data) => {
     if (data && Array.isArray(data.offers)) {
       state.liveOffers = data.offers.map((o) => ({ ...o, source: 'live' }));
     }
-    if (data && data.providerOk === false) {
-      const banner = document.getElementById('searchStatusBanner');
+  };
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    const data = await res.json();
+    applyData(data);
+    if (res.status === 429) {
       banner.hidden = false;
-      banner.textContent = 'مصدر البحث الحي لم يُرجع نتائج قابلة للقراءة حالياً (مصدر تجريبي غير مضمون). استخدم أزرار البحث المباشر في فيسبوك وانستغرام وكوكل أدناه.';
+      banner.textContent = 'عدد عمليات البحث كبير خلال دقيقة واحدة. انتظر قليلاً ثم أعد المحاولة.';
+    } else if (data && data.providerOk === false) {
+      banner.hidden = false;
+      banner.textContent = 'مصدر البحث الحي لم يُرجع نتائج قابلة للقراءة حالياً. استخدم أزرار البحث المباشر في فيسبوك وانستغرام وكوكل أدناه.';
+    }
+
+    // المرحلة الثانية: تُعرض النتائج الأولى فوراً، ثم تُستكمل بقية النتائج بعد استعادة روابطها الأصلية
+    if (data && data.pending) {
+      state.isSearchingLive = false;
+      banner.hidden = false;
+      banner.textContent = 'ظهرت النتائج الأولى، وجاري استكمال بقية نتائج فيسبوك وانستغرام والمتاجر العراقية (قرابة 20 ثانية)...';
+      renderApp();
+      try {
+        const res2 = await fetch(`${url}&wait=1`, { signal: controller.signal });
+        const full = await res2.json();
+        if (controller === activeSearchController && full && Array.isArray(full.offers) && full.offers.length >= (data.offers || []).length) {
+          applyData(full);
+          banner.textContent = `اكتمل البحث: ${full.offers.length} نتيجة من فيسبوك وانستغرام والمواقع العراقية، بروابطها الأصلية.`;
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') banner.textContent = 'تعذر استكمال بقية النتائج؛ المعروض هو النتائج الأولى فقط.';
+      }
     }
   } catch (err) {
     if (err.name !== 'AbortError') {
       console.error('Live search error:', err);
     }
   } finally {
-    state.isSearchingLive = false;
-    renderApp();
+    if (controller === activeSearchController) {
+      state.isSearchingLive = false;
+      renderApp();
+    }
   }
 }
 
@@ -721,6 +748,9 @@ function renderApp() {
       }
       if (offer.priceIsRent) {
         deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر إيجار${offer.rentPeriod === 'year' ? ' سنوي' : offer.rentPeriod === 'day' ? ' يومي' : ' شهري'} وليس سعر بيع</span>`;
+      }
+      if (isLive && offer.isListingPage) {
+        deliveryBreakdownHtml += `<span class="delivery-breakdown">صفحة تضم إعلانات متعددة — افتح المصدر لمقارنة أسعارها</span>`;
       }
       if (isLive && offer.itemPriceIQD) {
         const matched = offer.priceMeta?.matchedText ? ` («${esc(offer.priceMeta.matchedText)}»)` : '';
