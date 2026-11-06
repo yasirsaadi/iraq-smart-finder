@@ -7,6 +7,7 @@ import { neon } from '@neondatabase/serverless';
 import { normalizeDigits, hasTerm, normalizeForMatch } from './shared/price-engine.js';
 import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities } from './shared/sanitize.js';
 import { parseYahooResults, buildLiveOffer } from './lib/live-results.js';
+import { attachListingImages } from './lib/listing-images.js';
 import { isSerperConfigured, buildSerperQueries, serperSearchRaw, needsResolve, serperResolve, mapSerperOrganic } from './lib/serper-provider.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -366,20 +367,25 @@ app.get('/api/live-search', async (req, res) => {
   try {
     if (isSerperConfigured()) {
       const plans = buildSerperQueries(query, govName, sectionHint);
-      const [raws, thumbnailUrl] = await Promise.all([
-        Promise.all(plans.map((plan) => serperSearchRaw(plan.q).catch((err) => {
-          console.error('Serper search error:', err.message);
-          return null;
-        }))),
-        fetchRealProductThumbnail(query)
-      ]);
-      const pending = raws.some((d) => needsResolve(d));
-      const firstPayload = buildPayload(raws.map((d) => toProviderResult(d, !d)), thumbnailUrl, 'serper', pending);
+      const raws = await Promise.all(
+        plans.map((plan) =>
+          serperSearchRaw(plan.q).catch((err) => {
+            console.error('Serper search error:', err.message);
+            return null;
+          })
+        )
+      );
+      const anyResults = raws.some((d) => d && Array.isArray(d.organic) && d.organic.length > 0);
+      // المرحلة الثانية تعمل دائماً عند وجود نتائج: استعادة الروابط (إن لزم) وجلب صور الإعلانات الحقيقية
+      const pending = anyResults && !debug;
+      const firstPayload = buildPayload(raws.map((d) => toProviderResult(d, !d)), null, 'serper', pending);
 
-      if (pending && !debug) {
+      if (pending) {
         const job = (async () => {
           const resolved = await Promise.all(raws.map((d) => (needsResolve(d) ? serperResolve(d) : d)));
-          const full = buildPayload(resolved.map((d) => toProviderResult(d, !d)), thumbnailUrl, 'serper', false);
+          const full = buildPayload(resolved.map((d) => toProviderResult(d, !d)), null, 'serper', false);
+          full.offers = await attachListingImages(full.offers, { imageQuery: `${query} ${govName}` });
+          full.diagnostics.withImages = full.offers.filter((o) => o.imageUrl).length;
           if (full.providerOk) cacheSet(cacheKey, full);
           return full;
         })();
