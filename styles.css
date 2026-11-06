@@ -898,6 +898,7 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 16px;
+  scroll-margin-top: 185px;
 }
 
 @media (max-width: 440px) {
