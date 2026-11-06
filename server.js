@@ -292,7 +292,11 @@ app.get('/api/live-search', async (req, res) => {
         rawCounts: [storeResults, fbResults, igResults].map((r) => r.results.length),
         httpOk: [storeResults, fbResults, igResults].map((r) => r.httpOk),
         responseBytes: [storeResults, fbResults, igResults].map((r) => r.bytes),
-        kept: uniqueOffers.length
+        kept: uniqueOffers.length,
+        // عند ?debug=1 فقط: عناوين النتائج الخام العامة لتشخيص سبب الاستبعاد (لا بيانات مستخدمين)
+        ...(req.query.debug === '1'
+          ? { sampleTitles: merged.slice(0, 12).map((r) => `${r.host} | ${r.title.slice(0, 90)}`) }
+          : {})
       },
       thumbnailUrl: safeHttpUrl(thumbnailUrl),
       offers: uniqueOffers
