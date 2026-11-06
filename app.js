@@ -826,6 +826,36 @@ function detectUserGovernorateByGPS() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // تحويل فوري وتلقائي لأي أرقام عربية أو شرقية يكتبها المستخدم في أي حقل إلى أرقام إنجليزية
+  document.addEventListener(
+    'input',
+    (e) => {
+      const target = e.target;
+      if (!target || (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA')) return;
+      if (typeof target.value !== 'string') return;
+
+      const original = target.value;
+      let converted = normalizeDigits(original);
+
+      // إذا كان الحقل مخصصاً للأرقام فقط (مثل السقف الأعلى أو سعر الصرف) نزيل أي أحرف غير رقمية
+      if (target.dataset && target.dataset.numericOnly === 'true') {
+        converted = converted.replace(/[^\d]/g, '');
+      }
+
+      if (converted !== original) {
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        target.value = converted;
+        if (typeof start === 'number' && typeof end === 'number') {
+          try {
+            target.setSelectionRange(start, end);
+          } catch {}
+        }
+      }
+    },
+    true
+  );
+
   const searchForm = document.getElementById('searchForm');
   const searchInput = document.getElementById('searchQuery');
   const clearQueryBtn = document.getElementById('clearQueryBtn');
