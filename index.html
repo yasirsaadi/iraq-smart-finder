@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>دلال العراق | مقارنة الأسعار في فيسبوك وانستغرام ومتاجر كوكل</title>
+  <title>رادار أسعار العراق | مقارنة السلع والسيارات والعقارات في فيسبوك وانستغرام وكوكل</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,92 +14,95 @@
   <header class="site-header">
     <!-- الشريط العلوي الخدمي -->
     <div class="utility-bar">
-    <div class="container utility-inner">
-      <div class="utility-right">
-        <div class="delivery-selector">
-          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
-            <circle cx="12" cy="10" r="3"></circle>
-          </svg>
-          <span class="utility-label">التوصيل والمحافظة:</span>
-          <select id="governorateSelect" aria-label="اختر المحافظة">
-            <option value="baghdad">بغداد</option>
-            <option value="basra">البصرة</option>
-            <option value="erbil">أربيل</option>
-            <option value="nineveh">نينوى (الموصل)</option>
-            <option value="najaf">النجف الأشرف</option>
-            <option value="karbala">كربلاء المقدسة</option>
-            <option value="sulaymaniyah">السليمانية</option>
-            <option value="dhiqar">ذي قار (الناصرية)</option>
-            <option value="babil">بابل (الحلة)</option>
-            <option value="kirkuk">كركوك</option>
-            <option value="anbar">الأنبار (الرمادي)</option>
-            <option value="diyala">ديالى (بعقوبة)</option>
-            <option value="wasit">واسط (الكوت)</option>
-            <option value="salahaddin">صلاح الدين (تكريت)</option>
-            <option value="maysan">ميسان (العمارة)</option>
-            <option value="qadisiyah">القادسية (الديوانية)</option>
-            <option value="muthanna">المثنى (السماوة)</option>
-            <option value="duhok">دهوك</option>
-          </select>
-          <button type="button" id="detectLocationBtn" class="utility-gps-btn" title="تحديد المحافظة تلقائياً عبر الموقع الجغرافي">
-            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+      <div class="container utility-inner">
+        <div class="utility-right">
+          <div class="delivery-selector">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
             </svg>
-            <span>تحديد تلقائي</span>
+            <span class="utility-label">المحافظة والنطاق:</span>
+            <select id="governorateSelect" aria-label="اختر المحافظة">
+              <option value="baghdad">بغداد</option>
+              <option value="basra">البصرة</option>
+              <option value="erbil">أربيل</option>
+              <option value="nineveh">نينوى (الموصل)</option>
+              <option value="najaf">النجف الأشرف</option>
+              <option value="karbala">كربلاء المقدسة</option>
+              <option value="sulaymaniyah">السليمانية</option>
+              <option value="dhiqar">ذي قار (الناصرية)</option>
+              <option value="babil">بابل (الحلة)</option>
+              <option value="kirkuk">كركوك</option>
+              <option value="anbar">الأنبار (الرمادي)</option>
+              <option value="diyala">ديالى (بعقوبة)</option>
+              <option value="wasit">واسط (الكوت)</option>
+              <option value="salahaddin">صلاح الدين (تكريت)</option>
+              <option value="maysan">ميسان (العمارة)</option>
+              <option value="qadisiyah">القادسية (الديوانية)</option>
+              <option value="muthanna">المثنى (السماوة)</option>
+              <option value="duhok">دهوك</option>
+            </select>
+            <button type="button" id="detectLocationBtn" class="utility-gps-btn" title="تحديد المحافظة تلقائياً عبر الموقع الجغرافي">
+              <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+              </svg>
+              <span>تحديد تلقائي</span>
+            </button>
+          </div>
+
+          <div class="exchange-box" title="سعر صرف المئة دولار لحساب عروض السيارات والعقارات والبيجات المسعرة بالدفتر والورقة">
+            <span class="utility-label">صرف 100 دولار:</span>
+            <input type="text" inputmode="numeric" data-numeric-only="true" id="exchangeRateInput" value="150000" aria-label="سعر صرف 100 دولار بالدينار" />
+            <span class="currency-unit">د.ع</span>
+          </div>
+        </div>
+
+        <div class="utility-left">
+          <button type="button" class="utility-nav-btn" id="openRadarBtn">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <span>رادار التنبيهات</span>
+            <span class="radar-badge-count" id="radarCountBadge">0</span>
+          </button>
+
+          <button type="button" class="utility-nav-btn" id="openAnalyzerBtn">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"></path>
+            </svg>
+            <span>إضافة عرض (سلعة / سيارة / عقار)</span>
+          </button>
+
+          <button type="button" class="utility-vip-btn" id="openSubscriptionBtn">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+            <span id="subscriptionBtnLabel">اشتراك الرادار (1,000 د.ع)</span>
           </button>
         </div>
-
-        <div class="exchange-box" title="سعر صرف المئة دولار لحساب عروض البيجات المسعرة بالورقة">
-          <span class="utility-label">صرف 100 دولار:</span>
-          <input type="text" inputmode="numeric" data-numeric-only="true" id="exchangeRateInput" value="150000" aria-label="سعر صرف 100 دولار بالدينار" />
-          <span class="currency-unit">د.ع</span>
-        </div>
-      </div>
-
-      <div class="utility-left">
-        <button type="button" class="utility-nav-btn" id="openRadarBtn">
-          <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
-          <span>رادار اللقطات</span>
-          <span class="radar-badge-count" id="radarCountBadge">0</span>
-        </button>
-
-        <button type="button" class="utility-nav-btn" id="openAnalyzerBtn">
-          <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14M5 12h14"></path>
-          </svg>
-          <span>بوابة التجار وإضافة عرض</span>
-        </button>
-
-        <button type="button" class="utility-vip-btn" id="openSubscriptionBtn">
-          <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-          </svg>
-          <span id="subscriptionBtnLabel">اشتراك التوفير (1,000 د.ع)</span>
-        </button>
       </div>
     </div>
 
+    <!-- الصف الأوسط: شعار رادار أسعار العراق + شريط البحث الموحد -->
     <div class="container header-inner">
-      <a href="#" class="brand-identity" aria-label="دلال العراق - الصفحة الرئيسية">
+      <a href="#" class="brand-identity" aria-label="رادار أسعار العراق - الصفحة الرئيسية">
         <div class="brand-mark">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path>
-            <path d="M3 6h18"></path>
-            <path d="M16 10a4 4 0 0 1-8 0"></path>
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="6"></circle>
+            <circle cx="12" cy="12" r="2"></circle>
+            <path d="M12 12 19 5"></path>
           </svg>
         </div>
         <div class="brand-copy">
-          <span class="brand-name">دَلال العراق</span>
-          <span class="brand-tagline">دليل الأسعار الموحد • فيسبوك • انستغرام • كوكل</span>
+          <span class="brand-name">رادار أسعار العراق</span>
+          <span class="brand-tagline">مقارنة السلع • السيارات • العقارات (فيسبوك • انستغرام • كوكل)</span>
         </div>
       </a>
 
-      <!-- شريط البحث التجاري الموحد مع زر البحث بلقطة الشاشة -->
+      <!-- شريط البحث التجاري الموحد -->
       <form id="searchForm" class="commercial-search-form" autocomplete="off">
         <div class="search-main-field">
           <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -109,7 +112,7 @@
           <input
             type="text"
             id="searchQuery"
-            placeholder="ابحث عن أي سلعة أو الصق اسم منتج (مثال: آيفون 15، سبلت جري، مصيدة فئران)..."
+            placeholder="ابحث عن سلعة، سيارة، أو عقار (مثال: النترا 2024، شقة في بسماية، آيفون 15)..."
           />
           <button type="button" id="clearQueryBtn" class="clear-input-btn" hidden aria-label="مسح البحث">
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -117,7 +120,6 @@
             </svg>
           </button>
 
-          <!-- زر البحث بصورة الإعلان الممول -->
           <button type="button" id="openImageSearchBtn" class="image-search-trigger" title="ارفع لقطة شاشة لإعلان ممول للبحث عن مصدره الأرخص">
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
@@ -144,17 +146,57 @@
       </form>
     </div>
 
-    <!-- شريط الأقسام والبحث السريع -->
+    <!-- شريط القطاعات الرئيسية (السلع • السيارات • العقارات) + الاختصارات السريعة -->
     <div class="categories-strip">
-      <div class="container categories-inner">
-        <span class="categories-label">الأكثر بحثاً في العراق:</span>
-        <button type="button" class="category-link tag-chip" data-query="آيفون 15 برو ماكس">آيفون 15 برو ماكس</button>
-        <button type="button" class="category-link tag-chip" data-query="بلاي ستيشن 5 سليم">بلاي ستيشن 5 سليم</button>
-        <button type="button" class="category-link tag-chip" data-query="سبلت جري 2 طن انفرتر">سبلت جري 2 طن انفرتر</button>
-        <button type="button" class="category-link tag-chip" data-query="لابتوب لينوفو LOQ للألعاب">لابتوب لينوفو للألعاب</button>
-        <button type="button" class="category-link tag-chip" data-query="سماعة ايربودز برو 2">سماعة أبل ايربودز برو</button>
-        <button type="button" class="category-link tag-chip" data-query="ماكينة قهوة ديلونجي">ماكينة قهوة ديلونجي</button>
-        <button type="button" class="category-link tag-chip" data-query="شاشة سامسونج سمارت 55 بوصة">شاشة سامسونج 55 بوصة</button>
+      <div class="container verticals-and-tags-bar">
+        <div class="verticals-tabs" role="tablist" aria-label="الأقسام الرئيسية">
+          <button type="button" class="vertical-tab active" data-section="all">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span>جميع القطاعات</span>
+          </button>
+
+          <button type="button" class="vertical-tab" data-section="products">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path>
+              <path d="M3 6h18"></path>
+              <path d="M16 10a4 4 0 0 1-8 0"></path>
+            </svg>
+            <span>السلع والأجهزة</span>
+          </button>
+
+          <button type="button" class="vertical-tab" data-section="cars">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"></path>
+              <circle cx="7" cy="17" r="2"></circle>
+              <path d="M9 17h6"></path>
+              <circle cx="17" cy="17" r="2"></circle>
+            </svg>
+            <span>معارض وسوق السيارات</span>
+          </button>
+
+          <button type="button" class="vertical-tab" data-section="realestate">
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <span>العقارات والأراضي</span>
+          </button>
+        </div>
+
+        <div class="quick-searches-scroll" id="quickTagsContainer">
+          <button type="button" class="category-link tag-chip" data-section="cars" data-query="هيونداي النترا 2024">هيونداي النترا 2024</button>
+          <button type="button" class="category-link tag-chip" data-section="cars" data-query="كيا سبورتاج زيرو">كيا سبورتاج زيرو</button>
+          <button type="button" class="category-link tag-chip" data-section="cars" data-query="تويوتا لاندكروزر">تويوتا لاندكروزر</button>
+          <button type="button" class="category-link tag-chip" data-section="realestate" data-query="شقة في مجمع بسماية">شقة في بسماية</button>
+          <button type="button" class="category-link tag-chip" data-section="realestate" data-query="دار سكنية طابو صرف">دار سكنية طابو</button>
+          <button type="button" class="category-link tag-chip" data-section="products" data-query="آيفون 15 برو ماكس">آيفون 15 برو ماكس</button>
+          <button type="button" class="category-link tag-chip" data-section="products" data-query="سبلت جري 2 طن انفرتر">سبلت جري 2 طن</button>
+        </div>
       </div>
     </div>
   </header>
@@ -162,6 +204,83 @@
   <main class="container main-content">
     <!-- تنبيهات النظام والرادار -->
     <div id="searchStatusBanner" class="notice-banner" hidden></div>
+
+    <!-- شريط الفلاتر التخصصية للسيارات (يظهر تلقائياً عند اختيار قسم السيارات) -->
+    <section id="carsFilterPanel" class="specialized-filter-bar" hidden>
+      <div class="spec-filter-header">
+        <strong>محددات مقارنة السيارات في معارض العراق:</strong>
+        <span>قارن بالدفتر والورقة والدينار العراقي عبر معارض النهضة، البياع، أربيل، البصرة، والموصل</span>
+      </div>
+      <div class="spec-filter-controls">
+        <div class="spec-select-group">
+          <label for="carBrandFilter">الماركة:</label>
+          <select id="carBrandFilter">
+            <option value="">جميع الماركات</option>
+            <option value="هيونداي">هيونداي</option>
+            <option value="كيا">كيا</option>
+            <option value="تويوتا">تويوتا</option>
+            <option value="شيفروليه">شيفروليه</option>
+            <option value="جيتور">جيتور</option>
+          </select>
+        </div>
+
+        <div class="spec-select-group">
+          <label for="carOriginFilter">نوع الوارد والحالة:</label>
+          <select id="carOriginFilter">
+            <option value="">الكل (زيرو ومستعمل)</option>
+            <option value="خليجي">خليجي وكالة (زيرو)</option>
+            <option value="وارد أمريكي">وارد أمريكي (كلين / حادث خفيف)</option>
+          </select>
+        </div>
+
+        <div class="spec-select-group">
+          <label for="carPlateFilter">نوع اللوحة:</label>
+          <select id="carPlateFilter">
+            <option value="">جميع أرقام المحافظات</option>
+            <option value="رقم بغداد">رقم بغداد</option>
+            <option value="رقم أربيل">رقم أربيل / إقليم كردستان</option>
+            <option value="رقم البصرة">رقم البصرة</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- شريط الفلاتر التخصصية للعقارات (يظهر تلقائياً عند اختيار قسم العقارات) -->
+    <section id="realestateFilterPanel" class="specialized-filter-bar" hidden>
+      <div class="spec-filter-header">
+        <strong>محددات مقارنة العقارات والأراضي في العراق:</strong>
+        <span>يحسب لك سعر المتر المربع الواحد تلقائياً للمقارنة العادلة بين المناطق والمجمعات السكنية</span>
+      </div>
+      <div class="spec-filter-controls">
+        <div class="spec-select-group">
+          <label for="propDealFilter">نوع المعاملة:</label>
+          <select id="propDealFilter">
+            <option value="">الكل (بيع وإيجار)</option>
+            <option value="بيع تمليك">بيع تمليك</option>
+            <option value="إيجار">إيجار</option>
+          </select>
+        </div>
+
+        <div class="spec-select-group">
+          <label for="propTypeFilter">نوع العقار:</label>
+          <select id="propTypeFilter">
+            <option value="">جميع العقارات</option>
+            <option value="دار سكنية">دار سكنية مستقلة</option>
+            <option value="شقة سكنية">شقة في مجمع سكني</option>
+            <option value="قطعة أرض">قطعة أرض</option>
+          </select>
+        </div>
+
+        <div class="spec-select-group">
+          <label for="propDeedFilter">نوع السند:</label>
+          <select id="propDeedFilter">
+            <option value="">جميع السندات</option>
+            <option value="طابو صرف">طابو صرف (ملك صرف)</option>
+            <option value="سند استثماري">سند مجمع استثماري</option>
+          </select>
+        </div>
+      </div>
+    </section>
 
     <!-- شريط الملخص السعري والجغرافي -->
     <section class="metrics-overview" id="summaryHighlights" aria-label="ملخص أفضل العروض">
@@ -207,24 +326,24 @@
       <div class="fair-meter-header">
         <div>
           <h2 class="fair-meter-title">مؤشر السعر العادل وكاشف الغلاء في السوق العراقي</h2>
-          <p class="fair-meter-subtitle">يحسب لك متوسط السعر الحقيقي عبر المحافظات لتعرف هل السعر المعروض أمامك لقطة أم مبالغ فيه:</p>
+          <p class="fair-meter-subtitle">يقارن أسعار السلع والسيارات والعقارات عبر المحافظات ليكشف لك اللقطات والأسعار المبالغ فيها:</p>
         </div>
         <button type="button" class="btn-create-alert-inline" id="createAlertFromMeterBtn">
-          + راقب هبوط سعر هذه السلعة
+          + راقب هبوط السعر عبر الرادار
         </button>
       </div>
 
       <div class="fair-meter-Grid">
         <div class="meter-zone zone-deal">
-          <span class="zone-label">سعر لقطة (أقل سعر بالعراق)</span>
+          <span class="zone-label">سعر لقطة (الأرخص بالعراق)</span>
           <strong class="zone-value" id="meterMinPrice">—</strong>
-          <span class="zone-desc">ينصح بالشراء الفوري بعد الفحص</span>
+          <span class="zone-desc">أفضل صفقة متوفرة حالياً</span>
         </div>
 
         <div class="meter-zone zone-fair">
           <span class="zone-label">متوسط سعر السوق العادل</span>
           <strong class="zone-value" id="meterAvgPrice">—</strong>
-          <span class="zone-desc">السعر الطبيعي المتداول في البيجات</span>
+          <span class="zone-desc">السعر الطبيعي المتداول في السوق</span>
         </div>
 
         <div class="meter-zone zone-high">
@@ -242,7 +361,7 @@
           <h2 class="gateways-heading">البحث الحي في المنصات المفتوحة عن: <span id="deepLinkQueryTitle">جميع العروض</span></h2>
           <span class="active-gov-pill" id="activeLocationBadge">المحافظة: بغداد</span>
         </div>
-        <p class="gateways-desc">انتقل مباشرة إلى نتائج البحث الحية المفلترة حسب محافظتك واسم السلعة في المنصات الثلاث:</p>
+        <p class="gateways-desc">انتقل مباشرة إلى نتائج البحث الحية المفلترة حسب محافظتك في المنصات الثلاث:</p>
       </div>
 
       <div class="gateways-buttons">
@@ -251,8 +370,8 @@
             <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c5.05-.5 9-4.76 9-9.95z"/>
           </svg>
           <div class="gateway-text">
-            <strong>منشورات وسوق فيسبوك</strong>
-            <span>البحث في الصفحات والمجموعات العراقية</span>
+            <strong>منشورات وسوق فيسبوك العراق</strong>
+            <span>البحث في المعارض والبيجات والمجموعات</span>
           </div>
           <svg class="icon-xs ext-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M7 17 17 7M7 7h10v10"></path>
@@ -266,8 +385,8 @@
             <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
           </svg>
           <div class="gateway-text">
-            <strong>متاجر انستغرام العراق</strong>
-            <span>فلترة حسابات البيع والتوصيل</span>
+            <strong>بيجات ومعارض انستغرام العراق</strong>
+            <span>فلترة حسابات البيع والمعارض العقارية والسيارات</span>
           </div>
           <svg class="icon-xs ext-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M7 17 17 7M7 7h10v10"></path>
@@ -280,8 +399,8 @@
             <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
           </svg>
           <div class="gateway-text">
-            <strong>متاجر كوكل والمواقع العراقية</strong>
-            <span>مسواك، الريان، النبأ، والسوق المفتوح</span>
+            <strong>مواقع كوكل والسوق المفتوح العراق</strong>
+            <span>السوق المفتوح، مسواك، الريان، والمواقع العقارية</span>
           </div>
           <svg class="icon-xs ext-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M7 17 17 7M7 7h10v10"></path>
@@ -290,7 +409,7 @@
       </div>
     </section>
 
-    <!-- شريط التحكم والفرز التجاري مع حاسبة السعر الصافي شامل التوصيل -->
+    <!-- شريط التحكم والفرز التجاري -->
     <section class="catalog-toolbar" aria-label="أدوات الفلترة والترتيب">
       <div class="platform-filter-group" role="tablist">
         <button type="button" class="platform-tab active" data-platform="all">
@@ -309,7 +428,7 @@
         </button>
         <button type="button" class="platform-tab" data-platform="google">
           <span class="source-dot dot-gg"></span>
-          <span>متاجر كوكل</span>
+          <span>مواقع كوكل</span>
           <span class="tab-counter" id="countGg">0</span>
         </button>
       </div>
@@ -324,7 +443,7 @@
 
         <label class="local-only-toggle" title="جمع كلفة التوصيل لمحافظتك مع سعر السلعة لمعرفة التكلفة الصافية">
           <input type="checkbox" id="includeDeliveryCheckbox" checked />
-          <span>شامل كلفة التوصيل لمحافظتي</span>
+          <span>شامل التوصيل</span>
         </label>
 
         <label class="local-only-toggle">
@@ -334,47 +453,96 @@
       </div>
     </section>
 
-    <!-- قائمة وبطاقات المنتجات -->
+    <!-- قائمة وبطاقات المنتجات والسيارات والعقارات -->
     <section id="resultsGrid" class="commercial-grid" aria-live="polite"></section>
   </main>
 
-  <!-- 1. نافذة بوابة التجار ومحلل المنشورات -->
+  <!-- 1. نافذة إضافة عرض (سلعة / سيارة / عقار) ومحلل المنشورات -->
   <dialog id="analyzerModal" class="commercial-modal">
     <div class="modal-top">
       <div>
-        <h2>بوابة التجار وإضافة عروض البيجات للمقارنة</h2>
-        <p>يمكن لأصحاب المتاجر إضافة عروضهم مباشرة، أو لصق نص أي منشور من فيسبوك وانستغرام ليقوم النظام باستخراج السعر والمحافظة ورقم الهاتف تلقائياً.</p>
+        <h2>إضافة عرض جديد إلى رادار أسعار العراق (سلعة • سيارة • عقار)</h2>
+        <p>أضف عرضك مباشرة أو الصق نص أي إعلان من فيسبوك وانستغرام ليقوم الرادار باستخراج السعر (بالدينار أو الدفتر أو الورقة أو المليون) والمحافظة ورقم الهاتف تلقائياً.</p>
       </div>
       <button type="button" class="modal-close" id="closeAnalyzerBtn" aria-label="إغلاق">✕</button>
     </div>
 
     <form id="analyzerForm" class="modal-form">
-      <div class="modal-grid-2">
+      <div class="modal-grid-3">
+        <div class="field-block">
+          <label for="postSectionSelect">نوع العرض (القطاع)</label>
+          <select id="postSectionSelect">
+            <option value="products">سلعة أو جهاز</option>
+            <option value="cars">سيارة / مركبة</option>
+            <option value="realestate">عقار / أرض سكنية</option>
+          </select>
+        </div>
+
         <div class="field-block">
           <label for="postPlatformSelect">المنصة المصدر</label>
           <select id="postPlatformSelect">
-            <option value="facebook">فيسبوك (صفحة تجارية / سوق مفتوح)</option>
-            <option value="instagram">انستغرام (حساب متجر / منشور)</option>
-            <option value="google">كوكل / متجر إلكتروني محلي</option>
+            <option value="facebook">فيسبوك (معرض / صفحة / سوق)</option>
+            <option value="instagram">انستغرام (حساب متجر / معرض)</option>
+            <option value="google">كوكل / موقع إلكتروني</option>
+          </select>
+        </div>
+
+        <div class="field-block">
+          <label for="postStoreName">اسم المعرض أو المكتب أو المتجر</label>
+          <input type="text" id="postStoreName" placeholder="مثال: معرض النهضة للسيارات" required />
+        </div>
+      </div>
+
+      <!-- حقول إضافية للسيارات تظهر عند اختيار سيارة -->
+      <div id="modalCarFields" class="modal-grid-3" hidden>
+        <div class="field-block">
+          <label for="carYearInput">سنة الصنع (الموديل)</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="carYearInput" placeholder="2024" />
+        </div>
+        <div class="field-block">
+          <label for="carMileageInput">المسافة المقطوعة (الممشى)</label>
+          <input type="text" id="carMileageInput" placeholder="مثال: زيرو أو 25,000 كم" />
+        </div>
+        <div class="field-block">
+          <label for="carPlateInput">نوع اللوحة والوارد</label>
+          <input type="text" id="carPlateInput" placeholder="مثال: رقم بغداد • خليجي" />
+        </div>
+      </div>
+
+      <!-- حقول إضافية للعقارات تظهر عند اختيار عقار -->
+      <div id="modalRealestateFields" class="modal-grid-3" hidden>
+        <div class="field-block">
+          <label for="propAreaInput">المساحة (متر مربع)</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="propAreaInput" placeholder="200" />
+        </div>
+        <div class="field-block">
+          <label for="propDeedInput">نوع السند / الطابو</label>
+          <select id="propDeedInput">
+            <option value="طابو صرف">طابو صرف (ملك صرف)</option>
+            <option value="سند استثماري">سند مجمع استثماري</option>
+            <option value="زراعي سند 25">طابو زراعي</option>
           </select>
         </div>
         <div class="field-block">
-          <label for="postStoreName">اسم المتجر أو البيج</label>
-          <input type="text" id="postStoreName" placeholder="مثال: معرض المنصور للهواتف" required />
+          <label for="propDealInput">نوع المعاملة</label>
+          <select id="propDealInput">
+            <option value="بيع تمليك">بيع تمليك</option>
+            <option value="إيجار">إيجار</option>
+          </select>
         </div>
       </div>
 
       <div class="field-block">
-        <label for="postRawText">نص العرض أو المنشور الكامل</label>
+        <label for="postRawText">نص الإعلان أو المنشور الكامل</label>
         <textarea
           id="postRawText"
           rows="4"
-          placeholder="مثال: متوفر آيفون 15 برو ماكس 256 جيجا نظيف جداً ضمان سنة السعر 10 أوراق فقط، العنوان بغداد المنصور ويوجد توصيل لكافة المحافظات 07701234567"
+          placeholder="مثال: هيونداي النترا 2024 خليجي زيرو رقم بغداد السعر دفترين و15 ورقة، العنوان بغداد معارض النهضة للاستفسار 07701234567"
           required
         ></textarea>
       </div>
 
-      <div class="modal-grid-2">
+      <div id="modalDeliveryFields" class="modal-grid-2">
         <div class="field-block">
           <label for="postDeliveryLocal">أجرة التوصيل داخل المحافظة (د.ع)</label>
           <input type="text" inputmode="numeric" data-numeric-only="true" id="postDeliveryLocal" value="4000" />
@@ -387,7 +555,7 @@
 
       <label class="local-only-toggle" style="width: fit-content;">
         <input type="checkbox" id="postAllowsInspection" checked />
-        <span>المتجر يقبل فتح وفحص الطلب أمام المندوب قبل الدفع</span>
+        <span>مضمون ويقبل الفحص الكامل (فحص المندوب / فحص سونار السيارات / تدقيق السند العقاري)</span>
       </label>
 
       <div class="extraction-summary" id="parsedPreviewBox">
@@ -399,7 +567,7 @@
 
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="fillSamplePostBtn">تعبئة مثال تجريبي</button>
-        <button type="submit" class="btn-submit">حفظ العرض في قاعدة البيانات</button>
+        <button type="submit" class="btn-submit">حفظ العرض في رادار أسعار العراق</button>
       </div>
     </form>
   </dialog>
@@ -408,8 +576,8 @@
   <dialog id="radarModal" class="commercial-modal">
     <div class="modal-top">
       <div>
-        <h2>رادار صيد اللقطات وتنبيهات هبوط الأسعار</h2>
-        <p>حدد السلعة والسعر الذي يناسبك، وسيقوم الرادار بمراقبة السوق وتنبيهك فوراً عبر واتساب أو تليغرام عند توفرها بهذا السعر أو أقل.</p>
+        <h2>رادار صيد اللقطات وتنبيهات هبوط الأسعار (سلع • سيارات • عقارات)</h2>
+        <p>حدد السلعة أو السيارة أو العقار والسعر الذي يناسبك، وسيقوم الرادار بمراقبة السوق وتنبيهك فوراً عبر واتساب أو تليغرام.</p>
       </div>
       <button type="button" class="modal-close" id="closeRadarBtn" aria-label="إغلاق">✕</button>
     </div>
@@ -417,12 +585,12 @@
     <form id="radarForm" class="modal-form">
       <div class="modal-grid-2">
         <div class="field-block">
-          <label for="radarKeywordInput">اسم السلعة المطلوب مراقبتها</label>
-          <input type="text" id="radarKeywordInput" placeholder="مثال: آيفون 15 برو ماكس، سبلت جري..." required />
+          <label for="radarKeywordInput">اسم السلعة أو السيارة أو العقار</label>
+          <input type="text" id="radarKeywordInput" placeholder="مثال: النترا 2024، شقة بسماية، آيفون 15..." required />
         </div>
         <div class="field-block">
-          <label for="radarTargetPriceInput">السعر المستهدف (د.ع)</label>
-          <input type="text" inputmode="numeric" data-numeric-only="true" id="radarTargetPriceInput" placeholder="مثال: 1450000" required />
+          <label for="radarTargetPriceInput">السعر المستهدف بالدينار العراقي</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="radarTargetPriceInput" placeholder="مثال: 28000000" required />
         </div>
       </div>
 
@@ -451,12 +619,12 @@
     </form>
   </dialog>
 
-  <!-- 3. نافذة البحث بصورة الإعلان الممول (Screenshot Search) -->
+  <!-- 3. نافذة البحث بصورة الإعلان الممول -->
   <dialog id="imageSearchModal" class="commercial-modal">
     <div class="modal-top">
       <div>
         <h2>البحث بلقطة الشاشة لكشف المصدر الأرخص</h2>
-        <p>هل رأيت إعلاناً ممولاً في فيسبوك أو انستغرام بسعر مرتفع؟ ارفع لقطة شاشة للإعلان هنا لنستخرج اسم المنتج ونبحث لك عن أرخص تاجر يبيعه في العراق.</p>
+        <p>ارفع لقطة شاشة لأي إعلان ممول (سلعة أو سيارة أو عقار) لنستخرج بياناته ونقارن سعره بأرخص العروض في العراق.</p>
       </div>
       <button type="button" class="modal-close" id="closeImageSearchBtn" aria-label="إغلاق">✕</button>
     </div>
@@ -477,13 +645,13 @@
       </label>
 
       <div class="field-block">
-        <label for="imageExtractedQuery">اسم السلعة المكتوب في الإعلان (يمكنك تعديله أو كتابته لدقة أعلى)</label>
-        <input type="text" id="imageExtractedQuery" placeholder="مثال: ماكينة قهوة ديلونجي، خلاط بوش، عطر سوفاج..." required />
+        <label for="imageExtractedQuery">اسم السلعة أو السيارة أو العقار المكتوب في الإعلان</label>
+        <input type="text" id="imageExtractedQuery" placeholder="مثال: كيا سبورتاج 2024، ماكينة قهوة ديلونجي..." required />
       </div>
 
       <div class="field-block">
-        <label for="adSeenPriceInput">السعر الذي رأيته في الإعلان الممول (اختياري - لنحسب لك كم ستوفر)</label>
-        <input type="text" inputmode="numeric" data-numeric-only="true" id="adSeenPriceInput" placeholder="مثال: 275000" />
+        <label for="adSeenPriceInput">السعر الذي رأيته في الإعلان بالدينار العراقي (اختياري - لنحسب لك كم ستوفر)</label>
+        <input type="text" inputmode="numeric" data-numeric-only="true" id="adSeenPriceInput" placeholder="مثال: 35000000" />
       </div>
 
       <div class="modal-actions">
@@ -492,12 +660,12 @@
     </form>
   </dialog>
 
-  <!-- 4. نافذة تقييم موثوقية البيج وكشف الغش التجاري -->
+  <!-- 4. نافذة تقييم موثوقية المعرض أو المتجر -->
   <dialog id="reviewModal" class="commercial-modal">
     <div class="modal-top">
       <div>
-        <h2>تقييم موثوقية المتجر وفحص الاستلام</h2>
-        <p id="reviewModalStoreTitle">شارك تجربتك مع هذا المتجر لحماية المشترين في العراق من الصفحات الوهمية.</p>
+        <h2>تقييم موثوقية المعرض أو المتجر وسجل التعامل</h2>
+        <p id="reviewModalStoreTitle">شارك تجربتك لحماية المشترين في العراق من العروض الوهمية.</p>
       </div>
       <button type="button" class="modal-close" id="closeReviewBtn" aria-label="إغلاق">✕</button>
     </div>
@@ -506,27 +674,27 @@
       <input type="hidden" id="reviewStoreNameInput" />
       <div class="modal-grid-2">
         <div class="field-block">
-          <label for="reviewRatingSelect">تقييمك للمتجر</label>
+          <label for="reviewRatingSelect">تقييمك للجهة البائعة</label>
           <select id="reviewRatingSelect">
             <option value="5">ممتاز وموثوق جداً (5 نجوم)</option>
             <option value="4">جيد وصادق في التعامل (4 نجوم)</option>
             <option value="3">متوسط (3 نجوم)</option>
             <option value="2">غير مطابق للمواصفات (نجمتان)</option>
-            <option value="1">تحذير: صفحة وهمية أو ترفض الفحص (نجمة واحدة)</option>
+            <option value="1">تحذير: إعلان وهمي أو يرفض الفحص (نجمة واحدة)</option>
           </select>
         </div>
         <div class="field-block">
-          <label for="reviewInspectionSelect">هل سمح لك بفحص الطلب أمام المندوب؟</label>
+          <label for="reviewInspectionSelect">هل يقبل الفحص الكامل قبل الدفع؟</label>
           <select id="reviewInspectionSelect">
-            <option value="true">نعم، يقبل فتح وفحص الطلب قبل الدفع</option>
-            <option value="false">لا، يرفض فتح الطلب قبل الاستلام</option>
+            <option value="true">نعم، يقبل الفحص الكامل</option>
+            <option value="false">لا، يرفض الفحص</option>
           </select>
         </div>
       </div>
 
       <div class="field-block">
-        <label for="reviewCommentInput">تفاصيل تجربتك مع المتجر أو البضاعة</label>
-        <textarea id="reviewCommentInput" rows="3" placeholder="اكتب ملاحظتك حول جودة البضاعة، سرعة التوصيل، ومصداقية السعر..." required></textarea>
+        <label for="reviewCommentInput">تفاصيل تجربتك</label>
+        <textarea id="reviewCommentInput" rows="3" placeholder="اكتب ملاحظتك حول المصداقية ومطابقة المواصفات..." required></textarea>
       </div>
 
       <div class="modal-actions">
@@ -544,18 +712,18 @@
   <dialog id="subscriptionModal" class="commercial-modal">
     <div class="modal-top">
       <div>
-        <h2>عضوية المتسوق الذكي في دلال العراق — 1,000 د.ع شهرياً فقط</h2>
-        <p>وفر عشرات الآلاف في كل شروة مقابل اشتراك شهري رمزي بقيمة ألف دينار عراقي فقط.</p>
+        <h2>عضوية رادار أسعار العراق — 1,000 د.ع شهرياً فقط</h2>
+        <p>وفر الملايين في السيارات والعقارات وعشرات الآلاف في السلع مقابل اشتراك شهري رمزي بقيمة ألف دينار عراقي فقط.</p>
       </div>
       <button type="button" class="modal-close" id="closeSubscriptionBtn" aria-label="إغلاق">✕</button>
     </div>
 
     <form id="subscriptionForm" class="modal-form">
       <div class="vip-perks-box">
-        <div class="perk-item">✔ بحث حي غير محدود في فيسبوك وانستغرام ومتاجر العراق</div>
-        <div class="perk-item">✔ تفعيل رادار صيد اللقطات وإشعارات واتساب الفورية عند هبوط الأسعار</div>
-        <div class="perk-item">✔ ميزة البحث بلقطة الشاشة لكشف المصادر الأرخص للإعلانات الممولة</div>
-        <div class="perk-item">✔ كشف سجل موثوقية البيجات وحاسبة السعر الصافي شامل التوصيل</div>
+        <div class="perk-item">✔ مقارنة شاملة للسلع والسيارات والعقارات في جميع محافظات العراق الـ 18</div>
+        <div class="perk-item">✔ تفعيل رادار اللقطات وإشعارات واتساب الفورية عند نزول سيارة أو عقار أو سلعة بسعر لقطة</div>
+        <div class="perk-item">✔ حساب تلقائي لسعر المتر المربع للعقارات وحساب الدفتر والورقة للسيارات</div>
+        <div class="perk-item">✔ ميزة البحث بلقطة الشاشة وكشف سجل موثوقية المعارض والمكاتب والبيجات</div>
       </div>
 
       <div class="modal-grid-2">
@@ -582,10 +750,10 @@
   <footer class="site-footer">
     <div class="container footer-content">
       <div class="footer-right">
-        <strong>دَلال العراق</strong> — منصة مقارنة الأسعار والبحث التجاري في المحافظات العراقية الثماني عشرة.
+        <strong>رادار أسعار العراق</strong> — المنصة الأولى لمقارنة أسعار السلع والسيارات والعقارات في المحافظات العراقية الثماني عشرة.
       </div>
       <div class="footer-left">
-        يتم تحديث الأسعار وحساب المسافات الجغرافية وكلفة التوصيل بالدينار العراقي والدولار.
+        يدعم التسعير بالدينار العراقي، الدولار، الدفتر والورقة، وحساب سعر المتر المربع للعقارات.
       </div>
     </div>
   </footer>

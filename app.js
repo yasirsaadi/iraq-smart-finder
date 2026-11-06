@@ -1,14 +1,14 @@
 // ============================================================================
-// دَلال العراق — النسخة المتكاملة مع الميزات العالمية الست والربط بقاعدة بيانات نيون
+// رادار أسعار العراق — مقارنة شاملة للسلع والسيارات والعقارات في المحافظات الـ 18
 // ============================================================================
 
 const IRAQ_GOVERNORATES = {
-  baghdad: { name: 'بغداد', lat: 33.3152, lon: 44.3661, keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي', 'الشورجة', 'السنك'] },
-  basra: { name: 'البصرة', lat: 30.5081, lon: 47.7835, keywords: ['البصرة', 'بصرة', 'العشار', 'الجزائر', 'الجبيلة', 'الزبير', 'أبو الخصيب'] },
-  erbil: { name: 'أربيل', lat: 36.1901, lon: 44.0091, keywords: ['أربيل', 'اربيل', 'عنكاوة', 'شارع 60', 'شارع 100', 'القلعة'] },
+  baghdad: { name: 'بغداد', lat: 33.3152, lon: 44.3661, keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي', 'الشورجة', 'السنك', 'النهضة', 'البياع', 'اليرموك', 'بسماية', 'الجادرية'] },
+  basra: { name: 'البصرة', lat: 30.5081, lon: 47.7835, keywords: ['البصرة', 'بصرة', 'العشار', 'الجزائر', 'الجبيلة', 'الزبير', 'أبو الخصيب', 'البراضعية'] },
+  erbil: { name: 'أربيل', lat: 36.1901, lon: 44.0091, keywords: ['أربيل', 'اربيل', 'عنكاوة', 'شارع 60', 'شارع 100', 'القلعة', 'القرية اللبنانية', 'امباير'] },
   nineveh: { name: 'نينوى (الموصل)', lat: 36.3489, lon: 43.1577, keywords: ['الموصل', 'موصل', 'نينوى', 'المجموعة الثقافية', 'الزهور'] },
-  najaf: { name: 'النجف الأشرف', lat: 32.0000, lon: 44.3333, keywords: ['النجف', 'نجف', 'الكوفة', 'حي السعد', 'شارع الروان'] },
-  karbala: { name: 'كربلاء المقدسة', lat: 32.6160, lon: 44.0249, keywords: ['كربلاء', 'الحسين', 'حي الحسين', 'العباس'] },
+  najaf: { name: 'النجف الأشرف', lat: 32.0000, lon: 44.3333, keywords: ['النجف', 'نجف', 'الكوفة', 'حي السعد', 'شارع الروان', 'حي الأمير'] },
+  karbala: { name: 'كربلاء المقدسة', lat: 32.6160, lon: 44.0249, keywords: ['كربلاء', 'الحسين', 'حي الحسين', 'العباس', 'حي الأسرة'] },
   sulaymaniyah: { name: 'السليمانية', lat: 35.5613, lon: 45.4304, keywords: ['السليمانية', 'سليمانية', 'سالم', 'بختياري'] },
   dhiqar: { name: 'ذي قار (الناصرية)', lat: 31.0439, lon: 46.2573, keywords: ['الناصرية', 'ذي قار', 'الحبوبي', 'الشطرة'] },
   babil: { name: 'بابل (الحلة)', lat: 32.4637, lon: 44.4196, keywords: ['بابل', 'الحلة', 'حلة', 'شارع 40'] },
@@ -30,12 +30,26 @@ const PRODUCT_IMAGES = {
   laptop: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?auto=format&fit=crop&w=300&q=80',
   airpods: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?auto=format&fit=crop&w=300&q=80',
   coffee: 'https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?auto=format&fit=crop&w=300&q=80',
-  tv: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=300&q=80'
+  tv: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=300&q=80',
+  sedan: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=300&q=80',
+  suv: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=300&q=80',
+  house: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=300&q=80',
+  apartment: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=300&q=80',
+  land: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=300&q=80'
 };
 
 function getProductImageUrl(offer) {
   if (offer.imageUrl) return offer.imageUrl;
   const text = `${offer.title} ${(offer.keywords || []).join(' ')}`.toLowerCase();
+  if (offer.section === 'cars') {
+    if (/لاندكروزر|سبورتاج|تاهو|جيتور|سورينتو|سنتافي/.test(text)) return PRODUCT_IMAGES.suv;
+    return PRODUCT_IMAGES.sedan;
+  }
+  if (offer.section === 'realestate') {
+    if (/شقة|بسماية|القرية|مجمع/.test(text)) return PRODUCT_IMAGES.apartment;
+    if (/أرض|ارض|قطعة/.test(text)) return PRODUCT_IMAGES.land;
+    return PRODUCT_IMAGES.house;
+  }
   if (/ايفون|آيفون|iphone/.test(text)) return PRODUCT_IMAGES.iphone;
   if (/بلاي ستيشن|ps5|playstation/.test(text)) return PRODUCT_IMAGES.ps5;
   if (/سبلت|مكيف|gree/.test(text)) return PRODUCT_IMAGES.ac;
@@ -47,8 +61,222 @@ function getProductImageUrl(offer) {
 }
 
 const INITIAL_OFFERS = [
+  // ==================== ١. قسم السيارات (Cars) ====================
+  {
+    id: 'car-elantra-1',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم بغداد', origin: 'خليجي وكالة', brand: 'هيونداي' },
+    title: 'هيونداي النترا 2024 خليجي زيرو محرك 2000 كامل المواصفات فتحة وبصمة',
+    category: 'سيارات',
+    keywords: ['سيارة', 'هيونداي', 'النترا', '2024', 'خليجي', 'زيرو'],
+    platform: 'facebook',
+    storeName: 'معرض النور للسيارات الحديثة - معارض النهضة',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 64,
+    priceIQD: 31500000, // دفترين و10 أوراق
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - معارض النهضة',
+    delivery: 'معاينة وفحص سونار في المعرض • تحويل سنوية فوري',
+    phone: '07704455661',
+    snippet: 'هيونداي النترا موديل 2024 زيرو خليجي ضمان الشركة، السعر دفترين و10 أوراق (31,500,000 د.ع) شامل اللوحات.',
+    postedAgo: 'منذ ساعتين'
+  },
+  {
+    id: 'car-elantra-2',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم أربيل', origin: 'خليجي وكالة', brand: 'هيونداي' },
+    title: 'Hyundai Elantra 2024 خليجي زيرو - ترقيم أربيل فوري',
+    category: 'سيارات',
+    keywords: ['سيارة', 'هيونداي', 'النترا', '2024', 'خليجي', 'زيرو'],
+    platform: 'instagram',
+    storeName: 'معرض أربيل الدولي للسيارات (Erbil Motors)',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 49,
+    priceIQD: 29700000, // دفتر و98 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'erbil',
+    district: 'أربيل - مدينة المعارض شارع 100',
+    delivery: 'وكالة عامة أو تحويل باسم المشتري من كافة المحافظات',
+    phone: '07503322119',
+    snippet: 'أرخص سعر بالعراق لهيونداي النترا 2024 زيرو رقم أربيل: دفتر و98 ورقة فقط (29,700,000 د.ع) كفالة عامة.',
+    postedAgo: 'منذ 3 ساعات'
+  },
+  {
+    id: 'car-sportage-1',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم بغداد', origin: 'خليجي وكالة', brand: 'كيا' },
+    title: 'كيا سبورتاج 2024 خليجي زيرو بانوراما شاشة كبيرة ضمان شركة كيا',
+    category: 'سيارات',
+    keywords: ['سيارة', 'كيا', 'سبورتاج', '2024', 'زيرو', 'خليجي'],
+    platform: 'facebook',
+    storeName: 'معرض الياسري للسيارات - معارض البياع',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 52,
+    priceIQD: 39750000, // دفترين و65 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - معارض البياع',
+    delivery: 'مرقمة جاهزة رقم بغداد ألماني • فحص كامل',
+    phone: '07801122998',
+    snippet: 'كيا سبورتاج 2024 خليجي زيرو فول مواصفات بانوراما السعر دفترين و65 ورقة (39,750,000 د.ع).',
+    postedAgo: 'منذ ساعة'
+  },
+  {
+    id: 'car-sportage-2',
+    section: 'cars',
+    specs: { year: '2023', mileage: '18,000 كم', plate: 'رقم البصرة', origin: 'وارد أمريكي', brand: 'كيا' },
+    title: 'كيا سبورتاج 2023 وارد أمريكي كلين تايتل بدون صبغ - رقم البصرة',
+    category: 'سيارات',
+    keywords: ['سيارة', 'كيا', 'سبورتاج', 'وارد أمريكي', 'كلين'],
+    platform: 'google',
+    storeName: 'السوق المفتوح العراق - معارض البصرة',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.7,
+    reviewsCount: 23,
+    priceIQD: 29250000, // دفتر و95 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'basra',
+    district: 'البصرة - معارض الزبير',
+    delivery: 'فحص سونار وكارفاكس مرفق • تحويل فوري',
+    phone: '07719900887',
+    snippet: 'سبورتاج 2023 وارد أمريكي نظيفة جداً ماشية 18 ألف ميل فقط، السعر دفتر و95 ورقة (29,250,000 د.ع).',
+    postedAgo: 'منذ 4 ساعات'
+  },
+  {
+    id: 'car-landcruiser-1',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم بغداد', origin: 'خليجي وكالة', brand: 'تويوتا' },
+    title: 'تويوتا لاندكروزر GXR 2024 توين تيربو خليجي وكالة زيرو',
+    category: 'سيارات',
+    keywords: ['سيارة', 'تويوتا', 'لاندكروزر', '2024', 'خليجي'],
+    platform: 'instagram',
+    storeName: 'معرض القمة للسيارات الفاخرة - الجادرية',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 5.0,
+    reviewsCount: 77,
+    priceIQD: 124500000, // 8 دفاتر و30 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - الكرادة / الجادرية',
+    delivery: 'ضمان تويوتا العراق الرسمي • استلام فوري',
+    phone: '07700088776',
+    snippet: 'لاندكروزر 2024 GXR ستة سلندر توين تيربو زيرو رقم بغداد، السعر 8 دفاتر و30 ورقة (124,500,000 د.ع).',
+    postedAgo: 'منذ ساعتين'
+  },
+
+  // ==================== ٢. قسم العقارات والأراضي (Real Estate) ====================
+  {
+    id: 'prop-bismayah-1',
+    section: 'realestate',
+    specs: { areaSqm: 100, deedType: 'سند استثماري', dealType: 'بيع تمليك', propertyType: 'شقة سكنية' },
+    title: 'شقة في مجمع بسماية السكني 100 م² طابق مميز جاهزة للسكن الفوري',
+    category: 'عقارات',
+    keywords: ['عقار', 'شقة', 'بسماية', 'مجمع بسماية', 'بيع'],
+    platform: 'facebook',
+    storeName: 'مكتب بسماية المركزي للعقارات',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 58,
+    priceIQD: 105000000, // 105 مليون دينار
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - مدينة بسماية السكنية',
+    delivery: 'معاينة موقعية وتحويل رسمي في الهيئة الوطنية للاستثمار',
+    phone: '07712233445',
+    snippet: 'شقة 100 متر مربع في بسماية بلوك A نظيفة جداً مع مطبخ تركي وسبالت، السعر الكلي 105 مليون دينار عراقي.',
+    postedAgo: 'منذ ساعتين'
+  },
+  {
+    id: 'prop-bismayah-2',
+    section: 'realestate',
+    specs: { areaSqm: 120, deedType: 'سند استثماري', dealType: 'بيع تمليك', propertyType: 'شقة سكنية' },
+    title: 'شقة في مجمع بسماية 120 م² (3 غرف نوم وصالة) إطلالة مفتوحة',
+    category: 'عقارات',
+    keywords: ['عقار', 'شقة', 'بسماية', 'مجمع بسماية', 'بيع'],
+    platform: 'instagram',
+    storeName: 'شركة بوابة بغداد للاستثمار العقاري',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 39,
+    priceIQD: 122000000, // 122 مليون دينار
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - مدينة بسماية السكنية',
+    delivery: 'تحويل مباشر في المصرف وهيئة الاستثمار',
+    phone: '07814455667',
+    snippet: 'شقة مساحة 120 متر مربع في بسماية جاهزة للسكن، السعر 122 مليون دينار (سعر المتر المربع مليون و16 ألف فقط).',
+    postedAgo: 'منذ 4 ساعات'
+  },
+  {
+    id: 'prop-house-1',
+    section: 'realestate',
+    specs: { areaSqm: 200, deedType: 'طابو صرف', dealType: 'بيع تمليك', propertyType: 'دار سكنية' },
+    title: 'دار سكنية طابو صرف 200 م² بناء حديث طابقين في النجف الأشرف',
+    category: 'عقارات',
+    keywords: ['عقار', 'دار', 'سكنية', 'طابو', 'طابو صرف', 'بيت'],
+    platform: 'facebook',
+    storeName: 'مكتب الغري العقاري المعتمد - النجف',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 44,
+    priceIQD: 290000000, // 290 مليون دينار
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'najaf',
+    district: 'النجف الأشرف - حي الأمير',
+    delivery: 'سند طابو صرف جاهز للتحويل في التسجيل العقاري',
+    phone: '07803344556',
+    snippet: 'دار سكنية مساحة 200 متر مربع (واجهة 10 نزال 20) بناء درجة أولى واجهة حجر، السعر 290 مليون دينار.',
+    postedAgo: 'منذ 3 ساعات'
+  },
+  {
+    id: 'prop-house-2',
+    section: 'realestate',
+    specs: { areaSqm: 150, deedType: 'سند استثماري', dealType: 'بيع تمليك', propertyType: 'شقة سكنية' },
+    title: 'شقة فاخرة للتمليك 150 م² في أربيل (القرية اللبنانية) يصلح للإقامة',
+    category: 'عقارات',
+    keywords: ['عقار', 'شقة', 'اربيل', 'أربيل', 'القرية اللبنانية', 'دار', 'طابو'],
+    platform: 'google',
+    storeName: 'مجموعة أربيل العقارية (Erbil Real Estate)',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 51,
+    priceIQD: 138000000, // 9 دفاتر و20 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'erbil',
+    district: 'أربيل - القرية اللبنانية طريق بحركة',
+    delivery: 'تحويل رسمي لكافة العراقيين مع خدمات على مدار الساعة',
+    phone: '07509988112',
+    snippet: 'شقة 150 م² ثلاث غرف نوم في القرية اللبنانية أربيل، السعر 9 دفاتر و20 ورقة (138,000,000 د.ع).',
+    postedAgo: 'متوفر الآن'
+  },
+
+  // ==================== ٣. قسم السلع والأجهزة (Products) ====================
   {
     id: 'ip15-1',
+    section: 'products',
+    specs: {},
     title: 'آيفون 15 برو ماكس 256 جيجا تيتانيوم طبيعي - ضمان وكالة',
     category: 'هواتف ذكية',
     keywords: ['ايفون', 'آيفون', 'iphone', '15', 'برو ماكس', 'موبايل', 'ابل'],
@@ -70,6 +298,8 @@ const INITIAL_OFFERS = [
   },
   {
     id: 'ip15-2',
+    section: 'products',
+    specs: {},
     title: 'iPhone 15 Pro Max 256GB (جديد مختوم مع شاحن أصلي)',
     category: 'هواتف ذكية',
     keywords: ['ايفون', 'آيفون', 'iphone', '15', 'برو ماكس', 'موبايل', 'ابل'],
@@ -90,28 +320,9 @@ const INITIAL_OFFERS = [
     postedAgo: 'منذ 4 ساعات'
   },
   {
-    id: 'ip15-3',
-    title: 'أبل آيفون 15 برو ماكس 256 جيجابايت - ضمان رسمي سنة كاملة',
-    category: 'هواتف ذكية',
-    keywords: ['ايفون', 'آيفون', 'iphone', '15', 'برو ماكس', 'موبايل', 'ابل'],
-    platform: 'google',
-    storeName: 'متجر مسواك العراقي (Miswag.iq)',
-    verified: true,
-    allowsInspection: true,
-    trustRating: 4.9,
-    reviewsCount: 112,
-    priceIQD: 1690000,
-    deliveryLocalIQD: 0,
-    deliveryNationalIQD: 0,
-    governorate: 'baghdad',
-    district: 'الكرادة داخل - المركز الرئيسي',
-    delivery: 'توصيل مجاني لجميع المحافظات',
-    phone: '6007',
-    snippet: 'متوفر على موقع مسواك الرسمي مع الدفع عند الاستلام وفحص الجهاز قبل الاستلام.',
-    postedAgo: 'متوفر بالمخزن'
-  },
-  {
     id: 'ip15-4',
+    section: 'products',
+    specs: {},
     title: 'آيفون 15 برو ماكس 256GB نظيف جداً بطارية 100% كالجديد',
     category: 'هواتف ذكية',
     keywords: ['ايفون', 'آيفون', 'iphone', '15', 'برو ماكس', 'موبايل', 'ابل'],
@@ -132,49 +343,9 @@ const INITIAL_OFFERS = [
     postedAgo: 'منذ 55 دقيقة'
   },
   {
-    id: 'ps5-1',
-    title: 'بلاي ستيشن 5 سليم (PS5 Slim CD) نسخة القرص 1 تيرا مع ذراعين',
-    category: 'أجهزة ألعاب',
-    keywords: ['بلاي', 'بلاي ستيشن', 'ps5', 'سوني', '5', 'سليم', 'العاب'],
-    platform: 'facebook',
-    storeName: 'مركز عالم الألعاب - بغداد الربيعي',
-    verified: true,
-    allowsInspection: true,
-    trustRating: 4.8,
-    reviewsCount: 41,
-    priceIQD: 695000,
-    deliveryLocalIQD: 5000,
-    deliveryNationalIQD: 8000,
-    governorate: 'baghdad',
-    district: 'زيونة - شارع الربيعي',
-    delivery: 'توصيل بغداد 5,000 د.ع والمحافظات 8,000 د.ع',
-    phone: '07712345678',
-    snippet: 'جهاز PS5 Slim نسخة القرص 1 تيرابايت مع ذراعين أصليتين وضمان سنة.',
-    postedAgo: 'منذ 3 ساعات'
-  },
-  {
-    id: 'ps5-2',
-    title: 'Sony PlayStation 5 Slim Digital Edition - جديد بالكارتون',
-    category: 'أجهزة ألعاب',
-    keywords: ['بلاي', 'بلاي ستيشن', 'ps5', 'سوني', '5', 'سليم', 'العاب'],
-    platform: 'instagram',
-    storeName: 'كيمر زون النجف (GamerZone)',
-    verified: true,
-    allowsInspection: true,
-    trustRating: 4.7,
-    reviewsCount: 19,
-    priceIQD: 635000,
-    deliveryLocalIQD: 4000,
-    deliveryNationalIQD: 6000,
-    governorate: 'najaf',
-    district: 'النجف - شارع الروان',
-    delivery: 'توصيل الفرات الأوسط 4,000 د.ع وباقي المحافظات 6,000 د.ع',
-    phone: '07811223344',
-    snippet: 'نسخة الديجيتال سليم الجديدة سعة 1 تيرابايت بسعر تنافسي 635,000 د.ع.',
-    postedAgo: 'منذ ساعة'
-  },
-  {
     id: 'ac-1',
+    section: 'products',
+    specs: {},
     title: 'سبلت جري (GREE) 2 طن انفرتر اقتصادي 6 أمبير - أصلي',
     category: 'أجهزة منزلية',
     keywords: ['سبلت', 'جري', 'gree', 'تبريد', 'مكيف', '2 طن', 'انفرتر'],
@@ -196,6 +367,8 @@ const INITIAL_OFFERS = [
   },
   {
     id: 'ac-2',
+    section: 'products',
+    specs: {},
     title: 'سبلت GREE 2 Ton تروبيكال يتحمل درجات الحرارة العالية',
     category: 'أجهزة منزلية',
     keywords: ['سبلت', 'جري', 'gree', 'تبريد', 'مكيف', '2 طن', 'انفرتر'],
@@ -214,111 +387,6 @@ const INITIAL_OFFERS = [
     phone: '07822334499',
     snippet: 'سبلت جري 2 طن أصلي بسعر الجملة 815,000 د.ع مع ضمان الوكالة.',
     postedAgo: 'منذ 3 ساعات'
-  },
-  {
-    id: 'lap-1',
-    title: 'لابتوب Lenovo LOQ 15 للألعاب والهندسة Core i7 الجيل 13 + RTX 4050',
-    category: 'حاسبات محمولة',
-    keywords: ['لابتوب', 'لينوفو', 'lenovo', 'loq', 'حاسبة', 'كمبيوتر', 'كيمينج'],
-    platform: 'google',
-    storeName: 'شركة النبأ للحاسبات - شارع الصناعة',
-    verified: true,
-    allowsInspection: true,
-    trustRating: 4.9,
-    reviewsCount: 86,
-    priceIQD: 1125000,
-    deliveryLocalIQD: 0,
-    deliveryNationalIQD: 0,
-    governorate: 'baghdad',
-    district: 'بغداد - شارع الصناعة',
-    delivery: 'توصيل مجاني لجميع محافظات العراق مع حقيبة وماوس',
-    phone: '07700011122',
-    snippet: 'الذاكرة 16GB DDR5، التخزين 512GB NVMe، بطاقة الرسوميات RTX 4050 6GB، شاشة 144Hz.',
-    postedAgo: 'متوفر بالموقع'
-  },
-  {
-    id: 'lap-2',
-    title: 'Lenovo LOQ Gaming i7-13620H / RTX 4050 - جديد بالكارتون',
-    category: 'حاسبات محمولة',
-    keywords: ['لابتوب', 'لينوفو', 'lenovo', 'loq', 'حاسبة', 'كمبيوتر', 'كيمينج'],
-    platform: 'facebook',
-    storeName: 'مكتب الموصل تكنولوجي للحاسبات',
-    verified: true,
-    allowsInspection: true,
-    trustRating: 4.8,
-    reviewsCount: 22,
-    priceIQD: 1080000,
-    deliveryLocalIQD: 3000,
-    deliveryNationalIQD: 5000,
-    governorate: 'nineveh',
-    district: 'الموصل - المجموعة الثقافية',
-    delivery: 'توصيل داخل الموصل 3,000 د.ع وباقي المحافظات 5,000 د.ع',
-    phone: '07733445566',
-    snippet: 'عرض خاص لطلبة الهندسة والمصممين بسعر 1,080,000 د.ع شامل الضمان.',
-    postedAgo: 'منذ ساعتين'
-  },
-  {
-    id: 'air-1',
-    title: 'سماعة Apple AirPods Pro 2 منفذ تايب سي الأصلية ضمان أبل',
-    category: 'صوتيات وملحقات',
-    keywords: ['سماعة', 'ايربودز', 'airpods', 'برو', 'ابل'],
-    platform: 'instagram',
-    storeName: 'بغداد ستور (Baghdad Store)',
-    verified: true,
-    allowsInspection: true,
-    trustRating: 4.7,
-    reviewsCount: 18,
-    priceIQD: 315000,
-    deliveryLocalIQD: 4000,
-    deliveryNationalIQD: 6000,
-    governorate: 'baghdad',
-    district: 'بغداد - المنصور',
-    delivery: 'توصيل بغداد 4,000 د.ع والمحافظات 6,000 د.ع',
-    phone: '07719988771',
-    snippet: 'نسخة أصلية وكالة مع إمكانية فحص الرقم التسلسلي في موقع أبل قبل الاستلام.',
-    postedAgo: 'منذ ساعة'
-  },
-  {
-    id: 'cof-1',
-    title: 'ماكينة قهوة وإسبريسو ديلونجي ديديكا DeLonghi Dedica EC685',
-    category: 'أجهزة مطبخ',
-    keywords: ['ماكينة', 'قهوة', 'ديلونجي', 'اسبريسو', 'كوفي'],
-    platform: 'facebook',
-    storeName: 'بيت القهوة العراقي - الكرادة',
-    verified: true,
-    allowsInspection: true,
-    trustRating: 4.9,
-    reviewsCount: 31,
-    priceIQD: 235000,
-    deliveryLocalIQD: 0,
-    deliveryNationalIQD: 5000,
-    governorate: 'baghdad',
-    district: 'الكرادة داخل',
-    delivery: 'توصيل مجاني داخل بغداد مع بن إيطالي هدية',
-    phone: '07705544332',
-    snippet: 'ماكينة ديلونجي ديديكا الأصلية ضغط 15 بار لتحضير الإسبريسو والكابتشينو.',
-    postedAgo: 'منذ 4 ساعات'
-  },
-  {
-    id: 'tv-1',
-    title: 'شاشة سامسونج سمارت 55 بوصة 4K Crystal UHD ضمان سنتين',
-    category: 'شاشات وتلفزيونات',
-    keywords: ['شاشة', 'تلفزيون', 'سامسونج', '55', 'سمارت', '4k'],
-    platform: 'facebook',
-    storeName: 'معرض الشروق للشاشات - الحلة',
-    verified: true,
-    allowsInspection: true,
-    trustRating: 4.8,
-    reviewsCount: 24,
-    priceIQD: 540000,
-    deliveryLocalIQD: 5000,
-    deliveryNationalIQD: 10000,
-    governorate: 'babil',
-    district: 'بابل - الحلة شارع 40',
-    delivery: 'توصيل لبابل وكربلاء والنجف وبغداد والديوانية',
-    phone: '07804433221',
-    snippet: 'شاشة سامسونج 55 بوصة أصلية مع قاعدة جدارية هدية وضمان لمدة سنتين.',
-    postedAgo: 'منذ 3 ساعات'
   }
 ];
 
@@ -327,6 +395,9 @@ const state = {
   liveOffers: [],
   alerts: [],
   isSearchingLive: false,
+  selectedSection: 'all', // 'all' | 'products' | 'cars' | 'realestate'
+  carFilters: { brand: '', origin: '', plate: '' },
+  propFilters: { deal: '', type: '', deed: '' },
   query: '',
   adComparisonPrice: null,
   selectedGov: 'baghdad',
@@ -365,18 +436,29 @@ function normalizeDigits(str) {
 
 function formatIQD(amountIQD) {
   if (!amountIQD || amountIQD <= 0) return 'السعر داخل المنشور الأصلي';
+  if (amountIQD >= 10000000) {
+    const millions = (amountIQD / 1000000).toFixed(amountIQD % 1000000 === 0 ? 0 : 2);
+    return `${millions} مليون د.ع`;
+  }
   const formatted = Math.round(amountIQD).toLocaleString('en-US');
   return `${formatted} د.ع`;
 }
 
+// تحويل السعر إلى دولار أو دفتر وورقة (للسيارات والعقارات)
 function convertIQDtoUSD(amountIQD) {
   if (!amountIQD || amountIQD <= 0) return '';
-  const usd = (amountIQD / state.exchangeRate100USD) * 100;
-  return `يعادل ${Math.round(usd)} دولار`;
+  const usd = Math.round((amountIQD / state.exchangeRate100USD) * 100);
+  if (usd >= 10000) {
+    const dafateer = Math.floor(usd / 10000);
+    const warqat = Math.round((usd % 10000) / 100);
+    const dText = dafateer === 1 ? 'دفتر' : dafateer === 2 ? 'دفترين' : `${dafateer} دفاتر`;
+    return warqat > 0 ? `${dText} و${warqat} ورقة` : dText;
+  }
+  return `يعادل ${usd.toLocaleString('en-US')} دولار`;
 }
 
-// حساب كلفة التوصيل الفعلية لمحافظة المشتري
 function getDeliveryFeeForUser(offer) {
+  if (offer.section === 'cars' || offer.section === 'realestate') return 0;
   if (/مجاني/.test(offer.delivery || '') && (offer.governorate === state.selectedGov || /لجميع المحافظات/.test(offer.delivery || ''))) {
     return 0;
   }
@@ -392,22 +474,32 @@ function parseIraqiPostText(rawText) {
 
   let extractedPriceIQD = null;
 
-  const daftarMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:دفتر|دفاتر)/);
-  const warqaMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:ورقة|ورقات|اوراق|أوراق)/);
+  if (text.includes('دفترين')) {
+    let usd = 20000;
+    const extraW = text.match(/و\s*(\d+)\s*(?:ورقة|ورقات|اوراق|أوراق)/);
+    if (extraW) usd += parseFloat(extraW[1]) * 100;
+    extractedPriceIQD = Math.round(usd * ratePer1USD);
+  } else {
+    const daftarMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:دفتر|دفاتر)/);
+    const millionWordMatch = text.match(/(\d{1,4}(?:\.\d+)?)\s*(?:مليون|ملايين)/);
+    const warqaMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:ورقة|ورقات|اوراق|أوراق)/);
 
-  if (daftarMatch) {
-    let usd = parseFloat(daftarMatch[1]) * 10000;
-    const extraWarqa = text.match(/و\s*(\d+)\s*(?:ورقة|أوراق|اوراق)/);
-    if (extraWarqa) usd += parseFloat(extraWarqa[1]) * 100;
-    extractedPriceIQD = Math.round(usd * ratePer1USD);
-  } else if (text.includes('ورقتين')) {
-    extractedPriceIQD = Math.round(200 * ratePer1USD);
-  } else if (text.includes('ورقة ونص')) {
-    extractedPriceIQD = Math.round(150 * ratePer1USD);
-  } else if (warqaMatch) {
-    let usd = parseFloat(warqaMatch[1]) * 100;
-    if (text.includes('ونص')) usd += 50;
-    extractedPriceIQD = Math.round(usd * ratePer1USD);
+    if (daftarMatch) {
+      let usd = parseFloat(daftarMatch[1]) * 10000;
+      const extraWarqa = text.match(/و\s*(\d+)\s*(?:ورقة|أوراق|اوراق)/);
+      if (extraWarqa) usd += parseFloat(extraWarqa[1]) * 100;
+      extractedPriceIQD = Math.round(usd * ratePer1USD);
+    } else if (millionWordMatch) {
+      extractedPriceIQD = Math.round(parseFloat(millionWordMatch[1]) * 1000000);
+    } else if (text.includes('ورقتين')) {
+      extractedPriceIQD = Math.round(200 * ratePer1USD);
+    } else if (text.includes('ورقة ونص')) {
+      extractedPriceIQD = Math.round(150 * ratePer1USD);
+    } else if (warqaMatch) {
+      let usd = parseFloat(warqaMatch[1]) * 100;
+      if (text.includes('ونص')) usd += 50;
+      extractedPriceIQD = Math.round(usd * ratePer1USD);
+    }
   }
 
   if (!extractedPriceIQD) {
@@ -470,7 +562,7 @@ async function performLiveSearch(queryText) {
 
   try {
     const res = await fetch(
-      `/api/live-search?q=${encodeURIComponent(cleanQuery)}&gov=${encodeURIComponent(state.selectedGov)}`,
+      `/api/live-search?q=${encodeURIComponent(cleanQuery)}&gov=${encodeURIComponent(state.selectedGov)}&section=${encodeURIComponent(state.selectedSection)}`,
       { signal: activeSearchController.signal }
     );
     const data = await res.json();
@@ -488,7 +580,11 @@ async function performLiveSearch(queryText) {
 }
 
 function updateLiveDeepLinks() {
-  const q = state.query.trim() || 'عروض الإلكترونيات والأجهزة';
+  let defaultTitle = 'عروض السلع والسيارات والعقارات';
+  if (state.selectedSection === 'cars') defaultTitle = 'معارض السيارات في العراق';
+  else if (state.selectedSection === 'realestate') defaultTitle = 'العقارات والأراضي في العراق';
+
+  const q = state.query.trim() || defaultTitle;
   const govName = IRAQ_GOVERNORATES[state.selectedGov].name.split(' ')[0];
 
   document.getElementById('deepLinkQueryTitle').textContent = q;
@@ -497,10 +593,10 @@ function updateLiveDeepLinks() {
   const fbSearchQuery = encodeURIComponent(`${q} ${govName} السعر`);
   document.getElementById('fbMarketplaceLink').href = `https://www.facebook.com/search/posts/?q=${fbSearchQuery}`;
 
-  const igGoogleDork = encodeURIComponent(`site:instagram.com "${q}" ("${govName}" OR "العراق" OR "توصيل" OR "السعر")`);
+  const igGoogleDork = encodeURIComponent(`site:instagram.com "${q}" ("${govName}" OR "العراق" OR "السعر")`);
   document.getElementById('igShopsLink').href = `https://www.google.com/search?q=${igGoogleDork}`;
 
-  const ggQuery = encodeURIComponent(`${q} السعر في العراق ${govName} د.ع`);
+  const ggQuery = encodeURIComponent(`${q} السعر في العراق ${govName}`);
   document.getElementById('googleStoresLink').href = `https://www.google.com/search?q=${ggQuery}`;
 }
 
@@ -536,7 +632,30 @@ function getProcessedOffers() {
   const localMatches = state.offers.filter((offer) => matchesSearch(offer, query));
   const combinedSource = query ? [...localMatches, ...state.liveOffers] : [...state.offers];
 
-  let filtered = combinedSource.map((offer) => {
+  let filtered = combinedSource.filter((offer) => {
+    const offerSec = offer.section || 'products';
+    if (state.selectedSection !== 'all' && offerSec !== state.selectedSection) return false;
+
+    // فلاتر السيارات التخصصية
+    if (state.selectedSection === 'cars') {
+      const fullText = `${offer.title} ${offer.snippet} ${JSON.stringify(offer.specs || {})}`;
+      if (state.carFilters.brand && !fullText.includes(state.carFilters.brand)) return false;
+      if (state.carFilters.origin && !fullText.includes(state.carFilters.origin)) return false;
+      if (state.carFilters.plate && !fullText.includes(state.carFilters.plate)) return false;
+    }
+
+    // فلاتر العقارات التخصصية
+    if (state.selectedSection === 'realestate') {
+      const fullText = `${offer.title} ${offer.snippet} ${JSON.stringify(offer.specs || {})}`;
+      if (state.propFilters.deal && !fullText.includes(state.propFilters.deal)) return false;
+      if (state.propFilters.type && !fullText.includes(state.propFilters.type)) return false;
+      if (state.propFilters.deed && !fullText.includes(state.propFilters.deed)) return false;
+    }
+
+    return true;
+  });
+
+  filtered = filtered.map((offer) => {
     const distanceKm = calculateDistanceKm(state.selectedGov, offer.governorate);
     const deliveryFeeIQD = getDeliveryFeeForUser(offer);
     const hasPrice = Boolean(offer.priceIQD && offer.priceIQD > 0);
@@ -618,7 +737,7 @@ function getProcessedOffers() {
       return (a.effectivePriceIQD || 0) - (b.effectivePriceIQD || 0) || a.distanceKm - b.distanceKm;
     }
     if (state.sortBy === 'nearest') {
-      return a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999) - (b.effectivePriceIQD || 999999999);
+      return a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999999) - (b.effectivePriceIQD || 999999999999);
     }
     if (aHasPrice !== bHasPrice) return aHasPrice ? -1 : 1;
     return b.smartScore - a.smartScore || (a.effectivePriceIQD || 0) - (b.effectivePriceIQD || 0);
@@ -634,10 +753,37 @@ function getProcessedOffers() {
 function getPlatformName(platform) {
   if (platform === 'facebook') return 'فيسبوك';
   if (platform === 'instagram') return 'انستغرام';
-  return 'متاجر كوكل';
+  return 'مواقع كوكل';
 }
 
-// فتح نافذة تقييم المتجر وسجل الموثوقية
+// رسم الشارات التخصصية للسيارات والعقارات داخل البطاقة
+function renderSpecializedSpecsHtml(offer) {
+  const specs = offer.specs || {};
+  if (offer.section === 'cars') {
+    const pills = [];
+    if (specs.year) pills.push(`<span class="spec-pill">الموديل: ${specs.year}</span>`);
+    if (specs.mileage) pills.push(`<span class="spec-pill">الممشى: ${specs.mileage}</span>`);
+    if (specs.plate) pills.push(`<span class="spec-pill spec-pill-highlight">${specs.plate}</span>`);
+    if (specs.origin) pills.push(`<span class="spec-pill">${specs.origin}</span>`);
+    return pills.length ? `<div class="spec-pills-row">${pills.join('')}</div>` : '';
+  }
+
+  if (offer.section === 'realestate') {
+    const pills = [];
+    const area = Number(specs.areaSqm) || 0;
+    if (area > 0) pills.push(`<span class="spec-pill">المساحة: ${area} م²</span>`);
+    if (specs.deedType) pills.push(`<span class="spec-pill spec-pill-highlight">${specs.deedType}</span>`);
+    if (specs.dealType) pills.push(`<span class="spec-pill">${specs.dealType}</span>`);
+    if (area > 0 && offer.priceIQD && offer.priceIQD > 0) {
+      const pricePerSqm = Math.round(offer.priceIQD / area);
+      pills.push(`<span class="spec-pill spec-pill-highlight">سعر المتر: ${pricePerSqm.toLocaleString('en-US')} د.ع / م²</span>`);
+    }
+    return pills.length ? `<div class="spec-pills-row">${pills.join('')}</div>` : '';
+  }
+
+  return '';
+}
+
 window.openStoreReviewModal = async function (storeName) {
   const modal = document.getElementById('reviewModal');
   document.getElementById('reviewStoreNameInput').value = storeName;
@@ -654,7 +800,7 @@ async function loadStoreReviews(storeName) {
     const data = await res.json();
     const reviews = data.reviews || [];
     if (reviews.length === 0) {
-      box.innerHTML = '<div class="alert-row">لا توجد تقييمات سابقة مسجلة لهذا المتجر حتى الآن. كن أول من يقيمه!</div>';
+      box.innerHTML = '<div class="alert-row">لا توجد تقييمات سابقة مسجلة لهذه الجهة حتى الآن. كن أول من يقيمها!</div>';
       return;
     }
     box.innerHTML = reviews
@@ -662,7 +808,7 @@ async function loadStoreReviews(storeName) {
         (r) => `
         <div class="alert-row">
           <div>
-            <strong>${'★'.repeat(r.rating)} (${r.allows_inspection ? 'يقبل الفحص عند الاستلام' : 'رفض الفحص'})</strong>
+            <strong>${'★'.repeat(r.rating)} (${r.allows_inspection ? 'يقبل الفحص الكامل' : 'رفض الفحص'})</strong>
             <div style="color:var(--text-body); margin-top:2px;">${r.comment}</div>
           </div>
           <span style="font-size:0.72rem; color:var(--text-muted);">${IRAQ_GOVERNORATES[r.reviewer_gov]?.name || 'العراق'}</span>
@@ -678,6 +824,10 @@ async function loadStoreReviews(storeName) {
 function renderApp() {
   updateLiveDeepLinks();
 
+  // إظهار أو إخفاء أشرطة الفلاتر التخصصية للسيارات والعقارات
+  document.getElementById('carsFilterPanel').hidden = state.selectedSection !== 'cars';
+  document.getElementById('realestateFilterPanel').hidden = state.selectedSection !== 'realestate';
+
   const { allFiltered, finalDisplayed, stats } = getProcessedOffers();
 
   document.getElementById('countAll').textContent = allFiltered.length;
@@ -685,27 +835,25 @@ function renderApp() {
   document.getElementById('countIg').textContent = allFiltered.filter((o) => o.platform === 'instagram').length;
   document.getElementById('countGg').textContent = allFiltered.filter((o) => o.platform === 'google').length;
 
-  // تحديث مؤشر السعر العادل وكاشف الغلاء
   if (stats) {
-    document.getElementById('meterMinPrice').textContent = formatIQD(stats.minPrice);
-    document.getElementById('meterAvgPrice').textContent = formatIQD(stats.avgPrice);
-    document.getElementById('meterMaxPrice').textContent = formatIQD(stats.maxPrice);
+    document.getElementById('meterMinPrice').textContent = `${formatIQD(stats.minPrice)} (${convertIQDtoUSD(stats.minPrice)})`;
+    document.getElementById('meterAvgPrice').textContent = `${formatIQD(stats.avgPrice)} (${convertIQDtoUSD(stats.avgPrice)})`;
+    document.getElementById('meterMaxPrice').textContent = `${formatIQD(stats.maxPrice)} (${convertIQDtoUSD(stats.maxPrice)})`;
     const diff = stats.maxPrice - stats.minPrice;
     document.getElementById('meterMaxDiffNote').textContent =
-      diff > 0 ? `أغلى من أقل سعر بمقدار ${formatIQD(diff)}` : 'السعر موحد في السوق';
+      diff > 0 ? `أغلى من أقل عرض بمقدار ${formatIQD(diff)}` : 'السعر موحد في السوق';
 
-    // إذا كان المستخدم يبحث عبر لقطة شاشة لإعلان ممول وأدخل سعر الإعلان، نعرض له كم وفر!
     if (state.adComparisonPrice && state.adComparisonPrice > stats.minPrice) {
       const savedFromAd = state.adComparisonPrice - stats.minPrice;
       const banner = document.getElementById('searchStatusBanner');
       banner.hidden = false;
-      banner.textContent = `نتيجة فحص الإعلان الممول: وجدنا لك نفس السلعة بسعر ${formatIQD(stats.minPrice)}، أي أنك وفرت ${formatIQD(savedFromAd)} مقارنة بسعر الإعلان الممول!`;
+      banner.textContent = `نتيجة فحص الإعلان الممول: وجدنا لك نفس العرض بسعر ${formatIQD(stats.minPrice)}، أي أنك وفرت ${formatIQD(savedFromAd)} مقارنة بسعر الإعلان الممول!`;
     }
   } else {
     document.getElementById('meterMinPrice').textContent = '—';
     document.getElementById('meterAvgPrice').textContent = '—';
     document.getElementById('meterMaxPrice').textContent = '—';
-    document.getElementById('meterMaxDiffNote').textContent = 'ابحث عن سلعة مسعرة للمقارنة';
+    document.getElementById('meterMaxDiffNote').textContent = 'ابحث للمقارنة';
   }
 
   const pricedFiltered = allFiltered.filter((o) => o.effectivePriceIQD && o.effectivePriceIQD > 0);
@@ -714,7 +862,7 @@ function renderApp() {
     const cheapest = pricedFiltered.length
       ? [...pricedFiltered].sort((a, b) => a.effectivePriceIQD - b.effectivePriceIQD)[0]
       : allFiltered[0];
-    const nearest = [...allFiltered].sort((a, b) => a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999) - (b.effectivePriceIQD || 999999999))[0];
+    const nearest = [...allFiltered].sort((a, b) => a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999999) - (b.effectivePriceIQD || 999999999999))[0];
     const smartest = [...allFiltered].sort((a, b) => b.smartScore - a.smartScore)[0];
 
     document.getElementById('bestPriceTitle').textContent = cheapest.title;
@@ -748,9 +896,9 @@ function renderApp() {
   if (state.isSearchingLive && finalDisplayed.length === 0) {
     grid.innerHTML = `
       <div class="product-card" style="grid-column: 1 / -1; text-align: center; padding: 42px;">
-        <h3 style="margin-bottom: 8px; color: var(--brand-primary);">جاري البحث الحي في فيسبوك وانستغرام ومتاجر العراق عن "${state.query}"...</h3>
+        <h3 style="margin-bottom: 8px; color: var(--brand-primary);">جاري البحث الحي في فيسبوك وانستغرام ومواقع العراق عن "${state.query}"...</h3>
         <p style="color: var(--text-muted); font-size: 0.88rem;">
-          يتم الآن فحص الصفحات والمتاجر العراقية واستخراج الروابط والصور والأسعار الحقيقية.
+          يتم الآن فحص المعارض والمكاتب العقارية والمتاجر العراقية واستخراج الروابط والصور والأسعار الحقيقية.
         </p>
       </div>
     `;
@@ -760,9 +908,9 @@ function renderApp() {
   if (finalDisplayed.length === 0) {
     grid.innerHTML = `
       <div class="product-card" style="grid-column: 1 / -1; text-align: center; padding: 36px;">
-        <h3 style="margin-bottom: 6px;">لم يتم العثور على منشورات مفهرسة مباشرة لهذه العبارة</h3>
+        <h3 style="margin-bottom: 6px;">لم يتم العثور على عروض مطابقة للمحددات المختارة</h3>
         <p style="color: var(--text-muted); font-size: 0.88rem;">
-          اضغط على أحد أزرار "البحث الحي في المنصات المفتوحة" أعلاه لفتح نتائج فيسبوك أو انستغرام أو كوكل مباشرة.
+          جرب تغيير الفلاتر أو اضغط على أحد أزرار "البحث الحي في المنصات المفتوحة" أعلاه لفتح نتائج فيسبوك أو انستغرام أو كوكل مباشرة.
         </p>
       </div>
     `;
@@ -779,18 +927,22 @@ function renderApp() {
       const directUrl = buildOfferDirectUrl(offer);
       const imgUrl = getProductImageUrl(offer);
       const usdText = convertIQDtoUSD(offer.effectivePriceIQD);
-      const safeStoreName = String(offer.storeName || 'متجر').replace(/'/g, '');
+      const safeStoreName = String(offer.storeName || 'معرض').replace(/'/g, '');
+      const specsHtml = renderSpecializedSpecsHtml(offer);
 
       const thumbHtml = imgUrl
         ? `<img src="${imgUrl}" alt="${offer.title}" class="product-thumb-img" loading="lazy" onerror="this.style.display='none'" />`
         : `<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#9ca3af" stroke-width="1.6">
-             <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path>
-             <path d="M3 6h18"></path>
-             <path d="M16 10a4 4 0 0 1-8 0"></path>
+             <circle cx="12" cy="12" r="9"></circle>
+             <path d="M12 8v8M8 12h8"></path>
            </svg>`;
 
       let deliveryBreakdownHtml = '';
-      if (offer.priceIQD && offer.priceIQD > 0) {
+      if (offer.section === 'cars') {
+        deliveryBreakdownHtml = `<span class="delivery-breakdown">فحص سونار ومعاينة مباشرة في المعرض</span>`;
+      } else if (offer.section === 'realestate') {
+        deliveryBreakdownHtml = `<span class="delivery-breakdown">معاينة موقعية وتدقيق السند العقاري</span>`;
+      } else if (offer.priceIQD && offer.priceIQD > 0) {
         if (state.includeDelivery) {
           deliveryBreakdownHtml =
             offer.deliveryFeeIQD === 0
@@ -800,6 +952,13 @@ function renderApp() {
           deliveryBreakdownHtml = `<span class="delivery-breakdown">سعر السلعة فقط (التوصيل لمحافظتك: ${offer.deliveryFeeIQD === 0 ? 'مجاني' : formatIQD(offer.deliveryFeeIQD)})</span>`;
         }
       }
+
+      const inspectionLabel =
+        offer.section === 'cars'
+          ? '✔ مكفول ويقبل فحص السونار والكمبيوتر'
+          : offer.section === 'realestate'
+            ? '✔ سند رسمي قابل للتحويل الفوري'
+            : '✔ يقبل فتح وفحص الطلب أمام المندوب';
 
       return `
       <article class="product-card ${offer.isCheapest ? 'is-cheapest' : ''}">
@@ -811,7 +970,7 @@ function renderApp() {
             <span class="seller-name">${offer.storeName}</span>
           </div>
           <div style="display:flex; align-items:center; gap:6px;">
-            <button type="button" class="trust-rate-btn" onclick="window.openStoreReviewModal('${safeStoreName}')" title="عرض وإضافة تقييمات المتجر">
+            <button type="button" class="trust-rate-btn" onclick="window.openStoreReviewModal('${safeStoreName}')" title="عرض وإضافة تقييمات المعرض أو المتجر">
               ★ ${offer.trustRating || '4.8'} (${offer.reviewsCount || 12})
             </button>
             <span class="post-time">${offer.postedAgo}</span>
@@ -835,16 +994,14 @@ function renderApp() {
             </div>
           </div>
 
+          ${specsHtml}
+
           <p class="seller-description">${offer.snippet}</p>
 
           <div class="trust-and-inspection-row">
-            ${
-              offer.allowsInspection !== false
-                ? `<span class="inspection-pill">✔ يقبل فتح وفحص الطلب أمام المندوب</span>`
-                : `<span class="inspection-pill" style="background:#fef2f2; color:#991b1b; border-color:#fecaca;">تحقق من شروط الفحص قبل الدفع</span>`
-            }
+            <span class="inspection-pill">${inspectionLabel}</span>
             <button type="button" class="overview-jump" style="background:none; border:none; cursor:pointer;" onclick="window.openStoreReviewModal('${safeStoreName}')">
-              تقييم المتجر أو الإبلاغ
+              تقييم الجهة أو الإبلاغ
             </button>
           </div>
 
@@ -908,7 +1065,6 @@ function renderApp() {
     .join('');
 }
 
-// إدارة رادار تنبيهات هبوط الأسعار
 async function loadPriceAlerts() {
   try {
     const res = await fetch('/api/alerts');
@@ -923,7 +1079,7 @@ function renderAlertsList() {
   const box = document.getElementById('activeAlertsList');
   if (!box) return;
   if (state.alerts.length === 0) {
-    box.innerHTML = '<div class="alert-row">لا توجد تنبيهات نشطة حالياً. أضف سلعة ليراقبها الرادار لك!</div>';
+    box.innerHTML = '<div class="alert-row">لا توجد تنبيهات نشطة حالياً. أضف سلعة أو سيارة أو عقار ليراقبه الرادار لك!</div>';
     return;
   }
   box.innerHTML = state.alerts
@@ -983,7 +1139,7 @@ function detectUserGovernorateByGPS() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // التحويل التلقائي والفوري لأي أرقام عربية أو شرقية إلى إنجليزية أثناء الكتابة
+  // التحويل الفوري لأي أرقام عربية إلى إنجليزية في جميع الحقول
   document.addEventListener(
     'input',
     (e) => {
@@ -1021,13 +1177,43 @@ document.addEventListener('DOMContentLoaded', () => {
   const sameCityCheckbox = document.getElementById('sameCityOnlyCheckbox');
   const exchangeRateInput = document.getElementById('exchangeRateInput');
 
-  // تحديث حالة زر الاشتراك إذا كان مشتركاً
   const subBtn = document.getElementById('openSubscriptionBtn');
   const subBtnLabel = document.getElementById('subscriptionBtnLabel');
   if (state.isSubscribed) {
     subBtn.classList.add('is-subscribed');
-    subBtnLabel.textContent = 'عضوية التوفير المفعلة ✓';
+    subBtnLabel.textContent = 'عضوية الرادار المفعلة ✓';
   }
+
+  // تبويبات القطاعات الرئيسية (الكل / السلع / السيارات / العقارات)
+  document.querySelectorAll('.vertical-tab').forEach((vTab) => {
+    vTab.addEventListener('click', () => {
+      document.querySelectorAll('.vertical-tab').forEach((t) => t.classList.remove('active'));
+      vTab.classList.add('active');
+      state.selectedSection = vTab.getAttribute('data-section');
+      renderApp();
+      syncFixedHeaderHeight();
+    });
+  });
+
+  // فلاتر السيارات
+  ['carBrandFilter', 'carOriginFilter', 'carPlateFilter'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', () => {
+      state.carFilters.brand = document.getElementById('carBrandFilter').value;
+      state.carFilters.origin = document.getElementById('carOriginFilter').value;
+      state.carFilters.plate = document.getElementById('carPlateFilter').value;
+      renderApp();
+    });
+  });
+
+  // فلاتر العقارات
+  ['propDealFilter', 'propTypeFilter', 'propDeedFilter'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', () => {
+      state.propFilters.deal = document.getElementById('propDealFilter').value;
+      state.propFilters.type = document.getElementById('propTypeFilter').value;
+      state.propFilters.deed = document.getElementById('propDeedFilter').value;
+      renderApp();
+    });
+  });
 
   searchForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1112,6 +1298,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.tag-chip').forEach((btn) => {
     btn.addEventListener('click', () => {
       const q = btn.getAttribute('data-query');
+      const targetSec = btn.getAttribute('data-section') || 'all';
+      document.querySelectorAll('.vertical-tab').forEach((t) => {
+        t.classList.toggle('active', t.getAttribute('data-section') === targetSec);
+      });
+      state.selectedSection = targetSec;
       searchInput.value = q;
       clearQueryBtn.hidden = false;
       state.query = q;
@@ -1154,7 +1345,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
-  // ضبط ارتفاع الهيدر الثابت تلقائياً ليبقى الشريط العلوي ثابتاً دائماً دون أن يغطي المحتوى
   const siteHeader = document.querySelector('.site-header');
   function syncFixedHeaderHeight() {
     if (siteHeader) {
@@ -1166,9 +1356,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('detectLocationBtn').addEventListener('click', detectUserGovernorateByGPS);
 
-  // 1. نافذة بوابة التجار ومحلل المنشورات
+  // نافذة إضافة عرض (سلعة / سيارة / عقار)
   const analyzerModal = document.getElementById('analyzerModal');
-  document.getElementById('openAnalyzerBtn').addEventListener('click', () => analyzerModal.showModal());
+  const postSectionSelect = document.getElementById('postSectionSelect');
+  const modalCarFields = document.getElementById('modalCarFields');
+  const modalRealestateFields = document.getElementById('modalRealestateFields');
+  const modalDeliveryFields = document.getElementById('modalDeliveryFields');
+
+  function syncModalSectionFields() {
+    const sec = postSectionSelect.value;
+    modalCarFields.hidden = sec !== 'cars';
+    modalRealestateFields.hidden = sec !== 'realestate';
+    modalDeliveryFields.hidden = sec !== 'products';
+  }
+  postSectionSelect.addEventListener('change', syncModalSectionFields);
+
+  document.getElementById('openAnalyzerBtn').addEventListener('click', () => {
+    if (state.selectedSection !== 'all') {
+      postSectionSelect.value = state.selectedSection;
+      syncModalSectionFields();
+    }
+    analyzerModal.showModal();
+  });
   document.getElementById('closeAnalyzerBtn').addEventListener('click', () => analyzerModal.close());
 
   const postRawText = document.getElementById('postRawText');
@@ -1181,27 +1390,50 @@ document.addEventListener('DOMContentLoaded', () => {
   postRawText.addEventListener('input', updateAnalyzerPreview);
 
   document.getElementById('fillSamplePostBtn').addEventListener('click', () => {
-    document.getElementById('postPlatformSelect').value = 'instagram';
-    document.getElementById('postStoreName').value = 'معرض أربيل للإلكترونيات';
+    postSectionSelect.value = 'cars';
+    syncModalSectionFields();
+    document.getElementById('postPlatformSelect').value = 'facebook';
+    document.getElementById('postStoreName').value = 'معرض النهضة للسيارات الحديثة';
+    document.getElementById('carYearInput').value = '2024';
+    document.getElementById('carMileageInput').value = 'زيرو (0 كم)';
+    document.getElementById('carPlateInput').value = 'رقم بغداد • خليجي';
     postRawText.value =
-      'عرض خاص اليوم فقط آيفون 15 برو ماكس 256 جيجا جديد غير مفتوح السعر 10 أوراق فقط، العنوان أربيل عنكاوة ويوجد توصيل سريع لكافة المحافظات للاستفسار 07501239876';
+      'هيونداي النترا 2024 خليجي زيرو بصمة وفتحة سقف رقم بغداد جاهز السعر دفترين و5 أوراق فقط، العنوان بغداد معارض النهضة للاستفسار 07701239876';
     updateAnalyzerPreview();
   });
 
   document.getElementById('analyzerForm').addEventListener('submit', (e) => {
     e.preventDefault();
+    const section = postSectionSelect.value;
     const platform = document.getElementById('postPlatformSelect').value;
     const storeName = document.getElementById('postStoreName').value.trim();
     const rawText = postRawText.value.trim();
-    const deliveryLocalIQD = Number(document.getElementById('postDeliveryLocal').value || 4000);
-    const deliveryNationalIQD = Number(document.getElementById('postDeliveryNational').value || 7000);
+    const deliveryLocalIQD = section === 'products' ? Number(document.getElementById('postDeliveryLocal').value || 4000) : 0;
+    const deliveryNationalIQD = section === 'products' ? Number(document.getElementById('postDeliveryNational').value || 7000) : 0;
     const allowsInspection = document.getElementById('postAllowsInspection').checked;
     const parsed = parseIraqiPostText(rawText);
 
+    let specs = {};
+    if (section === 'cars') {
+      specs = {
+        year: document.getElementById('carYearInput').value || '2024',
+        mileage: document.getElementById('carMileageInput').value || 'زيرو',
+        plate: document.getElementById('carPlateInput').value || 'رقم بغداد'
+      };
+    } else if (section === 'realestate') {
+      specs = {
+        areaSqm: Number(document.getElementById('propAreaInput').value || 200),
+        deedType: document.getElementById('propDeedInput').value,
+        dealType: document.getElementById('propDealInput').value
+      };
+    }
+
     const newOffer = {
       id: `custom-${Date.now()}`,
-      title: rawText.slice(0, 65) + (rawText.length > 65 ? '...' : ''),
-      category: 'عروض التجار',
+      section,
+      specs,
+      title: rawText.slice(0, 68) + (rawText.length > 68 ? '...' : ''),
+      category: section === 'cars' ? 'سيارات' : section === 'realestate' ? 'عقارات' : 'سلع وأجهزة',
       keywords: rawText.split(/\s+/),
       platform,
       storeName,
@@ -1214,13 +1446,17 @@ document.addEventListener('DOMContentLoaded', () => {
       deliveryNationalIQD,
       governorate: parsed.governorate,
       district: parsed.district,
-      delivery: `توصيل داخل المحافظة ${formatIQD(deliveryLocalIQD)} وللمحافظات ${formatIQD(deliveryNationalIQD)}`,
+      delivery: section === 'products' ? `توصيل داخل المحافظة ${formatIQD(deliveryLocalIQD)}` : 'معاينة وفحص رسمي',
       phone: parsed.phone,
       snippet: rawText,
       postedAgo: 'أضيف الآن'
     };
 
     state.offers.unshift(newOffer);
+    state.selectedSection = section;
+    document.querySelectorAll('.vertical-tab').forEach((t) => {
+      t.classList.toggle('active', t.getAttribute('data-section') === section);
+    });
     state.query = '';
     searchInput.value = '';
     analyzerModal.close();
@@ -1233,7 +1469,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }).catch(() => {});
   });
 
-  // 2. نافذة رادار صيد اللقطات وتنبيهات هبوط الأسعار
+  // نافذة رادار التنبيهات
   const radarModal = document.getElementById('radarModal');
   document.getElementById('openRadarBtn').addEventListener('click', () => {
     if (state.query) {
@@ -1275,7 +1511,7 @@ document.addEventListener('DOMContentLoaded', () => {
     await loadPriceAlerts();
   });
 
-  // 3. نافذة البحث بصورة الإعلان الممول
+  // نافذة البحث بصورة الإعلان
   const imageSearchModal = document.getElementById('imageSearchModal');
   const adScreenshotInput = document.getElementById('adScreenshotInput');
   const screenshotPreviewImg = document.getElementById('screenshotPreviewImg');
@@ -1294,7 +1530,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     reader.readAsDataURL(file);
 
-    // استخراج ذكي مبدئي من اسم الملف إذا كان يحتوي على نص واضح
     const cleanName = file.name
       .replace(/\.[^.]+$/, '')
       .replace(/[-_]/g, ' ')
@@ -1324,7 +1559,7 @@ document.addEventListener('DOMContentLoaded', () => {
     performLiveSearch(q);
   });
 
-  // 4. نافذة تقييم المتجر وسجل الموثوقية
+  // نافذة التقييمات
   const reviewModal = document.getElementById('reviewModal');
   document.getElementById('closeReviewBtn').addEventListener('click', () => reviewModal.close());
   document.getElementById('reviewForm').addEventListener('submit', async (e) => {
@@ -1350,7 +1585,7 @@ document.addEventListener('DOMContentLoaded', () => {
     await loadStoreReviews(storeName);
   });
 
-  // 5. نافذة اشتراك الألف دينار العراقي الشهري
+  // نافذة الاشتراك الشهري
   const subscriptionModal = document.getElementById('subscriptionModal');
   subBtn.addEventListener('click', () => subscriptionModal.showModal());
   document.getElementById('closeSubscriptionBtn').addEventListener('click', () => subscriptionModal.close());
@@ -1369,15 +1604,14 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('dalal_vip_phone', phone);
     state.isSubscribed = true;
     subBtn.classList.add('is-subscribed');
-    subBtnLabel.textContent = 'عضوية التوفير المفعلة ✓';
+    subBtnLabel.textContent = 'عضوية الرادار المفعلة ✓';
     subscriptionModal.close();
 
     const banner = document.getElementById('searchStatusBanner');
     banner.hidden = false;
-    banner.textContent = `تم تفعيل عضوية المتسوق الذكي بنجاح للرقم ${phone} — جميع ميزات الرادار والبحث الحي مفعلة بالكامل!`;
+    banner.textContent = `تم تفعيل عضوية رادار أسعار العراق بنجاح للرقم ${phone} — جميع الميزات مفعلة بالكامل!`;
   });
 
-  // تحميل البيانات من نيون عند بدء التشغيل
   fetch('/api/offers')
     .then((r) => r.json())
     .then((data) => {
