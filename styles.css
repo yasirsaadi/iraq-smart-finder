@@ -428,6 +428,7 @@ body {
   background-color: var(--bg-subtle);
   border-top: 1px solid var(--border-light);
   padding: 8px 0;
+  position: relative;
 }
 
 .verticals-and-tags-bar {
@@ -565,13 +566,19 @@ body {
 
 /* القائمة المنسدلة الشاملة (Mega Menu) لجميع القطاعات */
 .sectors-mega-menu {
-  margin-top: 8px;
+  position: absolute;
+  top: 100%;
+  right: 12px;
+  left: 12px;
+  max-width: 1240px;
+  margin: 4px auto 0;
+  z-index: 1200;
   background-color: #ffffff;
   border: 2px solid var(--brand-primary);
   border-radius: var(--radius-md);
-  box-shadow: 0 18px 32px -6px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 22px 40px -8px rgba(15, 23, 42, 0.28);
   padding: 14px 16px;
-  max-height: 72vh;
+  max-height: 70vh;
   overflow-y: auto;
 }
 
@@ -840,6 +847,271 @@ body {
   border-color: var(--brand-primary);
   color: var(--brand-primary);
   background-color: #dbeafe;
+}
+
+/* ==========================================================================
+   ضغط وتصغير الهيدر الثابت على شاشات الهواتف دون حذف أي عنصر
+   ========================================================================== */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 8px;
+  }
+
+  /* 1. الشريط العلوي الخدمي في صفين مضغوطين جداً مع تمرير أفقي سلس عند الحاجة */
+  .utility-bar {
+    padding: 3px 0;
+    font-size: 0.68rem;
+  }
+
+  .utility-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+  }
+
+  .utility-right,
+  .utility-left {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .utility-right::-webkit-scrollbar,
+  .utility-left::-webkit-scrollbar {
+    display: none;
+  }
+
+  .delivery-selector {
+    gap: 3px;
+    flex-shrink: 0;
+  }
+
+  .delivery-selector .icon-sm {
+    width: 13px;
+    height: 13px;
+  }
+
+  .utility-label {
+    font-size: 0.64rem;
+    white-space: nowrap;
+  }
+
+  .delivery-selector select {
+    padding: 1px 4px;
+    font-size: 0.68rem;
+    height: 22px;
+  }
+
+  .utility-gps-btn {
+    padding: 1px 5px;
+    font-size: 0.65rem;
+    height: 22px;
+    gap: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .utility-gps-btn .icon-xs {
+    width: 11px;
+    height: 11px;
+  }
+
+  .exchange-box {
+    padding: 1px 5px;
+    gap: 3px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  .exchange-box input {
+    width: 46px;
+    font-size: 0.7rem;
+  }
+
+  .currency-unit {
+    font-size: 0.63rem;
+  }
+
+  .utility-nav-btn,
+  .utility-vip-btn {
+    padding: 2px 6px;
+    font-size: 0.66rem;
+    gap: 3px;
+    height: 22px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .utility-nav-btn .icon-xs,
+  .utility-vip-btn .icon-xs {
+    width: 11px;
+    height: 11px;
+  }
+
+  .radar-badge-count {
+    font-size: 0.6rem;
+    padding: 0 4px;
+  }
+
+  /* 2. الهيدر الأوسط: الشعار في سطر واحد رشيق + نموذج البحث المدمج */
+  .header-inner {
+    padding: 4px 8px;
+    gap: 4px;
+  }
+
+  .brand-identity {
+    gap: 6px;
+    align-items: center;
+  }
+
+  .brand-mark {
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+  }
+
+  .brand-mark svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .brand-copy {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  .brand-name {
+    font-size: 0.88rem;
+    white-space: nowrap;
+  }
+
+  .brand-tagline {
+    font-size: 0.62rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .commercial-search-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    border-width: 1.5px;
+  }
+
+  .search-main-field {
+    grid-column: 1 / -1;
+    min-height: 29px;
+    padding: 0 6px;
+    gap: 4px;
+  }
+
+  .search-field-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .search-main-field input {
+    font-size: 0.77rem;
+  }
+
+  .image-search-trigger {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+    gap: 3px;
+  }
+
+  .image-search-trigger .icon-xs {
+    width: 11px;
+    height: 11px;
+  }
+
+  .search-budget-field {
+    min-height: 26px;
+    padding: 0 7px;
+    gap: 4px;
+    border-right: none;
+    border-top: 1px solid var(--border-light);
+  }
+
+  .budget-prefix {
+    font-size: 0.67rem;
+  }
+
+  .search-budget-field input {
+    width: 100%;
+    font-size: 0.73rem;
+  }
+
+  .search-submit-btn {
+    min-height: 26px;
+    padding: 0 12px;
+    font-size: 0.74rem;
+    border-top: 1px solid var(--brand-accent);
+  }
+
+  /* 3. شريط القطاعات والاختصارات السريعة بارتفاع مضغوط جداً */
+  .categories-strip {
+    padding: 3px 0;
+  }
+
+  .verticals-and-tags-bar {
+    gap: 3px;
+  }
+
+  .verticals-tabs {
+    gap: 4px;
+    width: 100%;
+  }
+
+  .vertical-tab {
+    padding: 2px 6px;
+    font-size: 0.68rem;
+    gap: 3px;
+  }
+
+  .vertical-tab .icon-xs {
+    width: 11px;
+    height: 11px;
+  }
+
+  .sec-count-badge {
+    font-size: 0.6rem;
+    padding: 0 4px;
+  }
+
+  .quick-tags-carousel-wrap {
+    gap: 3px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .strip-scroll-btn {
+    width: 20px;
+    height: 20px;
+    font-size: 0.95rem;
+  }
+
+  .quick-searches-scroll {
+    gap: 4px;
+    padding: 1px 0;
+  }
+
+  .category-link {
+    padding: 2px 6px;
+    font-size: 0.67rem;
+  }
+
+  .main-content {
+    padding-top: 8px;
+  }
 }
 
 /* ==========================================================================
