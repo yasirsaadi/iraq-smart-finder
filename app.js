@@ -177,6 +177,29 @@ const INITIAL_OFFERS = [
     snippet: 'لاندكروزر 2024 GXR ستة سلندر توين تيربو زيرو رقم بغداد، السعر 8 دفاتر و30 ورقة (124,500,000 د.ع).',
     postedAgo: 'منذ ساعتين'
   },
+  {
+    id: 'car-jetour-1',
+    section: 'cars',
+    specs: { year: '2024', mileage: 'زيرو (0 كم)', plate: 'رقم بغداد', origin: 'خليجي وكالة', brand: 'جيتور' },
+    title: 'جيتور داشينغ (Jetour Dashing) 2024 زيرو ضمان الوكالة 5 سنوات',
+    category: 'سيارات',
+    keywords: ['سيارة', 'جيتور', 'داشينغ', '2024', 'خليجي', 'زيرو'],
+    platform: 'facebook',
+    storeName: 'معرض جيتور بغداد المعتمد - الرصافة',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 41,
+    priceIQD: 29250000, // دفتر و95 ورقة
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'baghdad',
+    district: 'بغداد - معارض النهضة',
+    delivery: 'شامل اللوحات والضمان الرسمي 5 سنوات أو 150 ألف كم',
+    phone: '07718822331',
+    snippet: 'جيتور داشينغ 2024 فول مواصفات شاشة عملاقة وبانوراما زيرو رقم بغداد، السعر دفتر و95 ورقة (29,250,000 د.ع).',
+    postedAgo: 'منذ ساعة'
+  },
 
   // ==================== ٢. قسم العقارات والأراضي (Real Estate) ====================
   {
@@ -254,7 +277,7 @@ const INITIAL_OFFERS = [
     specs: { areaSqm: 150, deedType: 'سند استثماري', dealType: 'بيع تمليك', propertyType: 'شقة سكنية' },
     title: 'شقة فاخرة للتمليك 150 م² في أربيل (القرية اللبنانية) يصلح للإقامة',
     category: 'عقارات',
-    keywords: ['عقار', 'شقة', 'اربيل', 'أربيل', 'القرية اللبنانية', 'دار', 'طابو'],
+    keywords: ['عقار', 'شقة', 'اربيل', 'أربيل', 'القرية اللبنانية', 'دار', 'طابو', 'فاخرة', 'للتمليك'],
     platform: 'google',
     storeName: 'مجموعة أربيل العقارية (Erbil Real Estate)',
     verified: true,
@@ -270,6 +293,29 @@ const INITIAL_OFFERS = [
     phone: '07509988112',
     snippet: 'شقة 150 م² ثلاث غرف نوم في القرية اللبنانية أربيل، السعر 9 دفاتر و20 ورقة (138,000,000 د.ع).',
     postedAgo: 'متوفر الآن'
+  },
+  {
+    id: 'prop-land-1',
+    section: 'realestate',
+    specs: { areaSqm: 250, deedType: 'طابو صرف', dealType: 'بيع تمليك', propertyType: 'قطعة أرض' },
+    title: 'قطعة أرض سكنية طابو صرف 250 م² كاملة الخدمات في كربلاء المقدسة',
+    category: 'عقارات',
+    keywords: ['عقار', 'قطعة', 'أرض', 'ارض', 'سكنية', 'طابو', 'طابو صرف'],
+    platform: 'facebook',
+    storeName: 'مكتب الفراتين للعقارات والاستثمار - كربلاء',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 33,
+    priceIQD: 175000000, // 175 مليون دينار
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 0,
+    governorate: 'karbala',
+    district: 'كربلاء المقدسة - حي الأسرة',
+    delivery: 'سند طابو صرف سجل عقاري جاهز للتحويل الفوري',
+    phone: '07725566778',
+    snippet: 'قطعة أرض سكنية 250 م² واجهة 10 متر على شارع مبلط كامل الخدمات، السعر 175 مليون دينار عراقي.',
+    postedAgo: 'منذ ساعتين'
   },
 
   // ==================== ٣. قسم السلع والأجهزة (Products) ====================
@@ -387,6 +433,121 @@ const INITIAL_OFFERS = [
     phone: '07822334499',
     snippet: 'سبلت جري 2 طن أصلي بسعر الجملة 815,000 د.ع مع ضمان الوكالة.',
     postedAgo: 'منذ 3 ساعات'
+  },
+  {
+    id: 'ps5-1',
+    section: 'products',
+    specs: {},
+    title: 'بلاي ستيشن 5 سليم (PlayStation 5 Slim) نسخة القرص 1 تيرا مع يدتين',
+    category: 'ألعاب إلكترونية',
+    keywords: ['بلاي ستيشن', 'بلي ستيشن', 'ps5', 'سليم', 'العاب'],
+    platform: 'facebook',
+    storeName: 'بغداد جيمرز - زيونة',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 42,
+    priceIQD: 695000,
+    deliveryLocalIQD: 4000,
+    deliveryNationalIQD: 7000,
+    governorate: 'baghdad',
+    district: 'زيونة - قرب مول دار السلام',
+    delivery: 'توصيل فوري داخل بغداد والمحافظات مع الفحص',
+    phone: '07719988221',
+    snippet: 'جهاز بلاي ستيشن 5 سليم الأصلي ضمان سنة مع يدتين أصلية.',
+    postedAgo: 'منذ ساعتين'
+  },
+  {
+    id: 'lap-1',
+    section: 'products',
+    specs: {},
+    title: 'لابتوب لينوفو للألعاب Lenovo LOQ i7-13650HX RTX 4060 RAM 16GB',
+    category: 'حواسيب ولابتوبات',
+    keywords: ['لابتوب', 'لينوفو', 'lenovo', 'العاب', 'حاسبة'],
+    platform: 'facebook',
+    storeName: 'مكتب التكنولوجيا الحديثة - شارع الصناعة',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 38,
+    priceIQD: 1290000,
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 5000,
+    governorate: 'baghdad',
+    district: 'بغداد - شارع الصناعة مقابل الجامعة التكنولوجية',
+    delivery: 'توصيل مجاني لبغداد مع حقيبة وماوس ألعاب هدية',
+    phone: '07705544332',
+    snippet: 'لابتوب لينوفو للألعاب والهندسة كارت شاشة RTX 4060 8GB ضمان سنة كاملة.',
+    postedAgo: 'منذ 3 ساعات'
+  },
+  {
+    id: 'air-1',
+    section: 'products',
+    specs: {},
+    title: 'سماعة أبل ايربودز برو 2 (AirPods Pro 2 USB-C) أصلية ضمان أبل',
+    category: 'إكسسوارات وصوتيات',
+    keywords: ['سماعة', 'ايربودز', 'برو', 'airpods', 'ابل'],
+    platform: 'instagram',
+    storeName: 'موصل تيك ستور (Mosul Tech)',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 24,
+    priceIQD: 295000,
+    deliveryLocalIQD: 3000,
+    deliveryNationalIQD: 5000,
+    governorate: 'nineveh',
+    district: 'الموصل - المجموعة الثقافية',
+    delivery: 'توصيل سريع لكافة المحافظات مع فحص السيريال نمبر',
+    phone: '07741122339',
+    snippet: 'سماعة ايربودز برو الجيل الثاني منفذ تايب سي أصلية مختومة بسعر 295,000 د.ع.',
+    postedAgo: 'منذ ساعتين'
+  },
+  {
+    id: 'cof-1',
+    section: 'products',
+    specs: {},
+    title: 'ماكينة قهوة ديلونجي ديديكا (DeLonghi Dedica EC685) إيطالية مع طاحونة',
+    category: 'أجهزة مطبخ',
+    keywords: ['ماكينة', 'قهوة', 'ديلونجي', 'ديديكا', 'اسبريسو'],
+    platform: 'google',
+    storeName: 'متجر مسواك العراقي (Miswag)',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.9,
+    reviewsCount: 61,
+    priceIQD: 245000,
+    deliveryLocalIQD: 4000,
+    deliveryNationalIQD: 6000,
+    governorate: 'baghdad',
+    district: 'بغداد - الكرادة',
+    delivery: 'توصيل سريع لكافة المحافظات مع ضمان سنة',
+    phone: '07804455112',
+    snippet: 'ماكينة إسبريسو ديلونجي ديديكا المعدنية الأصلية 15 بار بسعر 245,000 د.ع.',
+    postedAgo: 'متوفر بالمخزن'
+  },
+  {
+    id: 'tv-1',
+    section: 'products',
+    specs: {},
+    title: 'شاشة سامسونج سمارت 55 بوصة 4K Crystal UHD موديل 2024',
+    category: 'شاشات وتلفزيونات',
+    keywords: ['شاشة', 'سامسونج', '55', 'بوصة', 'تلفزيون', 'سمارت'],
+    platform: 'facebook',
+    storeName: 'معرض النجف الدولي للأجهزة المنزلية',
+    verified: true,
+    allowsInspection: true,
+    trustRating: 4.8,
+    reviewsCount: 31,
+    priceIQD: 540000,
+    deliveryLocalIQD: 0,
+    deliveryNationalIQD: 10000,
+    governorate: 'najaf',
+    district: 'النجف الأشرف - شارع الروان',
+    delivery: 'توصيل مع قاعدة تعليق جدارية مجانية وضمان سنتين',
+    phone: '07817766554',
+    snippet: 'شاشة سامسونج 55 بوصة دقة فور كي أصلية تدعم شاهد ونتفليكس واليوتيوب بسعر 540,000 د.ع.',
+    postedAgo: 'منذ 4 ساعات'
   }
 ];
 
@@ -824,6 +985,17 @@ async function loadStoreReviews(storeName) {
 function renderApp() {
   updateLiveDeepLinks();
 
+  // تحديث عدادات القطاعات الرئيسية في الشريط العلوي
+  const allSource = state.query.trim() ? [...state.offers.filter((o) => matchesSearch(o, state.query.trim())), ...state.liveOffers] : state.offers;
+  const secCountAllEl = document.getElementById('secCountAll');
+  const secCountProductsEl = document.getElementById('secCountProducts');
+  const secCountCarsEl = document.getElementById('secCountCars');
+  const secCountRealestateEl = document.getElementById('secCountRealestate');
+  if (secCountAllEl) secCountAllEl.textContent = allSource.length;
+  if (secCountProductsEl) secCountProductsEl.textContent = allSource.filter((o) => (o.section || 'products') === 'products').length;
+  if (secCountCarsEl) secCountCarsEl.textContent = allSource.filter((o) => o.section === 'cars').length;
+  if (secCountRealestateEl) secCountRealestateEl.textContent = allSource.filter((o) => o.section === 'realestate').length;
+
   // إظهار أو إخفاء أشرطة الفلاتر التخصصية للسيارات والعقارات
   document.getElementById('carsFilterPanel').hidden = state.selectedSection !== 'cars';
   document.getElementById('realestateFilterPanel').hidden = state.selectedSection !== 'realestate';
@@ -1184,12 +1356,114 @@ document.addEventListener('DOMContentLoaded', () => {
     subBtnLabel.textContent = 'عضوية الرادار المفعلة ✓';
   }
 
+  const quickTagsContainer = document.getElementById('quickTagsContainer');
+  const scrollStripRight = document.getElementById('scrollStripRight');
+  const scrollStripLeft = document.getElementById('scrollStripLeft');
+
+  // تحريك شريط الاختصارات والأقسام بالأسهم والماوس واللمس
+  if (scrollStripRight && quickTagsContainer) {
+    scrollStripRight.addEventListener('click', () => {
+      quickTagsContainer.scrollBy({ left: 260, behavior: 'smooth' });
+    });
+  }
+  if (scrollStripLeft && quickTagsContainer) {
+    scrollStripLeft.addEventListener('click', () => {
+      quickTagsContainer.scrollBy({ left: -260, behavior: 'smooth' });
+    });
+  }
+
+  let isDraggingStrip = false;
+  let didDragMove = false;
+  let startX = 0;
+  let scrollLeftStart = 0;
+
+  if (quickTagsContainer) {
+    quickTagsContainer.addEventListener(
+      'wheel',
+      (e) => {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          e.preventDefault();
+          quickTagsContainer.scrollLeft -= e.deltaY;
+        }
+      },
+      { passive: false }
+    );
+
+    quickTagsContainer.addEventListener('mousedown', (e) => {
+      isDraggingStrip = true;
+      didDragMove = false;
+      quickTagsContainer.classList.add('is-dragging');
+      startX = e.pageX - quickTagsContainer.offsetLeft;
+      scrollLeftStart = quickTagsContainer.scrollLeft;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDraggingStrip) {
+        isDraggingStrip = false;
+        quickTagsContainer.classList.remove('is-dragging');
+      }
+    });
+
+    quickTagsContainer.addEventListener('mousemove', (e) => {
+      if (!isDraggingStrip) return;
+      const x = e.pageX - quickTagsContainer.offsetLeft;
+      const walk = (x - startX) * 1.4;
+      if (Math.abs(walk) > 6) {
+        didDragMove = true;
+        e.preventDefault();
+        quickTagsContainer.scrollLeft = scrollLeftStart - walk;
+      }
+    });
+  }
+
+  function syncQuickTagsForSection(sectionKey) {
+    document.querySelectorAll('.tag-chip').forEach((chip) => {
+      const chipSec = chip.getAttribute('data-section') || 'all';
+      chip.hidden = sectionKey !== 'all' && chipSec !== sectionKey;
+    });
+  }
+
   // تبويبات القطاعات الرئيسية (الكل / السلع / السيارات / العقارات)
   document.querySelectorAll('.vertical-tab').forEach((vTab) => {
     vTab.addEventListener('click', () => {
+      if (activeSearchController) {
+        activeSearchController.abort();
+      }
+      state.isSearchingLive = false;
+
       document.querySelectorAll('.vertical-tab').forEach((t) => t.classList.remove('active'));
       vTab.classList.add('active');
-      state.selectedSection = vTab.getAttribute('data-section');
+
+      const sec = vTab.getAttribute('data-section') || 'all';
+      state.selectedSection = sec;
+
+      // تصفير البحث النصي والفلاتر الفرعية لعرض جميع عروض القطاع المختار فوراً
+      state.query = '';
+      searchInput.value = '';
+      clearQueryBtn.hidden = true;
+      state.liveOffers = [];
+      state.adComparisonPrice = null;
+
+      state.carFilters = { brand: '', origin: '', plate: '' };
+      state.propFilters = { deal: '', type: '', deed: '' };
+      ['carBrandFilter', 'carOriginFilter', 'carPlateFilter', 'propDealFilter', 'propTypeFilter', 'propDeedFilter'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+
+      document.querySelectorAll('.tag-chip').forEach((c) => c.classList.remove('active-tag'));
+      syncQuickTagsForSection(sec);
+
+      const sectionNames = {
+        all: 'جميع القطاعات (السلع والأجهزة • معارض السيارات • العقارات والأراضي)',
+        products: 'قطاع السلع والأجهزة والمنزل',
+        cars: 'قطاع معارض وسوق السيارات في العراق',
+        realestate: 'قطاع العقارات والأراضي والاستثمار السكني'
+      };
+      const banner = document.getElementById('searchStatusBanner');
+      banner.hidden = false;
+      banner.textContent = `تم عرض: ${sectionNames[sec] || sectionNames.all}`;
+
       renderApp();
       syncFixedHeaderHeight();
     });
@@ -1243,6 +1517,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.query = searchInput.value.trim();
     state.adComparisonPrice = null;
     state.liveOffers = [];
+    document.querySelectorAll('.tag-chip').forEach((c) => c.classList.remove('active-tag'));
     renderApp();
 
     clearTimeout(debounceTimer);
@@ -1259,6 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.query = '';
     state.adComparisonPrice = null;
     state.liveOffers = [];
+    document.querySelectorAll('.tag-chip').forEach((c) => c.classList.remove('active-tag'));
     document.getElementById('searchStatusBanner').hidden = true;
     renderApp();
   });
@@ -1296,17 +1572,24 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.querySelectorAll('.tag-chip').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      if (didDragMove) {
+        e.preventDefault();
+        return;
+      }
       const q = btn.getAttribute('data-query');
       const targetSec = btn.getAttribute('data-section') || 'all';
       document.querySelectorAll('.vertical-tab').forEach((t) => {
         t.classList.toggle('active', t.getAttribute('data-section') === targetSec);
       });
+      document.querySelectorAll('.tag-chip').forEach((c) => c.classList.remove('active-tag'));
+      btn.classList.add('active-tag');
       state.selectedSection = targetSec;
       searchInput.value = q;
       clearQueryBtn.hidden = false;
       state.query = q;
       state.adComparisonPrice = null;
+      syncFixedHeaderHeight();
       performLiveSearch(q);
     });
   });

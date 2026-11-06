@@ -146,10 +146,10 @@
       </form>
     </div>
 
-    <!-- شريط القطاعات الرئيسية (السلع • السيارات • العقارات) + الاختصارات السريعة -->
+    <!-- شريط القطاعات الرئيسية (السلع • السيارات • العقارات) + الاختصارات السريعة القابلة للتحريك -->
     <div class="categories-strip">
       <div class="container verticals-and-tags-bar">
-        <div class="verticals-tabs" role="tablist" aria-label="الأقسام الرئيسية">
+        <div class="verticals-tabs" id="verticalsTabsBar" role="tablist" aria-label="الأقسام الرئيسية">
           <button type="button" class="vertical-tab active" data-section="all">
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7"></rect>
@@ -158,6 +158,7 @@
               <rect x="3" y="14" width="7" height="7"></rect>
             </svg>
             <span>جميع القطاعات</span>
+            <span class="sec-count-badge" id="secCountAll">0</span>
           </button>
 
           <button type="button" class="vertical-tab" data-section="products">
@@ -167,6 +168,7 @@
               <path d="M16 10a4 4 0 0 1-8 0"></path>
             </svg>
             <span>السلع والأجهزة</span>
+            <span class="sec-count-badge" id="secCountProducts">0</span>
           </button>
 
           <button type="button" class="vertical-tab" data-section="cars">
@@ -177,6 +179,7 @@
               <circle cx="17" cy="17" r="2"></circle>
             </svg>
             <span>معارض وسوق السيارات</span>
+            <span class="sec-count-badge" id="secCountCars">0</span>
           </button>
 
           <button type="button" class="vertical-tab" data-section="realestate">
@@ -185,17 +188,36 @@
               <polyline points="9 22 9 12 15 12 15 22"></polyline>
             </svg>
             <span>العقارات والأراضي</span>
+            <span class="sec-count-badge" id="secCountRealestate">0</span>
           </button>
         </div>
 
-        <div class="quick-searches-scroll" id="quickTagsContainer">
-          <button type="button" class="category-link tag-chip" data-section="cars" data-query="هيونداي النترا 2024">هيونداي النترا 2024</button>
-          <button type="button" class="category-link tag-chip" data-section="cars" data-query="كيا سبورتاج زيرو">كيا سبورتاج زيرو</button>
-          <button type="button" class="category-link tag-chip" data-section="cars" data-query="تويوتا لاندكروزر">تويوتا لاندكروزر</button>
-          <button type="button" class="category-link tag-chip" data-section="realestate" data-query="شقة في مجمع بسماية">شقة في بسماية</button>
-          <button type="button" class="category-link tag-chip" data-section="realestate" data-query="دار سكنية طابو صرف">دار سكنية طابو</button>
-          <button type="button" class="category-link tag-chip" data-section="products" data-query="آيفون 15 برو ماكس">آيفون 15 برو ماكس</button>
-          <button type="button" class="category-link tag-chip" data-section="products" data-query="سبلت جري 2 طن انفرتر">سبلت جري 2 طن</button>
+        <div class="quick-tags-carousel-wrap">
+          <button type="button" class="strip-scroll-btn" id="scrollStripRight" aria-label="تحريك لليمين" title="تحريك القائمة لليمين">
+            &#8249;
+          </button>
+
+          <div class="quick-searches-scroll" id="quickTagsContainer">
+            <button type="button" class="category-link tag-chip" data-section="cars" data-query="هيونداي النترا 2024">هيونداي النترا 2024</button>
+            <button type="button" class="category-link tag-chip" data-section="cars" data-query="كيا سبورتاج">كيا سبورتاج زيرو</button>
+            <button type="button" class="category-link tag-chip" data-section="cars" data-query="تويوتا لاندكروزر">تويوتا لاندكروزر</button>
+            <button type="button" class="category-link tag-chip" data-section="cars" data-query="جيتور داشينغ">جيتور داشينغ 2024</button>
+            <button type="button" class="category-link tag-chip" data-section="realestate" data-query="شقة في مجمع بسماية">شقة في بسماية</button>
+            <button type="button" class="category-link tag-chip" data-section="realestate" data-query="دار سكنية طابو صرف">دار سكنية طابو صرف</button>
+            <button type="button" class="category-link tag-chip" data-section="realestate" data-query="شقة فاخرة للتمليك">شقة في أربيل</button>
+            <button type="button" class="category-link tag-chip" data-section="realestate" data-query="قطعة أرض سكنية">قطعة أرض طابو</button>
+            <button type="button" class="category-link tag-chip" data-section="products" data-query="آيفون 15 برو ماكس">آيفون 15 برو ماكس</button>
+            <button type="button" class="category-link tag-chip" data-section="products" data-query="سبلت جري">سبلت جري 2 طن</button>
+            <button type="button" class="category-link tag-chip" data-section="products" data-query="بلاي ستيشن 5">بلاي ستيشن 5 سليم</button>
+            <button type="button" class="category-link tag-chip" data-section="products" data-query="لابتوب لينوفو">لابتوب لينوفو للألعاب</button>
+            <button type="button" class="category-link tag-chip" data-section="products" data-query="ايربودز برو">سماعة أبل ايربودز برو</button>
+            <button type="button" class="category-link tag-chip" data-section="products" data-query="ماكينة قهوة ديلونجي">ماكينة قهوة ديلونجي</button>
+            <button type="button" class="category-link tag-chip" data-section="products" data-query="شاشة سامسونج">شاشة سامسونج 55 بوصة</button>
+          </div>
+
+          <button type="button" class="strip-scroll-btn" id="scrollStripLeft" aria-label="تحريك لليسار" title="تحريك القائمة لليسار">
+            &#8250;
+          </button>
         </div>
       </div>
     </div>
