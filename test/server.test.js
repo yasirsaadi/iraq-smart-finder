@@ -148,3 +148,8 @@ test('الإشعارات وإشعارات المتصفح: تتطلب تسجيل 
   assert.match(sw.headers.get('content-type'), /javascript/);
   assert.equal((await fetch(`http://127.0.0.1:${PROD}/api/admin/check-alerts`, { method: 'POST' })).status, 401);
 });
+
+test('تعديل التنبيه يتطلب تسجيل الدخول', async () => {
+  const res = await fetch(`http://127.0.0.1:${DEMO}/api/alerts/1`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetPriceIQD: 1000 }) });
+  assert.equal(res.status, 401);
+});

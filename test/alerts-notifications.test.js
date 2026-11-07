@@ -70,3 +70,18 @@ test('مطابقة الأقسام: بحث "جميع الأقسام" يفحص ت�
   assert.equal((await store.forSearch('سبلت جري 2 طن', 'baghdad', 'cars')).length, 1, 'تنبيه السلع لا يُفحص بنتائج السيارات');
   assert.equal((await store.forSearch('سبلت جري 2 طن', 'basra', 'all')).length, 0);
 });
+
+test('تعديل التنبيه: السعر وحده يُبقي السجل، وتغيير السلعة أو المحافظة يبدأ المراقبة من جديد', async () => {
+  const store = createAlertStore({ sql: null });
+  const { alert } = await store.create(1, { keyword: 'ايفون 15', targetPriceIQD: 1_500_000, governorate: 'baghdad', section: 'products' }, 10);
+  await store.markChecked(alert.id, ['https://www.facebook.com/p/1']);
+  const priceOnly = await store.update(1, alert.id, { targetPriceIQD: 1_700_000 });
+  assert.equal(priceOnly.scopeChanged, false);
+  assert.equal(priceOnly.alert.targetPriceIQD, 1_700_000);
+  assert.deepEqual(priceOnly.alert.notifiedUrls, ['https://www.facebook.com/p/1']);
+  const moved = await store.update(1, alert.id, { governorate: 'basra' });
+  assert.equal(moved.scopeChanged, true);
+  assert.deepEqual(moved.alert.notifiedUrls, []);
+  assert.equal((await store.update(2, alert.id, { targetPriceIQD: 1 })).error, 'not_found', 'مستخدم آخر لا يعدّل');
+  assert.equal((await store.update(1, alert.id, { targetPriceIQD: -5 })).error, 'invalid_alert');
+});

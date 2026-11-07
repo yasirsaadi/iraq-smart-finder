@@ -53,7 +53,7 @@
 
           <div class="exchange-box" title="سعر صرف المئة دولار لحساب عروض السيارات والعقارات والبيجات المسعرة بالدفتر والورقة">
             <span class="utility-label">صرف 100 دولار:</span>
-            <input type="text" inputmode="numeric" data-numeric-only="true" id="exchangeRateInput" value="150000" aria-label="سعر صرف 100 دولار بالدينار" />
+            <input type="text" inputmode="numeric" data-numeric-only="true" id="exchangeRateInput" value="150000" aria-label="سعر صرف 100 دولار بالدينار" data-money="true" />
             <span class="currency-unit">د.ع</span>
           </div>
         </div>
@@ -144,7 +144,7 @@
             inputmode="numeric"
             data-numeric-only="true"
             id="maxBudgetInput"
-            placeholder="غير محدد (د.ع)"
+            placeholder="غير محدد (د.ع)" data-money="true"
           />
         </div>
 
@@ -714,11 +714,11 @@
       <div id="modalDeliveryFields" class="modal-grid-2">
         <div class="field-block">
           <label for="postDeliveryLocal">أجرة التوصيل داخل المحافظة (د.ع)</label>
-          <input type="text" inputmode="numeric" data-numeric-only="true" id="postDeliveryLocal" value="4000" />
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="postDeliveryLocal" value="4000" data-money="true" />
         </div>
         <div class="field-block">
           <label for="postDeliveryNational">أجرة التوصيل لباقي المحافظات (د.ع)</label>
-          <input type="text" inputmode="numeric" data-numeric-only="true" id="postDeliveryNational" value="7000" />
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="postDeliveryNational" value="7000" data-money="true" />
         </div>
       </div>
 
@@ -751,6 +751,16 @@
       <button type="button" class="modal-close" id="closeRadarBtn" aria-label="إغلاق">✕</button>
     </div>
 
+    <div class="modal-form" style="padding-bottom:0;">
+      <div class="extraction-summary" id="pushStatusBox" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; border-width:2px;">
+        <div style="flex:1 1 260px; min-width:0;">
+          <strong style="display:block; font-size:0.95rem; margin-bottom:2px;">🔔 إشعارات فورية على هاتفك أو حاسوبك</strong>
+          <span id="pushStatusText">فعّلها لتصلك تنبيهات نزول الأسعار فور ظهورها، حتى والموقع مغلق.</span>
+        </div>
+        <button type="button" class="btn-submit" id="enablePushBtn" style="white-space:nowrap;">تفعيل الإشعارات</button>
+      </div>
+    </div>
+
     <form id="radarForm" class="modal-form">
       <div class="modal-grid-2">
         <div class="field-block">
@@ -759,7 +769,7 @@
         </div>
         <div class="field-block">
           <label for="radarTargetPriceInput">السعر المستهدف بالدينار العراقي</label>
-          <input type="text" inputmode="numeric" data-numeric-only="true" id="radarTargetPriceInput" placeholder="مثال: 28000000" required />
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="radarTargetPriceInput" placeholder="مثال: 28000000" required data-money="true" />
         </div>
       </div>
 
@@ -774,20 +784,15 @@
           </select>
         </div>
         <div class="field-block">
-          <label for="radarChannelSelect">طريقة التنبيه</label>
-          <select id="radarChannelSelect">
-            <option value="site">داخل الموقع + إشعارات المتصفح</option>
-          </select>
+          <label for="radarGovSelect">المحافظة</label>
+          <select id="radarGovSelect"></select>
         </div>
       </div>
 
-      <div class="extraction-summary" id="pushStatusBox">
-        <span id="pushStatusText">إشعارات المتصفح تصلك حتى والموقع مغلق.</span>
-        <button type="button" class="btn-secondary" id="enablePushBtn" style="margin-inline-start:8px; padding:3px 10px; font-size:0.78rem;">تفعيل إشعارات المتصفح</button>
-      </div>
 
       <div class="modal-actions">
-        <button type="submit" class="btn-submit">تفعيل رادار المراقبة الآن</button>
+        <button type="button" class="btn-secondary" id="cancelAlertEditBtn" hidden>إلغاء التعديل</button>
+        <button type="submit" class="btn-submit" id="radarSubmitBtn">تفعيل رادار المراقبة الآن</button>
       </div>
 
       <div class="radar-list-section">
@@ -834,7 +839,7 @@
 
       <div class="field-block">
         <label for="adSeenPriceInput">السعر الذي رأيته في الإعلان بالدينار العراقي (اختياري - لنحسب لك كم ستوفر)</label>
-        <input type="text" inputmode="numeric" data-numeric-only="true" id="adSeenPriceInput" placeholder="مثال: 35000000" />
+        <input type="text" inputmode="numeric" data-numeric-only="true" id="adSeenPriceInput" placeholder="مثال: 35000000" data-money="true" />
       </div>
 
       <div class="modal-actions">
@@ -908,6 +913,29 @@
         <div class="modal-actions">
           <button type="button" class="btn-secondary" id="logoutBtn">تسجيل الخروج</button>
         </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- سؤال تفعيل الإشعارات بعد تسجيل الدخول -->
+  <dialog id="pushPromptModal" class="commercial-modal">
+    <div class="modal-top">
+      <div>
+        <h2>هل تريد تفعيل تنبيهات الأسعار؟</h2>
+        <p>نرسل لك إشعاراً فورياً على هاتفك أو حاسوبك، حتى والموقع مغلق، عندما:</p>
+      </div>
+      <button type="button" class="modal-close" id="closePushPromptBtn" aria-label="إغلاق">✕</button>
+    </div>
+    <div class="modal-form">
+      <div class="vip-perks-box">
+        <div class="perk-item">✔ ينزل سعر سلعة أو سيارة أو عقار تراقبه إلى السعر الذي حددته</div>
+        <div class="perk-item">✔ يظهر عرض جديد أرخص من السوق لما تبحث عنه</div>
+        <div class="perk-item">✔ يقترب موعد انتهاء عضويتك، فلا تفقد تنبيهاتك</div>
+      </div>
+      <p style="color:var(--text-muted); font-size:0.82rem; margin:0;">لا نرسل إعلانات، ويمكنك إيقاف الإشعارات في أي وقت من نافذة رادار التنبيهات.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="pushPromptLaterBtn">لاحقاً</button>
+        <button type="button" class="btn-submit" id="pushPromptYesBtn">نعم، فعّل التنبيهات</button>
       </div>
     </div>
   </dialog>

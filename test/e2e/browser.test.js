@@ -123,6 +123,21 @@ test('الإنتاج: لا بيانات تجريبية ولا وعود اشتر�
   assert.equal(await page.locator('#resultsGrid article').count(), 0);
   assert.match(await page.textContent('#resultsGrid'), /ابدأ بالبحث/);
   assert.equal(await page.textContent('#countAll'), '0');
+  // فواصل الآلاف في حقول المبالغ دون أخطاء في القراءة
+  assert.equal(await page.inputValue('#exchangeRateInput'), '150,000');
+  await page.click('#maxBudgetInput');
+  await page.keyboard.type('25000000');
+  assert.equal(await page.inputValue('#maxBudgetInput'), '25,000,000');
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Delete');
+  assert.equal(await page.inputValue('#maxBudgetInput'), '5,000,000', 'حذف رقم يعيد التنسيق صحيحاً');
+  await page.evaluate(() => document.getElementById('analyzerModal').showModal());
+  assert.equal(await page.inputValue('#postDeliveryLocal'), '4,000', 'القيمة الافتراضية منسقة عند التحميل');
+  await page.click('#postDeliveryLocal', { clickCount: 3 });
+  await page.keyboard.type('١٢٥٠٠');
+  assert.equal(await page.inputValue('#postDeliveryLocal'), '12,500', 'الأرقام العربية تتحول وتُنسَّق');
+  assert.match(await page.textContent('#analyzerModal .money-hint'), /12,500 د\.ع/);
+  await page.evaluate(() => document.getElementById('analyzerModal').close());
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'prod-empty.png'), fullPage: false });
   assert.deepEqual(errors, []);
   await page.close();
