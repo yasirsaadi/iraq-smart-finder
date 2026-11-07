@@ -1554,8 +1554,9 @@ body {
    ========================================================================== */
 .commercial-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 16px;
+  /* بطاقات أصغر: 4 في السطر على الحاسوب، 2 على الجهاز اللوحي، 1 على الهاتف */
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 12px;
   scroll-margin-top: 185px;
 }
 
@@ -1567,9 +1568,11 @@ body {
 
 .product-card {
   background-color: var(--bg-surface);
-  border: 1px solid var(--border-light);
+  /* حواف أوضح تفصل كل إعلان عن جاره */
+  border: 1.5px solid var(--border-medium);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 2px 6px rgba(15, 23, 42, 0.08);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1579,11 +1582,11 @@ body {
 
 .product-card:hover {
   box-shadow: var(--shadow-hover);
-  border-color: var(--border-medium);
+  border-color: #94a3b8;
 }
 
 .product-card.is-cheapest {
-  border-color: #93c5fd;
+  border-color: #60a5fa;
 }
 
 @keyframes spotlightFlash {
@@ -1625,10 +1628,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 9px 14px;
+  gap: 6px;
+  padding: 7px 10px;
   background-color: var(--bg-subtle);
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-medium);
+  flex-wrap: wrap;
 }
 
 .source-identity {
@@ -1673,22 +1677,22 @@ body {
 }
 
 .card-body {
-  padding: 14px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 7px;
   flex: 1;
 }
 
 .product-top-row {
   display: flex;
-  gap: 12px;
+  gap: 9px;
   align-items: flex-start;
 }
 
 .product-thumb-wrap {
-  width: 84px;
-  height: 84px;
+  width: 68px;
+  height: 68px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-light);
   background-color: #ffffff;
@@ -1730,20 +1734,22 @@ body {
 .ribbon-overpriced { background-color: #fef2f2; color: #b91c1c; }
 
 .product-title {
-  font-size: 0.94rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--text-main);
-  line-height: 1.38;
+  line-height: 1.36;
+  overflow-wrap: anywhere;
 }
 
 .seller-description {
-  font-size: 0.8rem;
+  font-size: 0.77rem;
   color: var(--text-body);
   background-color: var(--bg-subtle);
   border-right: 3px solid var(--border-medium);
-  padding: 7px 10px;
+  padding: 6px 8px;
   border-radius: 4px;
-  line-height: 1.48;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .trust-and-inspection-row {
@@ -1792,9 +1798,9 @@ body {
 }
 
 .card-footer-box {
-  padding: 11px 14px;
+  padding: 9px 10px;
   background-color: #fafafa;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--border-medium);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1814,7 +1820,7 @@ body {
 }
 
 .price-iqd {
-  font-size: 1.18rem;
+  font-size: 1.08rem;
   font-weight: 700;
   color: var(--price-red);
   font-variant-numeric: tabular-nums;
@@ -1842,6 +1848,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .btn-copy-phone {
