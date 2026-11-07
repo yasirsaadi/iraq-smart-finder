@@ -10,6 +10,16 @@ import { parseYahooResults, buildLiveOffer } from './lib/live-results.js';
 import { attachListingImages } from './lib/listing-images.js';
 import { createSearchStore, initSearchStoreTables, readEconomicsConfig, quotaSubjectFor } from './lib/search-store.js';
 import { timingSafeEqual } from 'node:crypto';
+import { verifyGoogleIdToken } from './lib/google-auth.js';
+import { readQiCardConfig, createQiPayment, getQiPaymentStatus, isPaymentSettled, verifyQiWebhookSignature } from './lib/qicard.js';
+import {
+  createAccountStore,
+  initAccountTables,
+  parseCookies,
+  sessionCookieHeader,
+  clearSessionCookieHeader,
+  SESSION_COOKIE
+} from './lib/accounts.js';
 import { isSerperConfigured, buildSerperQueries, serperSearchRaw, needsResolve, serperResolve, mapSerperOrganic } from './lib/serper-provider.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,17 +29,28 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 // مفاتيح التشغيل: كل ميزة غير مكتملة معطلة افتراضياً في الإنتاج ولا تُفعَّل إلا صراحةً.
+const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+const QICARD = readQiCardConfig();
+const PUBLIC_SITE_URL = String(process.env.PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
+const SUBSCRIPTION_PRICE_IQD = Number.parseInt(process.env.SUBSCRIPTION_PRICE_IQD, 10) > 0 ? Number.parseInt(process.env.SUBSCRIPTION_PRICE_IQD, 10) : 1000;
+const SUBSCRIPTION_DAYS = Number.parseInt(process.env.SUBSCRIPTION_DAYS, 10) > 0 ? Number.parseInt(process.env.SUBSCRIPTION_DAYS, 10) : 30;
+
 export const FEATURE_FLAGS = Object.freeze({
   // العروض التجريبية المكتوبة يدوياً (demo/demo-offers.js) لا تظهر إلا عند DEMO_MODE=true
   demoMode: process.env.DEMO_MODE === 'true',
-  // لا يوجد ربط فعلي مع بوابة دفع؛ الاشتراك المدفوع معطل حتى يُربط ويُتحقق من الدفع
-  paymentsEnabled: process.env.PAYMENTS_ENABLED === 'true',
+  // تسجيل الدخول بحساب غوغل: يعمل عند ضبط GOOGLE_CLIENT_ID
+  loginEnabled: Boolean(GOOGLE_CLIENT_ID),
+  // الاشتراك المدفوع: لا يعمل إلا بثلاثة شروط معاً: تفعيل صريح + بوابة كي كارد مضبوطة + تسجيل دخول غوغل
+  paymentsEnabled: process.env.PAYMENTS_ENABLED === 'true' && QICARD.configured && Boolean(GOOGLE_CLIENT_ID) && Boolean(PUBLIC_SITE_URL),
   // لا يوجد مرسل فعلي لرسائل واتساب أو تليغرام؛ التنبيهات معطلة حتى يُربط مزود إرسال
   alertsDeliveryEnabled: process.env.ALERTS_DELIVERY_ENABLED === 'true'
 });
 
-if (FEATURE_FLAGS.paymentsEnabled) {
-  console.warn('تحذير: PAYMENTS_ENABLED=true لكن لا يوجد تحقق من الدفع في الخادم؛ أي رقم هاتف سيحصل على اشتراك.');
+if (process.env.PAYMENTS_ENABLED === 'true' && !FEATURE_FLAGS.paymentsEnabled) {
+  console.warn('PAYMENTS_ENABLED=true لكن الاشتراك بقي معطلاً: يلزم QICARD_USERNAME و QICARD_PASSWORD و QICARD_TERMINAL_ID و GOOGLE_CLIENT_ID و PUBLIC_SITE_URL.');
+}
+if (FEATURE_FLAGS.paymentsEnabled && QICARD.isSandbox) {
+  console.warn('بوابة كي كارد تعمل على البيئة التجريبية (sandbox): لا تُحصَّل أموال حقيقية.');
 }
 
 app.use(cors());
@@ -238,6 +259,7 @@ async function initNeonDatabase() {
     `;
     await sql`ALTER TABLE dalal_iraq_searches ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'all'`;
     await initSearchStoreTables(sql);
+    await initAccountTables(sql);
   } catch (err) {
     console.error('Neon DB initialization warning:', err.message);
   }
@@ -253,6 +275,21 @@ function liveSearchProviderName() {
 
 const ECONOMICS = readEconomicsConfig();
 const searchStore = createSearchStore({ sql, config: ECONOMICS });
+const accounts = createAccountStore({ sql });
+
+// إرفاق المستخدم المسجّل (إن وُجد) بكل طلب واجهة برمجية
+app.use('/api', async (req, _res, next) => {
+  req.user = null;
+  const token = parseCookies(req.get('cookie'))[SESSION_COOKIE];
+  if (token) {
+    try {
+      req.user = await accounts.userForSessionToken(token);
+    } catch (err) {
+      console.warn('session lookup failed:', err.message);
+    }
+  }
+  next();
+});
 // الأسعار تُحسب على سعر صرف ثابت وتُخزَّن مع أساسها بالدولار، والمتصفح يعيد حسابها بسعر الزائر
 const STORED_USD_RATE = 1500;
 
@@ -351,16 +388,15 @@ async function runSerperPipeline({ query, gov, sectionHint, debug = false }) {
 }
 
 async function subscriberLimitFor(req) {
-  // حصة المشترك لا تُطبَّق إلا مع بوابة دفع مفعلة واشتراك فعال في قاعدة البيانات
-  if (!FEATURE_FLAGS.paymentsEnabled || !sql) return null;
-  const phone = safeIraqiMobile(normalizeDigits(String(req.get('x-subscriber-phone') || '')));
-  if (!phone) return null;
-  try {
-    const rows = await sql`SELECT 1 FROM dalal_iraq_subscriptions WHERE phone = ${phone} AND status = 'active' AND expires_at > NOW() LIMIT 1`;
-    return rows.length ? { subject: `s:${phone}`, limit: ECONOMICS.subscriberNewSearchesPerMonth } : null;
-  } catch {
-    return null;
+  // حصة المشترك: حساب غوغل مسجّل الدخول + اشتراك فعال مدفوع ومؤكد من بوابة الدفع
+  if (!req.user) return null;
+  if (FEATURE_FLAGS.paymentsEnabled) {
+    try {
+      const sub = await accounts.subscriptionFor(req.user.id);
+      if (sub.active) return { subject: `u:${req.user.id}`, limit: ECONOMICS.subscriberNewSearchesPerMonth };
+    } catch {}
   }
+  return { subject: `u:${req.user.id}`, limit: ECONOMICS.freeNewSearchesPerMonth };
 }
 
 app.set('trust proxy', 1); // رندر يمرر عنوان الزائر الحقيقي عبر الوسيط
@@ -371,7 +407,11 @@ app.get('/api/config', (_req, res) => {
     liveSearchProvider: liveSearchProviderName(),
     databaseConnected: Boolean(sql),
     cacheTtlHours: ECONOMICS.cacheTtlHours,
-    freeNewSearchesPerMonth: ECONOMICS.freeNewSearchesPerMonth
+    freeNewSearchesPerMonth: ECONOMICS.freeNewSearchesPerMonth,
+    googleClientId: GOOGLE_CLIENT_ID || null,
+    subscriptionPriceIQD: SUBSCRIPTION_PRICE_IQD,
+    subscriptionDays: SUBSCRIPTION_DAYS,
+    paymentsSandbox: FEATURE_FLAGS.paymentsEnabled ? QICARD.isSandbox : null
   });
 });
 
@@ -418,9 +458,10 @@ app.get('/api/live-search', async (req, res) => {
       if (!reserved) {
         return res.json({ query, providerOk: false, budgetExhausted: true, offers: [] });
       }
-      const subscriber = await subscriberLimitFor(req);
-      const subject = subscriber ? subscriber.subject : quotaSubjectFor(req);
-      const limit = subscriber ? subscriber.limit : ECONOMICS.freeNewSearchesPerMonth;
+      // المسجّل يُحسب بحسابه (لا يتأثر بمسح المتصفح)، وغيره بمعرّف متصفحه المجهول
+      const account = await subscriberLimitFor(req);
+      const subject = account ? account.subject : quotaSubjectFor(req);
+      const limit = account ? account.limit : ECONOMICS.freeNewSearchesPerMonth;
       const quota = await searchStore.consumeNewSearch(subject, limit);
       if (!quota.allowed) {
         await searchStore.refundCredits(ECONOMICS.creditsPerSearch);
@@ -732,76 +773,165 @@ app.post('/api/reviews', async (req, res) => {
   }
 });
 
-app.get('/api/subscription-status', async (req, res) => {
-  const cleanPhone = normalizeDigits(String(req.query.phone || '')).replace(/[^\d]/g, '');
-  if (!cleanPhone) return res.json({ active: false });
-  // لا اشتراك وهمياً: بدون بوابة دفع مفعلة أو بدون قاعدة بيانات لا توجد عضوية فعالة
-  if (!FEATURE_FLAGS.paymentsEnabled) return res.json({ active: false, paymentsEnabled: false });
-  if (!sql) return res.json({ active: false, error: 'database_unavailable' });
+// ===== الحساب وتسجيل الدخول بغوغل =====
+
+function isSameOriginRequest(req) {
+  // حماية من الطلبات المزورة من مواقع أخرى: المتصفحات ترسل Origin مع طلبات POST
+  const origin = req.get('origin');
+  if (!origin) return true;
   try {
-    const rows = await sql`
-      SELECT
-        phone,
-        plan_type AS "planType",
-        payment_method AS "paymentMethod",
-        status,
-        expires_at AS "expiresAt",
-        GREATEST(0, CEIL(EXTRACT(EPOCH FROM (expires_at - NOW())) / 86400.0))::int AS "daysRemaining"
-      FROM dalal_iraq_subscriptions
-      WHERE phone = ${cleanPhone}
-      LIMIT 1;
-    `;
-    if (rows.length === 0) {
-      return res.json({ active: false, found: false });
-    }
-    const sub = rows[0];
-    const isActive = sub.status === 'active' && sub.daysRemaining > 0;
-    return res.json({
-      active: isActive,
-      found: true,
-      phone: sub.phone,
-      planType: sub.planType,
-      paymentMethod: sub.paymentMethod,
-      expiresAt: sub.expiresAt,
-      daysRemaining: sub.daysRemaining
-    });
+    const o = new URL(origin);
+    const allowed = new Set([req.get('host')]);
+    if (PUBLIC_SITE_URL) allowed.add(new URL(PUBLIC_SITE_URL).host);
+    return allowed.has(o.host);
+  } catch {
+    return false;
+  }
+}
+
+const useSecureCookie = (req) => req.secure || PUBLIC_SITE_URL.startsWith('https://');
+
+async function accountPayload(user) {
+  if (!user) return { user: null, subscription: { active: false } };
+  let subscription = { active: false };
+  try {
+    subscription = await accounts.subscriptionFor(user.id);
+  } catch {}
+  return {
+    user: { id: user.id, name: user.name, email: user.email, picture: user.picture },
+    subscription
+  };
+}
+
+app.get('/api/auth/me', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(await accountPayload(req.user));
+});
+
+app.post('/api/auth/google', async (req, res) => {
+  if (!FEATURE_FLAGS.loginEnabled) return res.status(503).json({ error: 'login_disabled' });
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (isRateLimited(`auth:${req.ip || 'unknown'}`)) return res.status(429).json({ error: 'rate_limited' });
+  try {
+    const profile = await verifyGoogleIdToken(String(req.body?.credential || ''), { clientId: GOOGLE_CLIENT_ID });
+    const user = await accounts.upsertGoogleUser(profile);
+    const token = await accounts.createSession(user.id);
+    res.set('Set-Cookie', sessionCookieHeader(token, { secure: useSecureCookie(req) }));
+    res.set('Cache-Control', 'no-store');
+    res.json(await accountPayload(user));
   } catch (err) {
-    console.error('GET /api/subscription-status failed:', err.message);
-    return res.status(500).json({ active: false, error: 'subscription_status_unavailable' });
+    console.warn('google login rejected:', err.message);
+    res.status(401).json({ error: 'invalid_google_credential' });
   }
 });
 
-app.post('/api/subscribe', async (req, res) => {
-  if (!FEATURE_FLAGS.paymentsEnabled) {
-    return res.status(503).json({ subscribed: false, error: 'payments_disabled' });
-  }
-  const rawPhone = req.body?.phone || '';
-  const phone = safeIraqiMobile(normalizeDigits(String(rawPhone)));
-  const { planType = 'shopper_1000_iqd', paymentMethod = 'zaincash' } = req.body || {};
-  if (!phone) return res.status(400).json({ error: 'Phone number required' });
-  if (!sql) return res.status(503).json({ subscribed: false, error: 'database_unavailable' });
+app.post('/api/auth/logout', async (req, res) => {
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  const token = parseCookies(req.get('cookie'))[SESSION_COOKIE];
   try {
-    // تنبيه: لا يوجد هنا تحقق من إتمام الدفع. يجب ربط بوابة الدفع والتحقق من معاملتها قبل التفعيل.
-    const rows = await sql`
-      INSERT INTO dalal_iraq_subscriptions (phone, plan_type, payment_method, status, expires_at)
-      VALUES (${phone}, ${cleanPlainText(planType, 40)}, ${cleanPlainText(paymentMethod, 40)}, 'active', NOW() + INTERVAL '30 days')
-      ON CONFLICT (phone) DO UPDATE
-      SET plan_type = EXCLUDED.plan_type,
-          payment_method = EXCLUDED.payment_method,
-          status = 'active',
-          expires_at = NOW() + INTERVAL '30 days'
-      RETURNING
-        phone,
-        plan_type AS "planType",
-        payment_method AS "paymentMethod",
-        expires_at AS "expiresAt",
-        30 AS "daysRemaining";
-    `;
-    res.status(201).json({ subscribed: true, subscription: rows[0] });
-  } catch (err) {
-    console.error('POST /api/subscribe failed:', err.message);
-    res.status(500).json({ error: 'subscribe_failed' });
+    await accounts.deleteSession(token);
+  } catch {}
+  res.set('Set-Cookie', clearSessionCookieHeader({ secure: useSecureCookie(req) }));
+  res.json({ ok: true });
+});
+
+// ===== الاشتراك المدفوع عبر كي كارد =====
+
+/** يسأل بوابة كي كارد مباشرة عن حالة الدفع، ويفعّل الاشتراك مرة واحدة فقط عند النجاح المؤكد. */
+async function confirmQiPayment(paymentId) {
+  const payment = await accounts.paymentById(paymentId);
+  if (!payment) return { found: false };
+  if (payment.status === 'SUCCESS') return { found: true, status: 'SUCCESS', activatedNow: false, userId: payment.userId };
+  const remote = await getQiPaymentStatus(QICARD, paymentId);
+  if (isPaymentSettled(remote, { expectedAmountIQD: payment.amountIQD, expectedRequestId: payment.requestId })) {
+    const activatedNow = await accounts.activateFromPayment(paymentId);
+    return { found: true, status: 'SUCCESS', activatedNow, userId: payment.userId };
   }
+  if (remote.canceled === true || ['FAILED', 'AUTHENTICATION_FAILED'].includes(remote.status)) {
+    await accounts.markPaymentFailed(paymentId, remote.canceled ? 'CANCELED' : remote.status);
+  }
+  return { found: true, status: remote.canceled ? 'CANCELED' : remote.status, activatedNow: false, userId: payment.userId };
+}
+
+app.post('/api/payments/qicard/create', async (req, res) => {
+  if (!FEATURE_FLAGS.paymentsEnabled) return res.status(503).json({ error: 'payments_disabled' });
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ error: 'login_required' });
+  if (!sql) return res.status(503).json({ error: 'database_unavailable' });
+  if (isRateLimited(`pay:${req.user.id}`)) return res.status(429).json({ error: 'rate_limited' });
+  try {
+    const payment = await createQiPayment(QICARD, {
+      amountIQD: SUBSCRIPTION_PRICE_IQD,
+      finishPaymentUrl: `${PUBLIC_SITE_URL}/?payment=return`,
+      notificationUrl: `${PUBLIC_SITE_URL}/api/payments/qicard/webhook`,
+      customerInfo: { email: req.user.email || undefined, accountId: `user-${req.user.id}` },
+      // يظهر هذا الوصف للزبون في صفحة الدفع لدى كي كارد، لذا لا نضع فيه بيانات داخلية
+      additionalInfo: { الخدمة: `عضوية رادار أسعار العراق لمدة ${SUBSCRIPTION_DAYS} يوماً` }
+    });
+    await accounts.recordPayment({
+      requestId: payment.requestId,
+      paymentId: payment.paymentId,
+      userId: req.user.id,
+      amountIQD: SUBSCRIPTION_PRICE_IQD,
+      planDays: SUBSCRIPTION_DAYS
+    });
+    res.json({ formUrl: payment.formUrl, paymentId: payment.paymentId, amountIQD: SUBSCRIPTION_PRICE_IQD, sandbox: QICARD.isSandbox });
+  } catch (err) {
+    console.error('qicard create payment failed:', err.message);
+    res.status(502).json({ error: 'payment_gateway_error' });
+  }
+});
+
+// إشعار بوابة كي كارد (webhook): لا نثق بمحتواه، بل نسأل البوابة عن الحالة الحقيقية قبل أي تفعيل
+app.post('/api/payments/qicard/webhook', async (req, res) => {
+  const body = req.body || {};
+  const paymentId = String(body.paymentId || '');
+  if (QICARD.webhookPublicKey && !verifyQiWebhookSignature(body, req.get('x-signature'), QICARD.webhookPublicKey)) {
+    console.warn('qicard webhook: invalid signature for', paymentId.slice(0, 36));
+    return res.status(401).json({ error: 'invalid_signature' });
+  }
+  if (!FEATURE_FLAGS.paymentsEnabled || !/^[0-9a-f-]{36}$/i.test(paymentId)) return res.status(200).json({ ignored: true });
+  try {
+    const result = await confirmQiPayment(paymentId);
+    return res.status(200).json({ received: true, status: result.status || 'UNKNOWN' });
+  } catch (err) {
+    // 500 يجعل البوابة تعيد المحاولة لاحقاً، وهذا مطلوب عند تعذر التحقق مؤقتاً
+    console.error('qicard webhook processing failed:', err.message);
+    return res.status(500).json({ error: 'temporary_failure' });
+  }
+});
+
+// عودة المشترك من صفحة الدفع: نتحقق فوراً دون انتظار الإشعار
+app.get('/api/payments/qicard/confirm', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!FEATURE_FLAGS.paymentsEnabled) return res.status(503).json({ error: 'payments_disabled' });
+  if (!req.user) return res.status(401).json({ error: 'login_required' });
+  try {
+    // كي كارد تضيف paymentId إلى رابط العودة؛ نتحقق أنه يخص المستخدم نفسه، وإلا نأخذ آخر دفعة معلقة له
+    const requested = /^[0-9a-f-]{36}$/i.test(String(req.query.paymentId || '')) ? await accounts.paymentById(String(req.query.paymentId)) : null;
+    const pending = requested && requested.userId === req.user.id ? requested : await accounts.latestPendingPaymentFor(req.user.id);
+    let status = 'NONE';
+    if (pending) {
+      const result = await confirmQiPayment(pending.paymentId);
+      if (result.userId !== req.user.id) return res.status(403).json({ error: 'forbidden' });
+      status = result.status;
+    }
+    res.json({ paymentStatus: status, ...(await accountPayload(req.user)) });
+  } catch (err) {
+    console.error('qicard confirm failed:', err.message);
+    res.status(502).json({ error: 'payment_gateway_error' });
+  }
+});
+
+// المسارات القديمة للاشتراك برقم الهاتف كانت تمنح عضوية دون دفع؛ استُبدلت بمسار كي كارد المؤكد
+app.get('/api/subscription-status', (_req, res) => {
+  res.json({ active: false, deprecated: true, use: '/api/auth/me' });
+});
+app.post('/api/subscribe', (_req, res) => {
+  res.status(FEATURE_FLAGS.paymentsEnabled ? 410 : 503).json({
+    subscribed: false,
+    error: FEATURE_FLAGS.paymentsEnabled ? 'use_qicard_checkout' : 'payments_disabled'
+  });
 });
 
 app.post('/api/searches', async (req, res) => {

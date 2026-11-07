@@ -28,3 +28,16 @@ services:
       # رمز التحديث الليلي يُدخل يدوياً ويطابق سر REFRESH_TOKEN في غيت‌هب
       - key: ADMIN_REFRESH_TOKEN
         sync: false
+      # تسجيل الدخول بغوغل والدفع عبر كي كارد (تُدخل القيم يدوياً من لوحة رندر)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: PUBLIC_SITE_URL
+        value: https://iraq-smart-finder.onrender.com
+      - key: QICARD_API_BASE
+        sync: false
+      - key: QICARD_USERNAME
+        sync: false
+      - key: QICARD_PASSWORD
+        sync: false
+      - key: QICARD_TERMINAL_ID
+        sync: false

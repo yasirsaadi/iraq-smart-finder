@@ -102,3 +102,18 @@ test('الإعدادات تعلن مدة حفظ النتائج وحصة البح
   assert.equal(cfg.cacheTtlHours, 12);
   assert.equal(cfg.freeNewSearchesPerMonth, 30);
 });
+
+test('الحساب والدفع: معطلان بأمان دون إعداد، والمسار القديم لا يمنح عضوية', async () => {
+  const me = await (await get(PROD, '/api/auth/me')).json();
+  assert.equal(me.user, null);
+  assert.equal((await post(PROD, '/api/auth/google', { credential: 'x' })).status, 503);
+  assert.equal((await post(PROD, '/api/payments/qicard/create', {})).status, 503);
+  const hook = await post(PROD, '/api/payments/qicard/webhook', { paymentId: 'b91e8d70-1ab7-4275-85a2-61f7dbb31410', status: 'SUCCESS' });
+  assert.equal(hook.status, 200);
+  assert.equal((await hook.json()).ignored, true);
+  const legacy = await post(PROD, '/api/subscribe', { phone: '07701234567' });
+  assert.equal((await legacy.json()).subscribed, false);
+  const cfg = await (await get(PROD, '/api/config')).json();
+  assert.equal(cfg.loginEnabled, false);
+  assert.equal(cfg.paymentsEnabled, false);
+});

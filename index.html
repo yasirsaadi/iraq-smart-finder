@@ -75,6 +75,14 @@
             <span>إضافة عرض (سلعة / سيارة / عقار)</span>
           </button>
 
+          <button type="button" class="utility-nav-btn" id="openLoginBtn" hidden>
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <span id="loginBtnLabel">تسجيل الدخول</span>
+          </button>
+
           <button type="button" class="utility-vip-btn" id="openSubscriptionBtn" hidden>
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
@@ -869,6 +877,27 @@
     </form>
   </dialog>
 
+  <!-- نافذة تسجيل الدخول بحساب غوغل -->
+  <dialog id="loginModal" class="commercial-modal">
+    <div class="modal-top">
+      <div>
+        <h2 id="loginModalTitle">تسجيل الدخول بحساب غوغل</h2>
+        <p id="loginModalDesc">سجّل الدخول بحساب غوغل لتفعيل عضوية الرادار وحفظ اشتراكك على جميع أجهزتك. لا نطّلع على كلمة مرورك.</p>
+      </div>
+      <button type="button" class="modal-close" id="closeLoginBtn" aria-label="إغلاق">✕</button>
+    </div>
+    <div class="modal-form">
+      <div id="googleSignInButton" style="display:flex; justify-content:center; min-height:44px;"></div>
+      <div id="loginStatusBox" class="extraction-summary" hidden></div>
+      <div id="accountBox" hidden>
+        <div class="extraction-summary" id="accountSummary"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="logoutBtn">تسجيل الخروج</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <!-- 5. نافذة الاشتراك الشهري (ألف دينار عراقي) -->
   <dialog id="subscriptionModal" class="commercial-modal">
     <div class="modal-top">
@@ -886,20 +915,18 @@
         <div class="perk-item">✔ مقارنة شاملة للسلع والسيارات والعقارات في جميع محافظات العراق الـ 18</div>
         <div class="perk-item">✔ تفعيل رادار اللقطات وإشعارات واتساب الفورية عند نزول سيارة أو عقار أو سلعة بسعر لقطة</div>
         <div class="perk-item">✔ حساب تلقائي لسعر المتر المربع للعقارات وحساب الدفتر والورقة للسيارات</div>
-        <div class="perk-item">✔ العضوية مرتبطة برقم هاتفك في قاعدة البيانات السحابية لمدة 30 يوماً وتعمل تلقائياً على جميع أجهزتك</div>
+        <div class="perk-item">✔ العضوية مرتبطة بحساب غوغل لمدة 30 يوماً وتعمل تلقائياً على جميع أجهزتك بعد تسجيل الدخول</div>
       </div>
 
       <div class="modal-grid-2">
         <div class="field-block">
-          <label for="subPhoneInput">رقم هاتفك في العراق (لتفعيل أو تجديد 30 يوماً)</label>
-          <input type="text" inputmode="numeric" data-numeric-only="true" id="subPhoneInput" placeholder="07701234567" required />
+          <label for="subPhoneInput">رقم هاتفك للتواصل (اختياري)</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="subPhoneInput" placeholder="07701234567" />
         </div>
         <div class="field-block">
           <label for="subPaymentMethod">وسيلة الدفع المحلية (1,000 د.ع)</label>
           <select id="subPaymentMethod">
-            <option value="zaincash">محفظة زين كاش (ZainCash)</option>
-            <option value="superqi">سوبر كي / كي كارد (SuperQi)</option>
-            <option value="asiacell">رصيد آسيا سيل أو زين العراق</option>
+            <option value="qicard">بطاقة كي كارد أو محفظة سوبر كي (QiCard / SuperQi)</option>
           </select>
         </div>
       </div>
@@ -908,7 +935,7 @@
         <button type="submit" class="btn-submit" style="width: 100%; padding: 11px;">تفعيل أو تجديد الاشتراك لمدة 30 يوماً (1,000 د.ع)</button>
       </div>
 
-      <div class="radar-list-section">
+      <div class="radar-list-section" id="legacyRestoreSection" hidden>
         <h3 class="sub-heading">مشترك مسبقاً وتستخدم جهازاً أو متصفحاً جديداً؟ استعد عضويتك برقم هاتفك:</h3>
         <div style="display: flex; gap: 8px; align-items: stretch;">
           <input

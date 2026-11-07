@@ -71,7 +71,9 @@ function getProductImageUrl(offer) {
 const state = {
   // في الإنتاج تبدأ القائمة فارغة: لا تظهر إلا عروض المستخدمين المحفوظة ونتائج البحث الحي
   offers: [],
-  config: { demoMode: false, paymentsEnabled: false, alertsDeliveryEnabled: false },
+  config: { demoMode: false, loginEnabled: false, paymentsEnabled: false, alertsDeliveryEnabled: false },
+  user: null,
+  subscription: { active: false },
   liveOffers: [],
   alerts: [],
   isSearchingLive: false,
@@ -1706,73 +1708,141 @@ document.addEventListener('DOMContentLoaded', () => {
     await loadStoreReviews(storeName);
   });
 
-  // نافذة الاشتراك الشهري والتحقق السحابي لمدة 30 يوماً
+  // ===== الحساب (تسجيل الدخول بغوغل) والاشتراك المدفوع عبر كي كارد =====
+  // العضوية مرتبطة بحساب غوغل، ولا تُفعَّل إلا بعد تأكيد الخادم لنجاح الدفع من بوابة كي كارد نفسها.
   const subscriptionModal = document.getElementById('subscriptionModal');
   const subscriptionStatusBox = document.getElementById('subscriptionStatusBox');
-  const restoreSubPhoneInput = document.getElementById('restoreSubPhoneInput');
-  const restoreSubBtn = document.getElementById('restoreSubBtn');
+  const loginModal = document.getElementById('loginModal');
+  const openLoginBtn = document.getElementById('openLoginBtn');
+  const loginBtnLabel = document.getElementById('loginBtnLabel');
+  const loginStatusBox = document.getElementById('loginStatusBox');
+  const accountBox = document.getElementById('accountBox');
+  const accountSummary = document.getElementById('accountSummary');
+  const googleButtonHost = document.getElementById('googleSignInButton');
+  let pendingAfterLogin = null;
 
-  async function verifySubscriptionFromServer(phoneToCheck, isManualRestore = false) {
-    const cleanPhone = normalizeDigits(String(phoneToCheck || '')).replace(/[^\d]/g, '');
-    if (!cleanPhone) return;
-
+  const formatDate = (iso) => {
     try {
-      const res = await fetch(`/api/subscription-status?phone=${encodeURIComponent(cleanPhone)}`);
-      const data = await res.json();
+      return new Date(iso).toLocaleDateString('ar-IQ', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch {
+      return '';
+    }
+  };
 
-      if (data && data.active) {
-        localStorage.setItem('dalal_vip_phone', cleanPhone);
-        state.isSubscribed = true;
-        subBtn.classList.add('is-subscribed');
-        subBtnLabel.textContent = `عضوية فعالة (${data.daysRemaining} يوم متبقي) ✓`;
+  function applyAccount(data) {
+    state.user = data?.user || null;
+    state.subscription = data?.subscription || { active: false };
+    state.isSubscribed = Boolean(state.subscription.active);
 
-        if (subscriptionStatusBox) {
-          subscriptionStatusBox.hidden = false;
-          subscriptionStatusBox.innerHTML = `<strong>✔ عضوية فعالة ومؤكدة في قاعدة البيانات:</strong> الرقم <span>${cleanPhone}</span> — متبقي <strong>${data.daysRemaining} يوماً</strong> من أصل 30 يوماً.`;
-        }
+    if (state.user) {
+      const first = String(state.user.name || state.user.email || '').split(' ')[0];
+      loginBtnLabel.textContent = first ? `مرحباً، ${first}` : 'حسابي';
+      accountBox.hidden = false;
+      googleButtonHost.hidden = true;
+      accountSummary.textContent = state.isSubscribed
+        ? `مسجّل الدخول باسم ${state.user.email || state.user.name}. العضوية فعالة حتى ${formatDate(state.subscription.expiresAt)}.`
+        : `مسجّل الدخول باسم ${state.user.email || state.user.name}. لا توجد عضوية فعالة حالياً.`;
+    } else {
+      loginBtnLabel.textContent = 'تسجيل الدخول';
+      accountBox.hidden = true;
+      googleButtonHost.hidden = false;
+    }
 
-        if (isManualRestore) {
-          const banner = document.getElementById('searchStatusBanner');
-          banner.hidden = false;
-          banner.textContent = `تم استعادة عضويتك بنجاح للرقم ${cleanPhone} — متبقي في اشتراكك ${data.daysRemaining} يوماً!`;
-          subscriptionModal.close();
-        }
-      } else {
-        if (!isManualRestore) {
-          localStorage.removeItem('dalal_vip_phone');
-          state.isSubscribed = false;
-          subBtn.classList.remove('is-subscribed');
-          subBtnLabel.textContent = 'اشترك بـ 1,000 د.ع / شهر';
-        }
-        if (subscriptionStatusBox && isManualRestore) {
-          subscriptionStatusBox.hidden = false;
-          subscriptionStatusBox.innerHTML = data?.found
-            ? `<strong>انتهت صلاحية اشتراك الثلاثين يوماً للرقم ${cleanPhone}.</strong> يمكنك تجديده الآن لمدة 30 يوماً إضافية بألف دينار فقط.`
-            : `<strong>لم يتم العثور على اشتراك فعال للرقم ${cleanPhone}.</strong> يمكنك تفعيل العضوية الآن من النموذج أدناه.`;
-        }
+    if (state.isSubscribed) {
+      subBtn.classList.add('is-subscribed');
+      subBtnLabel.textContent = `عضوية فعالة (${state.subscription.daysRemaining ?? ''} يوم) ✓`;
+      if (subscriptionStatusBox) {
+        subscriptionStatusBox.hidden = false;
+        subscriptionStatusBox.textContent = `✔ عضويتك فعالة حتى ${formatDate(state.subscription.expiresAt)}. التجديد الآن يُضاف إلى المدة المتبقية.`;
       }
+    } else {
+      subBtn.classList.remove('is-subscribed');
+      subBtnLabel.textContent = `اشتراك الرادار (${Number(state.config.subscriptionPriceIQD || 1000).toLocaleString('en-US')} د.ع)`;
+      if (subscriptionStatusBox) subscriptionStatusBox.hidden = true;
+    }
+  }
+
+  async function refreshAccount() {
+    try {
+      const res = await fetch('/api/auth/me', { cache: 'no-store' });
+      if (res.ok) applyAccount(await res.json());
     } catch {}
   }
 
-  // التحقق من العضوية المحفوظة يتم بعد تحميل إعدادات الخادم (انظر bootApp أدناه)
+  let googleScriptPromise = null;
+  function loadGoogleIdentity() {
+    if (window.google?.accounts?.id) return Promise.resolve();
+    if (!googleScriptPromise) {
+      googleScriptPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('google script failed'));
+        document.head.appendChild(script);
+      });
+    }
+    return googleScriptPromise;
+  }
+
+  async function handleGoogleCredential(response) {
+    loginStatusBox.hidden = false;
+    loginStatusBox.textContent = 'جاري التحقق من حسابك...';
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential })
+      });
+      if (!res.ok) throw new Error('login failed');
+      applyAccount(await res.json());
+      loginStatusBox.hidden = true;
+      loginModal.close();
+      const next = pendingAfterLogin;
+      pendingAfterLogin = null;
+      if (next) next();
+    } catch {
+      loginStatusBox.textContent = 'تعذر تسجيل الدخول. حاول مرة أخرى.';
+    }
+  }
+
+  async function openLoginModal(afterLogin = null) {
+    pendingAfterLogin = afterLogin;
+    loginModal.showModal();
+    if (state.user || !state.config.googleClientId) return;
+    try {
+      await loadGoogleIdentity();
+      window.google.accounts.id.initialize({
+        client_id: state.config.googleClientId,
+        callback: handleGoogleCredential,
+        ux_mode: 'popup',
+        context: 'signin'
+      });
+      googleButtonHost.innerHTML = '';
+      window.google.accounts.id.renderButton(googleButtonHost, { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: 'ar' });
+    } catch {
+      loginStatusBox.hidden = false;
+      loginStatusBox.textContent = 'تعذر تحميل زر غوغل. تحقق من اتصالك ثم أعد المحاولة.';
+    }
+  }
+
+  openLoginBtn.addEventListener('click', () => openLoginModal());
+  document.getElementById('closeLoginBtn').addEventListener('click', () => loginModal.close());
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    window.google?.accounts?.id?.disableAutoSelect?.();
+    applyAccount({ user: null, subscription: { active: false } });
+    loginModal.close();
+  });
 
   subBtn.addEventListener('click', () => {
-    const currentPhone = localStorage.getItem('dalal_vip_phone');
-    if (currentPhone) {
-      document.getElementById('subPhoneInput').value = currentPhone;
-      verifySubscriptionFromServer(currentPhone, false);
+    if (!state.user) {
+      openLoginModal(() => subscriptionModal.showModal());
+      return;
     }
     subscriptionModal.showModal();
   });
   document.getElementById('closeSubscriptionBtn').addEventListener('click', () => subscriptionModal.close());
-
-  if (restoreSubBtn && restoreSubPhoneInput) {
-    restoreSubBtn.addEventListener('click', () => {
-      const phone = restoreSubPhoneInput.value.trim();
-      if (!phone) return;
-      verifySubscriptionFromServer(phone, true);
-    });
-  }
 
   document.getElementById('subscriptionForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1783,33 +1853,49 @@ document.addEventListener('DOMContentLoaded', () => {
       banner.textContent = 'الاشتراك المدفوع غير متاح حالياً.';
       return;
     }
-    const phone = document.getElementById('subPhoneInput').value.trim();
-    const paymentMethod = document.getElementById('subPaymentMethod').value;
-
-    let ok = false;
-    try {
-      const res = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, paymentMethod })
-      });
-      const data = await res.json().catch(() => ({}));
-      ok = res.ok && data.subscribed === true;
-    } catch {}
-
-    if (!ok) {
-      banner.hidden = false;
-      banner.textContent = 'تعذر تفعيل الاشتراك، ولم يُخصم أي مبلغ عبر هذا الموقع.';
+    if (!state.user) {
+      subscriptionModal.close();
+      openLoginModal(() => subscriptionModal.showModal());
       return;
     }
-
-    localStorage.setItem('dalal_vip_phone', phone);
-    await verifySubscriptionFromServer(phone, false);
-    subscriptionModal.close();
-
-    banner.hidden = false;
-    banner.textContent = `تم تفعيل عضوية رادار أسعار العراق لمدة 30 يوماً للرقم ${phone}.`;
+    subscriptionStatusBox.hidden = false;
+    subscriptionStatusBox.textContent = 'جاري تحويلك إلى صفحة الدفع الآمنة لدى كي كارد...';
+    try {
+      const res = await fetch('/api/payments/qicard/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await res.json().catch(() => ({}));
+      const target = safeHttpUrl(data.formUrl);
+      if (!res.ok || !target) throw new Error('create failed');
+      // صفحة الدفع مستضافة لدى كي كارد: بيانات البطاقة لا تمر بموقعنا
+      window.location.assign(target);
+    } catch {
+      subscriptionStatusBox.textContent = 'تعذر بدء عملية الدفع حالياً، ولم يُخصم أي مبلغ. حاول بعد قليل.';
+    }
   });
+
+  // عودة المشترك من صفحة كي كارد: الخادم يسأل البوابة مباشرة عن حالة الدفع
+  async function handlePaymentReturn() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') !== 'return') return;
+    const returnedPaymentId = /^[0-9a-f-]{36}$/i.test(params.get('paymentId') || '') ? params.get('paymentId') : '';
+    history.replaceState(null, '', window.location.pathname);
+    const banner = document.getElementById('searchStatusBanner');
+    banner.hidden = false;
+    banner.textContent = 'جاري التحقق من عملية الدفع لدى كي كارد...';
+    try {
+      const res = await fetch(`/api/payments/qicard/confirm${returnedPaymentId ? `?paymentId=${encodeURIComponent(returnedPaymentId)}` : ''}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data.user) applyAccount(data);
+      if (data.paymentStatus === 'SUCCESS' || data.subscription?.active) {
+        banner.textContent = `✔ تم الدفع وتفعيل عضويتك حتى ${formatDate(data.subscription.expiresAt)}. شكراً لك!`;
+      } else if (['FAILED', 'AUTHENTICATION_FAILED', 'CANCELED'].includes(data.paymentStatus)) {
+        banner.textContent = 'لم تكتمل عملية الدفع، ولم تُفعَّل العضوية. يمكنك المحاولة مجدداً.';
+      } else {
+        banner.textContent = 'لم يصل تأكيد الدفع بعد. إذا خُصم المبلغ ستُفعَّل عضويتك تلقائياً خلال دقائق.';
+      }
+    } catch {
+      banner.textContent = 'تعذر التحقق من الدفع الآن. إذا خُصم المبلغ ستُفعَّل عضويتك تلقائياً عند وصول تأكيد كي كارد.';
+    }
+  }
 
   // نقر البطاقات عبر التفويض بدل onclick المضمّن، كي لا تُحقن أسماء المتاجر داخل شيفرة JavaScript
   document.getElementById('resultsGrid').addEventListener('click', (e) => {
@@ -1831,6 +1917,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function applyFeatureFlags() {
     // الاشتراك المدفوع لا يعمل فعلياً (لا بوابة دفع ولا تحقق من الدفع): يُخفى زره في الإنتاج
     subBtn.hidden = !state.config.paymentsEnabled;
+    // تسجيل الدخول بغوغل يظهر فقط عند ضبط معرّف التطبيق في الخادم
+    openLoginBtn.hidden = !state.config.loginEnabled;
     // لا يوجد مرسل فعلي لرسائل واتساب/تليغرام: تُخفى مداخل رادار التنبيهات
     const alertsOn = Boolean(state.config.alertsDeliveryEnabled);
     document.getElementById('openRadarBtn').hidden = !alertsOn;
@@ -1867,9 +1955,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch {}
 
-    if (state.config.paymentsEnabled) {
-      const savedVipPhone = localStorage.getItem('dalal_vip_phone');
-      if (savedVipPhone) verifySubscriptionFromServer(savedVipPhone, false);
+    if (state.config.loginEnabled) {
+      await refreshAccount();
+      if (state.config.paymentsEnabled) await handlePaymentReturn();
     }
     if (state.config.alertsDeliveryEnabled) loadPriceAlerts();
     renderApp();
