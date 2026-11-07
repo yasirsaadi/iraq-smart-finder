@@ -1,0 +1,10 @@
+/* صفحات السياسات: تستخدم ألوان الموقع وخطه نفسه */
+.legal-page { max-width: 860px; margin: 0 auto; padding: 32px 18px 48px; line-height: 1.95; color: var(--text-body, #1f2937); }
+.legal-page h1 { font-size: 1.6rem; margin-bottom: 4px; color: var(--text-main, #111827); }
+.legal-page h2 { font-size: 1.12rem; margin: 26px 0 6px; color: var(--brand-primary, #1e3a8a); }
+.legal-page p, .legal-page li { font-size: 0.97rem; }
+.legal-page ul { padding-inline-start: 22px; margin: 6px 0; }
+.legal-meta { color: var(--text-muted, #6b7280); font-size: 0.85rem; margin-bottom: 18px; }
+.legal-back { display: inline-block; margin-bottom: 18px; color: var(--brand-primary, #1e3a8a); font-weight: 600; text-decoration: none; }
+.legal-card { background: var(--bg-surface, #fff); border: 1px solid var(--border-light, #e5e7eb); border-radius: 12px; padding: 22px 24px; }
+body.legal-body { padding-top: 0 !important; margin-top: 0 !important; }

@@ -125,3 +125,14 @@ test('تسجيل الدخول بغوغل مفعل افتراضياً بمعرّ�
   assert.match(cfg.googleClientId, /^249349705532-.+\.apps\.googleusercontent\.com$/);
   assert.equal(cfg.paymentsEnabled, false, 'الدفع يبقى معطلاً دون إعدادات كي كارد');
 });
+
+test('صفحتا الخصوصية والشروط حقيقيتان ومرتبطتان من الصفحة الرئيسية', async () => {
+  const privacy = await (await get(PROD, '/privacy')).text();
+  assert.match(privacy, /<title>سياسة الخصوصية/);
+  assert.match(privacy, /كي كارد/);
+  const terms = await (await get(PROD, '/terms')).text();
+  assert.match(terms, /<title>شروط الاستخدام/);
+  const home = await (await get(PROD, '/')).text();
+  assert.match(home, /href="\/privacy"/);
+  assert.match(home, /href="\/terms"/);
+});
