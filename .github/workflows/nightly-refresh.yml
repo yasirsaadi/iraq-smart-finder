@@ -43,3 +43,21 @@ jobs:
             if [ "$done_flag" != "false" ] || [ -z "$next" ]; then break; fi
             offset=$next
           done
+
+      - name: Check price alerts and subscription reminders
+        if: always()
+        run: |
+          if [ -z "$REFRESH_TOKEN" ]; then
+            echo "REFRESH_TOKEN secret is not set; skipping."
+            exit 0
+          fi
+          first=1
+          for i in $(seq 1 100); do
+            body=$(curl -s -m 600 --retry 2 --retry-delay 15 -X POST \
+              -H "Authorization: Bearer $REFRESH_TOKEN" \
+              "$SITE_URL/api/admin/check-alerts?first=$first")
+            echo "$body"
+            first=0
+            done_flag=$(echo "$body" | jq -r '.done | tostring' 2>/dev/null || echo "error")
+            if [ "$done_flag" != "false" ]; then break; fi
+          done

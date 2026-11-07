@@ -19,7 +19,7 @@ const SKIP = chromium ? false : 'playwright غير مثبت';
 const SHOTS = process.env.E2E_SCREENSHOT_DIR || '';
 
 function startServer(port, extraEnv = {}) {
-  const env = { ...process.env, PORT: String(port), DATABASE_URL: '', DEMO_MODE: '', PAYMENTS_ENABLED: '', ALERTS_DELIVERY_ENABLED: '', ...extraEnv };
+  const env = { ...process.env, PORT: String(port), DATABASE_URL: '', DEMO_MODE: '', PAYMENTS_ENABLED: '', ALERTS_DELIVERY_ENABLED: '', GOOGLE_CLIENT_ID: 'disabled', ...extraEnv };
   const child = spawn(process.execPath, ['server.js'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('server did not start')), 8000);

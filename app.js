@@ -915,34 +915,29 @@ function renderApp() {
     .join('');
 }
 
-function getStoredAlertPhone() {
-  try {
-    return safeIraqiMobile(localStorage.getItem('dalal_alert_phone'));
-  } catch {
-    return null;
-  }
-}
+// ===== رادار الأسعار والإشعارات (مرتبطة بحساب غوغل) =====
+
+const SECTION_LABELS = { all: 'جميع الأقسام', products: 'السلع', cars: 'السيارات', realestate: 'العقارات' };
 
 async function loadPriceAlerts() {
-  const phone = getStoredAlertPhone();
-  if (!phone) {
-    state.alerts = [];
-    document.getElementById('radarCountBadge').textContent = 0;
-    renderAlertsList();
-    return;
-  }
   try {
-    const res = await fetch(`/api/alerts?phone=${encodeURIComponent(phone)}`);
+    const res = await fetch('/api/alerts', { cache: 'no-store' });
     const data = await res.json();
     state.alerts = data.alerts || [];
-    document.getElementById('radarCountBadge').textContent = state.alerts.length;
-    renderAlertsList();
-  } catch {}
+    state.alertLimit = data.limit || null;
+  } catch {
+    state.alerts = [];
+  }
+  renderAlertsList();
 }
 
 function renderAlertsList() {
   const box = document.getElementById('activeAlertsList');
   if (!box) return;
+  if (!state.user) {
+    box.innerHTML = '<div class="alert-row">سجّل الدخول بحساب غوغل لإنشاء تنبيهات الأسعار ومتابعتها على كل أجهزتك.</div>';
+    return;
+  }
   if (state.alerts.length === 0) {
     box.innerHTML = '<div class="alert-row">لا توجد تنبيهات نشطة حالياً. أضف سلعة أو سيارة أو عقار ليراقبه الرادار لك!</div>';
     return;
@@ -952,22 +947,134 @@ function renderAlertsList() {
       (a) => `
       <div class="alert-row">
         <div>
-          <strong>${esc(a.keyword)}</strong> — السعر المطلوب: <span style="color:var(--brand-primary); font-weight:700;">${formatIQD(Number(a.targetPriceIQD))}</span>
-          <div style="font-size:0.73rem; color:var(--text-muted);">المحافظة: ${esc(IRAQ_GOVERNORATES[a.governorate]?.name || a.governorate)} • التنبيه عبر: ${a.contactChannel === 'whatsapp' ? 'واتساب' : 'تليغرام'} (${esc(a.contactPhone)})</div>
+          <strong>${esc(a.keyword)}</strong> — السعر المستهدف: <span style="color:var(--brand-primary); font-weight:700;">${formatIQD(Number(a.targetPriceIQD))}</span>
+          <div style="font-size:0.73rem; color:var(--text-muted);">المحافظة: ${esc(IRAQ_GOVERNORATES[a.governorate]?.name || a.governorate)} • ${esc(SECTION_LABELS[a.section] || SECTION_LABELS.all)} • يُفحص يومياً</div>
         </div>
-        <button type="button" class="btn-secondary" style="padding:3px 8px; font-size:0.74rem;" onclick="window.deleteAlert(${Number(a.id) || 0})">حذف</button>
+        <button type="button" class="btn-secondary" style="padding:3px 8px; font-size:0.74rem;" data-delete-alert="${Number(a.id) || 0}">حذف</button>
       </div>
     `
     )
     .join('');
 }
 
-window.deleteAlert = async function (id) {
-  const phone = getStoredAlertPhone();
-  if (!phone) return;
-  await fetch(`/api/alerts/${Number(id)}?phone=${encodeURIComponent(phone)}`, { method: 'DELETE' }).catch(() => {});
+async function deleteAlert(id) {
+  await fetch(`/api/alerts/${Number(id)}`, { method: 'DELETE' }).catch(() => {});
   await loadPriceAlerts();
-};
+}
+window.deleteAlert = deleteAlert;
+
+function timeAgo(iso) {
+  const mins = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
+  if (!Number.isFinite(mins)) return '';
+  if (mins < 60) return `منذ ${mins} دقيقة`;
+  const h = Math.round(mins / 60);
+  return h < 24 ? `منذ ${h} ساعة` : `منذ ${Math.round(h / 24)} يوم`;
+}
+
+async function loadNotifications({ markRead = false } = {}) {
+  if (!state.user) {
+    document.getElementById('radarCountBadge').textContent = 0;
+    return;
+  }
+  try {
+    const res = await fetch('/api/notifications', { cache: 'no-store' });
+    const data = await res.json();
+    state.notifications = data.items || [];
+    document.getElementById('radarCountBadge').textContent = markRead ? 0 : data.unread || 0;
+    if (markRead && data.unread) fetch('/api/notifications/read', { method: 'POST' }).catch(() => {});
+  } catch {
+    state.notifications = [];
+  }
+  const box = document.getElementById('notificationsList');
+  if (!box) return;
+  if (!state.notifications.length) {
+    box.innerHTML = '<div class="alert-row">لا توجد إشعارات بعد. ستظهر هنا تنبيهات نزول الأسعار وتأكيدات الاشتراك.</div>';
+    return;
+  }
+  box.innerHTML = state.notifications
+    .slice(0, 10)
+    .map(
+      (n) => `
+      <a class="alert-row" href="${esc(n.url && n.url.startsWith('/') ? n.url : '/')}" style="text-decoration:none; color:inherit; ${n.readAt ? '' : 'font-weight:600;'}">
+        <div>
+          <strong>${esc(n.title)}</strong>
+          <div style="color:var(--text-body); margin-top:2px;">${esc(n.body)}</div>
+        </div>
+        <span style="font-size:0.72rem; color:var(--text-muted); white-space:nowrap;">${esc(timeAgo(n.createdAt))}</span>
+      </a>`
+    )
+    .join('');
+}
+
+function urlBase64ToUint8Array(base64) {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function refreshPushStatus() {
+  const text = document.getElementById('pushStatusText');
+  const btn = document.getElementById('enablePushBtn');
+  if (!text || !btn) return;
+  if (!pushSupported()) {
+    const ios = /iphone|ipad/i.test(navigator.userAgent);
+    text.textContent = ios
+      ? 'على الآيفون: أضف الموقع إلى الشاشة الرئيسية من زر المشاركة، ثم افتحه منها لتفعيل الإشعارات. التنبيهات تظهر داخل الموقع في كل الأحوال.'
+      : 'متصفحك لا يدعم إشعارات المتصفح. التنبيهات تظهر داخل الموقع.';
+    btn.hidden = true;
+    return;
+  }
+  const reg = await navigator.serviceWorker.getRegistration('/');
+  const sub = reg ? await reg.pushManager.getSubscription() : null;
+  if (Notification.permission === 'denied') {
+    text.textContent = 'إشعارات المتصفح محظورة لهذا الموقع. يمكنك السماح بها من إعدادات المتصفح. التنبيهات تظهر داخل الموقع.';
+    btn.hidden = true;
+  } else if (sub) {
+    text.textContent = '✔ إشعارات المتصفح مفعلة على هذا الجهاز.';
+    btn.textContent = 'إيقافها';
+    btn.dataset.mode = 'off';
+    btn.hidden = false;
+  } else {
+    text.textContent = 'إشعارات المتصفح تصلك حتى والموقع مغلق.';
+    btn.textContent = 'تفعيل إشعارات المتصفح';
+    btn.dataset.mode = 'on';
+    btn.hidden = false;
+  }
+}
+
+async function togglePush() {
+  const btn = document.getElementById('enablePushBtn');
+  const text = document.getElementById('pushStatusText');
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    await navigator.serviceWorker.ready;
+    if (btn.dataset.mode === 'off') {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch('/api/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {});
+        await sub.unsubscribe();
+      }
+    } else {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        await refreshPushStatus();
+        return;
+      }
+      const { publicKey } = await (await fetch('/api/push/public-key')).json();
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+      const res = await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON() }) });
+      if (!res.ok) throw new Error('subscribe failed');
+    }
+  } catch {
+    text.textContent = 'تعذر تفعيل إشعارات المتصفح الآن. التنبيهات تظهر داخل الموقع في كل الأحوال.';
+    return;
+  }
+  await refreshPushStatus();
+}
 
 function detectUserGovernorateByGPS() {
   const statusBanner = document.getElementById('searchStatusBanner');
@@ -1576,30 +1683,35 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(() => {});
   });
 
-  // نافذة رادار التنبيهات
+  // نافذة رادار التنبيهات (تتطلب تسجيل الدخول بغوغل)
   const radarModal = document.getElementById('radarModal');
-  document.getElementById('openRadarBtn').addEventListener('click', () => {
-    if (state.query) {
-      document.getElementById('radarKeywordInput').value = state.query;
+  function openRadarModal() {
+    if (state.query) document.getElementById('radarKeywordInput').value = state.query;
+    const sec = document.getElementById('radarSectionSelect');
+    if (sec && state.selectedSection) sec.value = state.selectedSection;
+    if (!state.user) {
+      openLoginModal(() => openRadarModal());
+      return;
     }
     radarModal.showModal();
     loadPriceAlerts();
-  });
-  document.getElementById('createAlertFromMeterBtn').addEventListener('click', () => {
-    if (state.query) {
-      document.getElementById('radarKeywordInput').value = state.query;
-    }
-    radarModal.showModal();
-    loadPriceAlerts();
-  });
+    loadNotifications({ markRead: true });
+    refreshPushStatus();
+  }
+  document.getElementById('openRadarBtn').addEventListener('click', openRadarModal);
+  document.getElementById('createAlertFromMeterBtn').addEventListener('click', openRadarModal);
   document.getElementById('closeRadarBtn').addEventListener('click', () => radarModal.close());
+  document.getElementById('enablePushBtn').addEventListener('click', togglePush);
+  document.getElementById('activeAlertsList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-delete-alert]');
+    if (btn) deleteAlert(btn.dataset.deleteAlert);
+  });
 
   document.getElementById('radarForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const keyword = document.getElementById('radarKeywordInput').value.trim();
     const targetPriceIQD = Number(document.getElementById('radarTargetPriceInput').value);
-    const contactPhone = document.getElementById('radarPhoneInput').value.trim();
-    const contactChannel = document.getElementById('radarChannelSelect').value;
+    const section = document.getElementById('radarSectionSelect').value;
     const listBox = document.getElementById('activeAlertsList');
 
     let result = { ok: false, data: {} };
@@ -1607,31 +1719,28 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keyword,
-          targetPriceIQD,
-          governorate: state.selectedGov,
-          contactPhone,
-          contactChannel
-        })
+        body: JSON.stringify({ keyword, targetPriceIQD, governorate: state.selectedGov, section })
       });
       result = { ok: res.ok, data: await res.json().catch(() => ({})) };
     } catch {}
 
     if (!result.ok || !result.data.saved) {
+      const err = result.data.error;
       listBox.innerHTML =
-        result.data.error === 'alerts_delivery_disabled'
-          ? '<div class="alert-row">خدمة إرسال التنبيهات غير مفعلة حالياً، لذلك لم يُحفظ التنبيه.</div>'
-          : '<div class="alert-row">تعذر حفظ التنبيه. تأكد من رقم الهاتف (07XXXXXXXXX) والسعر المستهدف.</div>';
+        err === 'alert_limit_reached'
+          ? `<div class="alert-row">وصلت إلى الحد الأقصى للتنبيهات النشطة (${Number(result.data.limit) || ''}). احذف تنبيهاً قديماً لإضافة جديد.</div>`
+          : err === 'login_required'
+            ? '<div class="alert-row">سجّل الدخول أولاً لحفظ التنبيه.</div>'
+            : err === 'alerts_delivery_disabled'
+              ? '<div class="alert-row">خدمة التنبيهات غير مفعلة حالياً، لذلك لم يُحفظ التنبيه.</div>'
+              : '<div class="alert-row">تعذر حفظ التنبيه. تأكد من اسم السلعة والسعر المستهدف.</div>';
       return;
     }
 
-    try {
-      localStorage.setItem('dalal_alert_phone', safeIraqiMobile(contactPhone) || '');
-    } catch {}
     document.getElementById('radarKeywordInput').value = '';
     document.getElementById('radarTargetPriceInput').value = '';
     await loadPriceAlerts();
+    await loadNotifications({ markRead: true });
   });
 
   // نافذة البحث بصورة الإعلان
@@ -1958,8 +2067,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.config.loginEnabled) {
       await refreshAccount();
       if (state.config.paymentsEnabled) await handlePaymentReturn();
+      if (state.user && state.config.alertsDeliveryEnabled) loadNotifications();
     }
-    if (state.config.alertsDeliveryEnabled) loadPriceAlerts();
+
+    // روابط الإشعارات: ?q=...&section=... تفتح البحث مباشرة
+    const deep = new URLSearchParams(window.location.search);
+    const deepQuery = (deep.get('q') || '').trim().slice(0, 120);
+    if (deepQuery) {
+      const deepSection = ['all', 'products', 'cars', 'realestate'].includes(deep.get('section')) ? deep.get('section') : 'all';
+      history.replaceState(null, '', window.location.pathname);
+      state.selectedSection = deepSection;
+      document.querySelectorAll('.vertical-tab').forEach((t) => t.classList.toggle('active', t.getAttribute('data-section') === deepSection));
+      searchInput.value = deepQuery;
+      clearQueryBtn.hidden = false;
+      state.query = deepQuery;
+      performLiveSearch(deepQuery);
+    }
     renderApp();
   }
 

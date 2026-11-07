@@ -20,8 +20,9 @@ services:
         value: "false"
       - key: PAYMENTS_ENABLED
         value: "false"
+      # رادار التنبيهات يعمل مع تسجيل الدخول بغوغل؛ ضع "false" لإيقافه
       - key: ALERTS_DELIVERY_ENABLED
-        value: "false"
+        value: "true"
       # مفتاح سيربر يُدخل يدوياً من لوحة رندر ولا يُحفظ في المستودع
       - key: SERPER_API_KEY
         sync: false

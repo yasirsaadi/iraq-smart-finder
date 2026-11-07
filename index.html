@@ -746,7 +746,7 @@
     <div class="modal-top">
       <div>
         <h2>رادار صيد اللقطات وتنبيهات هبوط الأسعار (سلع • سيارات • عقارات)</h2>
-        <p>حدد السلعة أو السيارة أو العقار والسعر الذي يناسبك، وسيقوم الرادار بمراقبة السوق وتنبيهك فوراً عبر واتساب أو تليغرام.</p>
+        <p>حدد السلعة أو السيارة أو العقار والسعر الذي يناسبك، ويراقب الرادار السوق يومياً وينبهك داخل الموقع وعبر إشعارات المتصفح عند ظهور عرض ضمن سعرك.</p>
       </div>
       <button type="button" class="modal-close" id="closeRadarBtn" aria-label="إغلاق">✕</button>
     </div>
@@ -765,16 +765,25 @@
 
       <div class="modal-grid-2">
         <div class="field-block">
-          <label for="radarPhoneInput">رقم الهاتف لاستلام التنبيه (واتساب / تليغرام)</label>
-          <input type="text" inputmode="numeric" data-numeric-only="true" id="radarPhoneInput" placeholder="07701234567" required />
-        </div>
-        <div class="field-block">
-          <label for="radarChannelSelect">طريقة التنبيه المفضلة</label>
-          <select id="radarChannelSelect">
-            <option value="whatsapp">رسالة واتساب فورية</option>
-            <option value="telegram">إشعار تليغرام</option>
+          <label for="radarSectionSelect">القسم</label>
+          <select id="radarSectionSelect">
+            <option value="all">جميع الأقسام</option>
+            <option value="products">السلع والأجهزة</option>
+            <option value="cars">السيارات</option>
+            <option value="realestate">العقارات</option>
           </select>
         </div>
+        <div class="field-block">
+          <label for="radarChannelSelect">طريقة التنبيه</label>
+          <select id="radarChannelSelect">
+            <option value="site">داخل الموقع + إشعارات المتصفح</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="extraction-summary" id="pushStatusBox">
+        <span id="pushStatusText">إشعارات المتصفح تصلك حتى والموقع مغلق.</span>
+        <button type="button" class="btn-secondary" id="enablePushBtn" style="margin-inline-start:8px; padding:3px 10px; font-size:0.78rem;">تفعيل إشعارات المتصفح</button>
       </div>
 
       <div class="modal-actions">
@@ -782,7 +791,12 @@
       </div>
 
       <div class="radar-list-section">
-        <h3 class="sub-heading">التنبيهات النشطة حالياً في قاعدة البيانات:</h3>
+        <h3 class="sub-heading">آخر الإشعارات:</h3>
+        <div id="notificationsList" class="alerts-list-box"></div>
+      </div>
+
+      <div class="radar-list-section">
+        <h3 class="sub-heading">تنبيهاتك النشطة:</h3>
         <div id="activeAlertsList" class="alerts-list-box"></div>
       </div>
     </form>
