@@ -37,8 +37,9 @@ jobs:
               -H "Authorization: Bearer $REFRESH_TOKEN" \
               "$SITE_URL/api/admin/refresh-popular?offset=$offset&limit=5")
             echo "$body"
-            done_flag=$(echo "$body" | jq -r '.done // "true"')
-            next=$(echo "$body" | jq -r '.nextOffset // empty')
-            if [ "$done_flag" = "true" ] || [ -z "$next" ]; then break; fi
+            # ملاحظة: معامل // في jq يعامل false كقيمة فارغة، لذا نقرأ القيمة نصاً ونكمل فقط عند "false" صراحة
+            done_flag=$(echo "$body" | jq -r '.done | tostring' 2>/dev/null || echo "error")
+            next=$(echo "$body" | jq -r '.nextOffset // empty' 2>/dev/null || true)
+            if [ "$done_flag" != "false" ] || [ -z "$next" ]; then break; fi
             offset=$next
           done
