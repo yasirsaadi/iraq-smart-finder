@@ -8,7 +8,8 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function startServer(port, extraEnv = {}) {
-  const env = { ...process.env, PORT: String(port), DATABASE_URL: '', DEMO_MODE: '', PAYMENTS_ENABLED: '', ALERTS_DELIVERY_ENABLED: '', ...extraEnv };
+  const env = { ...process.env, PORT: String(port), DATABASE_URL: '', DEMO_MODE: '', PAYMENTS_ENABLED: '', ALERTS_DELIVERY_ENABLED: '', GOOGLE_CLIENT_ID: 'disabled', ...extraEnv };
+  for (const k of Object.keys(env)) if (env[k] === undefined) delete env[k];
   const child = spawn(process.execPath, ['server.js'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('server did not start')), 8000);
@@ -29,7 +30,7 @@ let demo;
 
 before(async () => {
   prod = await startServer(PROD);
-  demo = await startServer(DEMO, { DEMO_MODE: 'true' });
+  demo = await startServer(DEMO, { DEMO_MODE: 'true', GOOGLE_CLIENT_ID: undefined });
 });
 after(() => {
   prod?.kill();
@@ -116,4 +117,11 @@ test('الحساب والدفع: معطلان بأمان دون إعداد، و�
   const cfg = await (await get(PROD, '/api/config')).json();
   assert.equal(cfg.loginEnabled, false);
   assert.equal(cfg.paymentsEnabled, false);
+});
+
+test('تسجيل الدخول بغوغل مفعل افتراضياً بمعرّف التطبيق العام', async () => {
+  const cfg = await (await get(DEMO, '/api/config')).json();
+  assert.equal(cfg.loginEnabled, true);
+  assert.match(cfg.googleClientId, /^249349705532-.+\.apps\.googleusercontent\.com$/);
+  assert.equal(cfg.paymentsEnabled, false, 'الدفع يبقى معطلاً دون إعدادات كي كارد');
 });

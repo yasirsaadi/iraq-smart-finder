@@ -29,7 +29,14 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 // مفاتيح التشغيل: كل ميزة غير مكتملة معطلة افتراضياً في الإنتاج ولا تُفعَّل إلا صراحةً.
-const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+// معرّف تطبيق غوغل لتسجيل الدخول: معرّف عام يظهر لكل زائر في الصفحة وليس سراً، لذا له قيمة افتراضية هنا.
+// يمكن تجاوزه بمتغير البيئة GOOGLE_CLIENT_ID، أو تعطيل الدخول بضبطه على القيمة disabled.
+const DEFAULT_GOOGLE_CLIENT_ID = '249349705532-ak2i17g7g579b6huvk8s1vjsuok58786.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = (() => {
+  const raw = String(process.env.GOOGLE_CLIENT_ID ?? DEFAULT_GOOGLE_CLIENT_ID).trim();
+  if (raw === 'disabled') return '';
+  return /^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(raw) ? raw : '';
+})();
 const QICARD = readQiCardConfig();
 const PUBLIC_SITE_URL = String(process.env.PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
 const SUBSCRIPTION_PRICE_IQD = Number.parseInt(process.env.SUBSCRIPTION_PRICE_IQD, 10) > 0 ? Number.parseInt(process.env.SUBSCRIPTION_PRICE_IQD, 10) : 1000;
