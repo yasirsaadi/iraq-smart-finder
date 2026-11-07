@@ -950,7 +950,10 @@ function renderAlertsList() {
           <strong>${esc(a.keyword)}</strong> — السعر المستهدف: <span style="color:var(--brand-primary); font-weight:700;">${formatIQD(Number(a.targetPriceIQD))}</span>
           <div style="font-size:0.73rem; color:var(--text-muted);">المحافظة: ${esc(IRAQ_GOVERNORATES[a.governorate]?.name || a.governorate)} • ${esc(SECTION_LABELS[a.section] || SECTION_LABELS.all)} • يُفحص يومياً</div>
         </div>
-        <button type="button" class="btn-secondary" style="padding:3px 8px; font-size:0.74rem;" data-delete-alert="${Number(a.id) || 0}">حذف</button>
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+          <button type="button" class="btn-secondary" style="padding:3px 8px; font-size:0.74rem;" data-edit-alert="${Number(a.id) || 0}">تعديل</button>
+          <button type="button" class="btn-secondary" style="padding:3px 8px; font-size:0.74rem;" data-delete-alert="${Number(a.id) || 0}">حذف</button>
+        </div>
       </div>
     `
     )
@@ -1023,8 +1026,8 @@ async function refreshPushStatus() {
   if (!pushSupported()) {
     const ios = /iphone|ipad/i.test(navigator.userAgent);
     text.textContent = ios
-      ? 'على الآيفون: أضف الموقع إلى الشاشة الرئيسية من زر المشاركة، ثم افتحه منها لتفعيل الإشعارات. التنبيهات تظهر داخل الموقع في كل الأحوال.'
-      : 'متصفحك لا يدعم إشعارات المتصفح. التنبيهات تظهر داخل الموقع.';
+      ? 'على الآيفون: اضغط زر المشاركة ثم "إضافة إلى الشاشة الرئيسية"، وافتح الموقع من الأيقونة لتفعيل الإشعارات. التنبيهات تظهر داخل الموقع في كل الأحوال.'
+      : 'متصفحك لا يدعم الإشعارات الفورية. التنبيهات تظهر داخل الموقع في قائمة "آخر الإشعارات".';
     btn.hidden = true;
     return;
   }
@@ -1034,13 +1037,13 @@ async function refreshPushStatus() {
     text.textContent = 'إشعارات المتصفح محظورة لهذا الموقع. يمكنك السماح بها من إعدادات المتصفح. التنبيهات تظهر داخل الموقع.';
     btn.hidden = true;
   } else if (sub) {
-    text.textContent = '✔ إشعارات المتصفح مفعلة على هذا الجهاز.';
-    btn.textContent = 'إيقافها';
+    text.textContent = '✔ الإشعارات الفورية مفعلة على هذا الجهاز، وستصلك تنبيهات الأسعار حتى والموقع مغلق.';
+    btn.textContent = 'إيقاف الإشعارات';
     btn.dataset.mode = 'off';
     btn.hidden = false;
   } else {
-    text.textContent = 'إشعارات المتصفح تصلك حتى والموقع مغلق.';
-    btn.textContent = 'تفعيل إشعارات المتصفح';
+    text.textContent = 'فعّلها لتصلك تنبيهات نزول الأسعار فور ظهورها، حتى والموقع مغلق.';
+    btn.textContent = 'تفعيل الإشعارات';
     btn.dataset.mode = 'on';
     btn.hidden = false;
   }
@@ -1112,6 +1115,67 @@ function detectUserGovernorateByGPS() {
   );
 }
 
+// ===== حقول المبالغ: فواصل الآلاف تلقائياً لتجنب صفر زائد أو ناقص =====
+
+/** يقرأ قيمة حقل مبلغ كرقم (يتجاهل الفواصل وأي رمز غير رقمي). */
+function readMoney(el) {
+  const digits = normalizeDigits(String(el?.value || '')).replace(/[^\d]/g, '');
+  return digits ? Number(digits) : 0;
+}
+
+function groupThousands(digits) {
+  return digits.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/** يضع مبلغاً في حقل منسقاً بالفواصل، ويحدّث سطر القراءة تحته. */
+function setMoney(el, value) {
+  if (!el) return;
+  el.value = value ? groupThousands(String(Math.round(Number(value)))) : '';
+  updateMoneyHint(el);
+}
+
+/** سطر صغير تحت حقول المبالغ في النماذج يقرأ المبلغ بالكلمات (مليون، دفتر وورقة). */
+function updateMoneyHint(el) {
+  const block = el.closest('.field-block');
+  if (!block) return;
+  let hint = block.querySelector('.money-hint');
+  if (!hint) {
+    hint = document.createElement('span');
+    hint.className = 'money-hint';
+    hint.style.cssText = 'font-size:0.76rem; color:var(--text-muted); min-height:1em;';
+    block.appendChild(hint);
+  }
+  const n = readMoney(el);
+  if (!n) {
+    hint.textContent = '';
+    return;
+  }
+  const usd = convertIQDtoUSD(n);
+  hint.textContent = `= ${formatIQD(n)}${usd ? ` • ${usd}` : ''}`;
+}
+
+/** تنسيق أثناء الكتابة مع إبقاء المؤشر في مكانه الصحيح بالنسبة للأرقام. */
+function formatMoneyInput(el) {
+  const raw = normalizeDigits(el.value);
+  const caret = typeof el.selectionStart === 'number' ? el.selectionStart : raw.length;
+  const digitsBeforeCaret = raw.slice(0, caret).replace(/[^\d]/g, '').length;
+  const digits = raw.replace(/[^\d]/g, '').slice(0, 15);
+  const formatted = digits ? groupThousands(digits) : '';
+  if (formatted !== el.value) {
+    el.value = formatted;
+    let pos = 0;
+    let seen = 0;
+    while (pos < formatted.length && seen < digitsBeforeCaret) {
+      if (/\d/.test(formatted[pos])) seen += 1;
+      pos += 1;
+    }
+    try {
+      el.setSelectionRange(pos, pos);
+    } catch {}
+  }
+  updateMoneyHint(el);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // التحويل الفوري لأي أرقام عربية إلى إنجليزية في جميع الحقول
   document.addEventListener(
@@ -1120,6 +1184,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const target = e.target;
       if (!target || (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA')) return;
       if (typeof target.value !== 'string') return;
+
+      if (target.dataset && target.dataset.money === 'true') {
+        formatMoneyInput(target);
+        return;
+      }
 
       const original = target.value;
       let converted = normalizeDigits(original);
@@ -1388,7 +1457,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.query = searchInput.value.trim();
     state.adComparisonPrice = null;
     state.selectedGov = govSelect.value;
-    state.maxBudget = maxBudgetInput.value ? Number(maxBudgetInput.value) : null;
+    state.maxBudget = readMoney(maxBudgetInput) || null;
 
     // تسجيل البحث يتم في الخادم مع كل عملية بحث (بما فيها أزرار الأقسام) لقائمة الأكثر طلباً
 
@@ -1433,7 +1502,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   maxBudgetInput.addEventListener('input', () => {
-    state.maxBudget = maxBudgetInput.value ? Number(maxBudgetInput.value) : null;
+    state.maxBudget = readMoney(maxBudgetInput) || null;
     renderApp();
   });
 
@@ -1448,7 +1517,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   exchangeRateInput.addEventListener('input', () => {
-    const val = Number(exchangeRateInput.value);
+    const val = readMoney(exchangeRateInput);
     if (val >= 100000 && val <= 300000) {
       state.exchangeRate100USD = val;
       renderApp();
@@ -1607,8 +1676,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const platform = document.getElementById('postPlatformSelect').value;
     const storeName = document.getElementById('postStoreName').value.trim();
     const rawText = postRawText.value.trim();
-    const deliveryLocalIQD = section === 'products' ? Number(document.getElementById('postDeliveryLocal').value || 4000) : 0;
-    const deliveryNationalIQD = section === 'products' ? Number(document.getElementById('postDeliveryNational').value || 7000) : 0;
+    const deliveryLocalIQD = section === 'products' ? readMoney(document.getElementById('postDeliveryLocal')) || 4000 : 0;
+    const deliveryNationalIQD = section === 'products' ? readMoney(document.getElementById('postDeliveryNational')) || 7000 : 0;
     const allowsInspection = document.getElementById('postAllowsInspection').checked;
     const parsed = parseIraqiPostText(rawText);
 
@@ -1685,10 +1754,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // نافذة رادار التنبيهات (تتطلب تسجيل الدخول بغوغل)
   const radarModal = document.getElementById('radarModal');
+  const radarGovSelect = document.getElementById('radarGovSelect');
+  radarGovSelect.innerHTML = Object.entries(IRAQ_GOVERNORATES)
+    .map(([key, g]) => `<option value="${esc(key)}">${esc(g.name)}</option>`)
+    .join('');
+  const radarSubmitBtn = document.getElementById('radarSubmitBtn');
+  const cancelAlertEditBtn = document.getElementById('cancelAlertEditBtn');
+  let editingAlertId = null;
+
+  function setAlertEditMode(alert) {
+    editingAlertId = alert ? Number(alert.id) : null;
+    radarSubmitBtn.textContent = alert ? 'حفظ التعديل' : 'تفعيل رادار المراقبة الآن';
+    cancelAlertEditBtn.hidden = !alert;
+    if (alert) {
+      document.getElementById('radarKeywordInput').value = alert.keyword;
+      setMoney(document.getElementById('radarTargetPriceInput'), alert.targetPriceIQD);
+      document.getElementById('radarSectionSelect').value = alert.section || 'all';
+      radarGovSelect.value = IRAQ_GOVERNORATES[alert.governorate] ? alert.governorate : state.selectedGov;
+      document.getElementById('radarKeywordInput').focus();
+    } else {
+      document.getElementById('radarKeywordInput').value = '';
+      setMoney(document.getElementById('radarTargetPriceInput'), 0);
+      radarGovSelect.value = state.selectedGov;
+    }
+  }
+  cancelAlertEditBtn.addEventListener('click', () => setAlertEditMode(null));
+
   function openRadarModal() {
     if (state.query) document.getElementById('radarKeywordInput').value = state.query;
     const sec = document.getElementById('radarSectionSelect');
     if (sec && state.selectedSection) sec.value = state.selectedSection;
+    if (!editingAlertId) radarGovSelect.value = state.selectedGov;
     if (!state.user) {
       openLoginModal(() => openRadarModal());
       return;
@@ -1703,23 +1799,33 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('closeRadarBtn').addEventListener('click', () => radarModal.close());
   document.getElementById('enablePushBtn').addEventListener('click', togglePush);
   document.getElementById('activeAlertsList').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-delete-alert]');
-    if (btn) deleteAlert(btn.dataset.deleteAlert);
+    const del = e.target.closest('[data-delete-alert]');
+    if (del) {
+      if (Number(del.dataset.deleteAlert) === editingAlertId) setAlertEditMode(null);
+      deleteAlert(del.dataset.deleteAlert);
+      return;
+    }
+    const edit = e.target.closest('[data-edit-alert]');
+    if (edit) {
+      const alert = state.alerts.find((a) => Number(a.id) === Number(edit.dataset.editAlert));
+      if (alert) setAlertEditMode(alert);
+    }
   });
 
   document.getElementById('radarForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const keyword = document.getElementById('radarKeywordInput').value.trim();
-    const targetPriceIQD = Number(document.getElementById('radarTargetPriceInput').value);
+    const targetPriceIQD = readMoney(document.getElementById('radarTargetPriceInput'));
     const section = document.getElementById('radarSectionSelect').value;
+    const governorate = radarGovSelect.value || state.selectedGov;
     const listBox = document.getElementById('activeAlertsList');
 
     let result = { ok: false, data: {} };
     try {
-      const res = await fetch('/api/alerts', {
-        method: 'POST',
+      const res = await fetch(editingAlertId ? `/api/alerts/${editingAlertId}` : '/api/alerts', {
+        method: editingAlertId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword, targetPriceIQD, governorate: state.selectedGov, section })
+        body: JSON.stringify({ keyword, targetPriceIQD, governorate, section })
       });
       result = { ok: res.ok, data: await res.json().catch(() => ({})) };
     } catch {}
@@ -1737,8 +1843,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    document.getElementById('radarKeywordInput').value = '';
-    document.getElementById('radarTargetPriceInput').value = '';
+    setAlertEditMode(null);
     await loadPriceAlerts();
     await loadNotifications({ markRead: true });
   });
@@ -1775,7 +1880,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('imageSearchForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const q = imageExtractedQuery.value.trim();
-    const adPrice = Number(document.getElementById('adSeenPriceInput').value || 0);
+    const adPrice = readMoney(document.getElementById('adSeenPriceInput'));
     if (!q) return;
 
     state.query = q;
@@ -1910,6 +2015,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const next = pendingAfterLogin;
       pendingAfterLogin = null;
       if (next) next();
+      else maybeAskForPush();
     } catch {
       loginStatusBox.textContent = 'تعذر تسجيل الدخول. حاول مرة أخرى.';
     }
@@ -1934,6 +2040,44 @@ document.addEventListener('DOMContentLoaded', () => {
       loginStatusBox.textContent = 'تعذر تحميل زر غوغل. تحقق من اتصالك ثم أعد المحاولة.';
     }
   }
+
+  // ===== سؤال تفعيل الإشعارات بعد تسجيل الدخول (مرة واحدة، ويمكن تأجيله) =====
+  const pushPromptModal = document.getElementById('pushPromptModal');
+  function pushPromptDismissedRecently() {
+    try {
+      const t = Number(localStorage.getItem('radar_push_prompt_later') || 0);
+      return Date.now() - t < 14 * 86400000; // "لاحقاً" تؤجل السؤال أسبوعين
+    } catch {
+      return false;
+    }
+  }
+  async function maybeAskForPush() {
+    if (!state.user || !state.config.alertsDeliveryEnabled || !pushSupported()) return;
+    if (Notification.permission !== 'default' || pushPromptDismissedRecently()) return;
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      if (reg && (await reg.pushManager.getSubscription())) return;
+    } catch {}
+    if (!pushPromptModal.open && !document.querySelector('dialog[open]')) pushPromptModal.showModal();
+  }
+  document.getElementById('pushPromptYesBtn').addEventListener('click', async () => {
+    pushPromptModal.close();
+    document.getElementById('enablePushBtn').dataset.mode = 'on';
+    await togglePush();
+    const banner = document.getElementById('searchStatusBanner');
+    banner.hidden = false;
+    banner.textContent = Notification.permission === 'granted'
+      ? '✔ تم تفعيل الإشعارات الفورية. أضف تنبيه سعر من زر "رادار التنبيهات" لتصلك العروض فوراً.'
+      : 'لم تُفعَّل الإشعارات الفورية. يمكنك تفعيلها لاحقاً من نافذة رادار التنبيهات.';
+  });
+  const postponePushPrompt = () => {
+    try {
+      localStorage.setItem('radar_push_prompt_later', String(Date.now()));
+    } catch {}
+    pushPromptModal.close();
+  };
+  document.getElementById('pushPromptLaterBtn').addEventListener('click', postponePushPrompt);
+  document.getElementById('closePushPromptBtn').addEventListener('click', postponePushPrompt);
 
   openLoginBtn.addEventListener('click', () => openLoginModal());
   document.getElementById('closeLoginBtn').addEventListener('click', () => loginModal.close());
@@ -2067,7 +2211,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.config.loginEnabled) {
       await refreshAccount();
       if (state.config.paymentsEnabled) await handlePaymentReturn();
-      if (state.user && state.config.alertsDeliveryEnabled) loadNotifications();
+      if (state.user && state.config.alertsDeliveryEnabled) {
+        loadNotifications();
+        setTimeout(maybeAskForPush, 1500);
+      }
     }
 
     // روابط الإشعارات: ?q=...&section=... تفتح البحث مباشرة
@@ -2085,6 +2232,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     renderApp();
   }
+
+  document.querySelectorAll('input[data-money="true"]').forEach((el) => {
+    if (el.value) setMoney(el, readMoney(el));
+  });
 
   renderApp();
   bootApp();

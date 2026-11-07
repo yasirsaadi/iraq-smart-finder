@@ -811,19 +811,49 @@ app.post('/api/alerts', async (req, res) => {
       await alertLimitFor(req.user)
     );
     if (result.error) return res.status(400).json({ saved: false, ...result });
-    // فحص فوري مجاني إن كانت نتائج هذا البحث محفوظة
-    const key = liveCacheKey(result.alert.keyword, result.alert.governorate, result.alert.section || 'all');
-    const hit =
-      (await searchStore.getCached(key)) ||
-      ((result.alert.section || 'all') !== 'all' ? await searchStore.getCached(liveCacheKey(result.alert.keyword, result.alert.governorate, 'all')) : null);
-    if (hit) {
-      const own = (await alertStore.forSearch(result.alert.keyword, result.alert.governorate, result.alert.section || 'all')).filter((a) => a.id === result.alert.id);
-      await checkAlertsAgainstPayload(hit.value, {}, own).catch(() => {});
-    }
+    await checkAlertNowFromCache(result.alert);
     res.status(201).json({ saved: true, alert: result.alert });
   } catch (err) {
     console.error('POST /api/alerts failed:', err.message);
     res.status(500).json({ error: 'alert_save_failed' });
+  }
+});
+
+/** فحص فوري مجاني لتنبيه واحد إن كانت نتائج بحثه محفوظة (للقسم نفسه أو لجميع الأقسام). */
+async function checkAlertNowFromCache(alert) {
+  try {
+    const section = alert.section || 'all';
+    const hit =
+      (await searchStore.getCached(liveCacheKey(alert.keyword, alert.governorate, section))) ||
+      (section !== 'all' ? await searchStore.getCached(liveCacheKey(alert.keyword, alert.governorate, 'all')) : null);
+    if (!hit) return;
+    const own = (await alertStore.forSearch(alert.keyword, alert.governorate, section)).filter((a) => Number(a.id) === Number(alert.id));
+    await checkAlertsAgainstPayload(hit.value, {}, own);
+  } catch (err) {
+    console.warn('immediate alert check failed:', err.message);
+  }
+}
+
+app.patch('/api/alerts/:id', async (req, res) => {
+  if (!FEATURE_FLAGS.alertsDeliveryEnabled) return res.status(503).json({ saved: false, error: 'alerts_delivery_disabled' });
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ saved: false, error: 'login_required' });
+  const id = toPositiveIntOrNull(req.params.id, 2_147_483_647);
+  if (!id) return res.status(400).json({ saved: false, error: 'invalid_id' });
+  const { keyword, targetPriceIQD, governorate, section } = req.body || {};
+  try {
+    const result = await alertStore.update(req.user.id, id, {
+      keyword,
+      targetPriceIQD,
+      governorate: governorate && IRAQ_GOV_KEYWORDS[governorate] ? governorate : undefined,
+      section
+    });
+    if (result.error) return res.status(result.error === 'not_found' ? 404 : 400).json({ saved: false, ...result });
+    await checkAlertNowFromCache(result.alert);
+    res.json({ saved: true, alert: result.alert, scopeChanged: result.scopeChanged });
+  } catch (err) {
+    console.error('PATCH /api/alerts failed:', err.message);
+    res.status(500).json({ error: 'alert_update_failed' });
   }
 });
 
