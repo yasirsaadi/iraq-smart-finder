@@ -1128,6 +1128,62 @@ function groupThousands(digits) {
 }
 
 /** يضع مبلغاً في حقل منسقاً بالفواصل، ويحدّث سطر القراءة تحته. */
+// ===== حفظ سعر الصرف الذي يختاره المستخدم =====
+// يُحفظ في المتصفح فوراً، وفي الحساب عند تسجيل الدخول ليبقى بعد التحديث وعلى أي جهاز.
+const EXCHANGE_RATE_KEY = 'radar_exchange_rate';
+const validExchangeRate = (v) => Number.isFinite(v) && v >= 100000 && v <= 300000;
+let exchangeRateSaveTimer = null;
+
+function readStoredExchangeRate() {
+  try {
+    const v = Number(localStorage.getItem(EXCHANGE_RATE_KEY));
+    return validExchangeRate(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveExchangeRateToAccount(rate) {
+  return fetch('/api/account/preferences', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ exchangeRate100USD: rate })
+  }).catch(() => {});
+}
+
+function rememberExchangeRate(rate) {
+  try {
+    localStorage.setItem(EXCHANGE_RATE_KEY, String(rate));
+  } catch {}
+  if (!state.user) return;
+  clearTimeout(exchangeRateSaveTimer);
+  exchangeRateSaveTimer = setTimeout(() => saveExchangeRateToAccount(rate), 700);
+}
+
+function applyExchangeRate(rate) {
+  if (!validExchangeRate(rate) || rate === state.exchangeRate100USD) return false;
+  state.exchangeRate100USD = rate;
+  const input = document.getElementById('exchangeRateInput');
+  if (input) setMoney(input, rate);
+  return true;
+}
+
+/** المحفوظ في الحساب هو المرجع؛ وإن لم يوجد بعد يُرفع إليه ما اختاره المستخدم قبل الدخول. */
+function syncExchangeRateWithAccount(preferences) {
+  if (!state.user) return;
+  const saved = Number(preferences?.exchangeRate100USD);
+  if (validExchangeRate(saved)) {
+    try {
+      localStorage.setItem(EXCHANGE_RATE_KEY, String(saved));
+    } catch {}
+    if (applyExchangeRate(saved) && typeof renderApp === 'function') renderApp();
+  } else {
+    const local = readStoredExchangeRate();
+    if (local) saveExchangeRateToAccount(local);
+  }
+}
+
 function setMoney(el, value) {
   if (!el) return;
   el.value = value ? groupThousands(String(Math.round(Number(value)))) : '';
@@ -1520,6 +1576,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const val = readMoney(exchangeRateInput);
     if (val >= 100000 && val <= 300000) {
       state.exchangeRate100USD = val;
+      rememberExchangeRate(val);
       renderApp();
     }
   });
@@ -1945,6 +2002,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyAccount(data) {
     state.user = data?.user || null;
+    syncExchangeRateWithAccount(data?.preferences);
     state.subscription = data?.subscription || { active: false };
     state.isSubscribed = Boolean(state.subscription.active);
 
@@ -2233,6 +2291,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderApp();
   }
 
+  const storedRate = readStoredExchangeRate();
+  if (storedRate) {
+    state.exchangeRate100USD = storedRate;
+    document.getElementById('exchangeRateInput').value = String(storedRate);
+  }
   document.querySelectorAll('input[data-money="true"]').forEach((el) => {
     if (el.value) setMoney(el, readMoney(el));
   });
