@@ -138,6 +138,13 @@ test('الإنتاج: لا بيانات تجريبية ولا وعود اشتر�
   assert.equal(await page.inputValue('#postDeliveryLocal'), '12,500', 'الأرقام العربية تتحول وتُنسَّق');
   assert.match(await page.textContent('#analyzerModal .money-hint'), /12,500 د\.ع/);
   await page.evaluate(() => document.getElementById('analyzerModal').close());
+  // سعر الصرف الذي يختاره المستخدم يبقى بعد تحديث الصفحة
+  await page.click('#exchangeRateInput', { clickCount: 3 });
+  await page.keyboard.type('152500');
+  assert.equal(await page.inputValue('#exchangeRateInput'), '152,500');
+  await page.reload({ waitUntil: 'networkidle' });
+  assert.equal(await page.inputValue('#exchangeRateInput'), '152,500', 'سعر الصرف المختار يبقى بعد التحديث');
+  await page.evaluate(() => localStorage.removeItem('radar_exchange_rate'));
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'prod-empty.png'), fullPage: false });
   assert.deepEqual(errors, []);
   await page.close();

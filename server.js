@@ -974,9 +974,32 @@ async function accountPayload(user) {
   } catch {}
   return {
     user: { id: user.id, name: user.name, email: user.email, picture: user.picture },
+    preferences: { exchangeRate100USD: user.exchange_rate_100usd ? Number(user.exchange_rate_100usd) : null },
     subscription
   };
 }
+
+export const EXCHANGE_RATE_RANGE = { min: 100_000, max: 300_000 };
+
+// تفضيلات الحساب: حالياً سعر صرف 100 دولار الذي يختاره المستخدم
+app.post('/api/account/preferences', async (req, res) => {
+  if (!FEATURE_FLAGS.loginEnabled) return res.status(503).json({ saved: false, error: 'login_disabled' });
+  if (!isSameOriginRequest(req)) return res.status(403).json({ saved: false, error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ saved: false, error: 'login_required' });
+  const raw = req.body?.exchangeRate100USD;
+  const rate = raw === null ? null : Math.round(Number(raw));
+  if (rate !== null && !(rate >= EXCHANGE_RATE_RANGE.min && rate <= EXCHANGE_RATE_RANGE.max)) {
+    return res.status(400).json({ saved: false, error: 'invalid_exchange_rate', range: EXCHANGE_RATE_RANGE });
+  }
+  try {
+    await accounts.setExchangeRate(req.user.id, rate);
+    res.set('Cache-Control', 'no-store');
+    res.json({ saved: true, preferences: { exchangeRate100USD: rate } });
+  } catch (err) {
+    console.error('save preferences failed:', err.message);
+    res.status(500).json({ saved: false, error: 'save_failed' });
+  }
+});
 
 app.get('/api/auth/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');

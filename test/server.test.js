@@ -153,3 +153,10 @@ test('تعديل التنبيه يتطلب تسجيل الدخول', async () =>
   const res = await fetch(`http://127.0.0.1:${DEMO}/api/alerts/1`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetPriceIQD: 1000 }) });
   assert.equal(res.status, 401);
 });
+
+test('حفظ سعر الصرف في الحساب يتطلب تسجيل الدخول ويرفض القيم خارج النطاق', async () => {
+  const send = (body) =>
+    fetch(`http://127.0.0.1:${DEMO}/api/account/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal((await send({ exchangeRate100USD: 152000 })).status, 401);
+  assert.equal((await post(PROD, '/api/account/preferences', { exchangeRate100USD: 152000 })).status, 503, 'معطل حين يكون الدخول معطلاً');
+});
