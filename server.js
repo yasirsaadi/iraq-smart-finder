@@ -957,6 +957,10 @@ app.post('/api/searches', async (req, res) => {
   }
 });
 
+// صفحات السياسات العامة (مطلوبة لنشر تطبيق تسجيل الدخول لدى غوغل)
+app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'legal', 'privacy.html')));
+app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'legal', 'terms.html')));
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
