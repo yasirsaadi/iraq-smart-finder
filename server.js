@@ -20,6 +20,8 @@ import {
   clearSessionCookieHeader,
   SESSION_COOKIE
 } from './lib/accounts.js';
+import { createNotifier, initNotificationTables } from './lib/notifications.js';
+import { createAlertStore, initAlertColumns, findAlertMatches, formatIQD, MAX_ALERTS_PER_USER, MAX_ALERTS_PER_SUBSCRIBER } from './lib/price-alerts.js';
 import { isSerperConfigured, buildSerperQueries, serperSearchRaw, needsResolve, serperResolve, mapSerperOrganic } from './lib/serper-provider.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -50,7 +52,9 @@ export const FEATURE_FLAGS = Object.freeze({
   // الاشتراك المدفوع: لا يعمل إلا بثلاثة شروط معاً: تفعيل صريح + بوابة كي كارد مضبوطة + تسجيل دخول غوغل
   paymentsEnabled: process.env.PAYMENTS_ENABLED === 'true' && QICARD.configured && Boolean(GOOGLE_CLIENT_ID) && Boolean(PUBLIC_SITE_URL),
   // لا يوجد مرسل فعلي لرسائل واتساب أو تليغرام؛ التنبيهات معطلة حتى يُربط مزود إرسال
-  alertsDeliveryEnabled: process.env.ALERTS_DELIVERY_ENABLED === 'true'
+  // رادار الأسعار: يعمل مع تسجيل الدخول، ويصل التنبيه داخل الموقع وعبر إشعارات المتصفح.
+  // يمكن إيقافه صراحة بـ ALERTS_DELIVERY_ENABLED=false
+  alertsDeliveryEnabled: Boolean(GOOGLE_CLIENT_ID) && process.env.ALERTS_DELIVERY_ENABLED !== 'false'
 });
 
 if (process.env.PAYMENTS_ENABLED === 'true' && !FEATURE_FLAGS.paymentsEnabled) {
@@ -267,6 +271,8 @@ async function initNeonDatabase() {
     await sql`ALTER TABLE dalal_iraq_searches ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'all'`;
     await initSearchStoreTables(sql);
     await initAccountTables(sql);
+    await initNotificationTables(sql);
+    await initAlertColumns(sql);
   } catch (err) {
     console.error('Neon DB initialization warning:', err.message);
   }
@@ -283,6 +289,33 @@ function liveSearchProviderName() {
 const ECONOMICS = readEconomicsConfig();
 const searchStore = createSearchStore({ sql, config: ECONOMICS });
 const accounts = createAccountStore({ sql });
+const notifier = createNotifier({ sql });
+const alertStore = createAlertStore({ sql });
+
+/**
+ * يفحص تنبيهات الأسعار المطابقة لبحث محفوظ ويرسل الإشعارات. لا يستهلك أي رصيد بحث.
+ * @returns {Promise<number>} عدد الإشعارات المرسلة
+ */
+async function checkAlertsAgainstPayload(payload, { query, governorate, section }, alerts = null) {
+  if (!FEATURE_FLAGS.alertsDeliveryEnabled || !payload?.offers?.length) return 0;
+  let sent = 0;
+  const list = alerts || (await alertStore.forSearch(query, governorate, section).catch(() => []));
+  for (const alert of list) {
+    const matches = findAlertMatches(alert, payload.offers, alert.notifiedUrls || []);
+    if (matches.length) {
+      const best = matches[0];
+      await notifier.notifyUser(alert.userId, {
+        kind: 'price_drop',
+        title: `🔔 نزل السعر: ${alert.keyword}`,
+        body: `${best.title} — ${formatIQD(best.priceIQD)}، وهو ضمن سعرك المستهدف ${formatIQD(alert.targetPriceIQD)}.${matches.length > 1 ? ` و${matches.length - 1} عروض أخرى.` : ''}`,
+        url: `/?q=${encodeURIComponent(alert.keyword)}&section=${encodeURIComponent(alert.section || 'all')}`
+      });
+      sent += 1;
+    }
+    await alertStore.markChecked(alert.id, matches.map((m) => m.directUrl));
+  }
+  return sent;
+}
 
 // إرفاق المستخدم المسجّل (إن وُجد) بكل طلب واجهة برمجية
 app.use('/api', async (req, _res, next) => {
@@ -386,7 +419,10 @@ async function runSerperPipeline({ query, gov, sectionHint, debug = false }) {
     const payload = buildLivePayload({ query, gov, sectionHint, lists: resolved.map((d) => toProviderResult(d, !d)), provider: 'serper', pending: false });
     payload.offers = await attachListingImages(payload.offers, { imageQuery: `${query} ${govName}` });
     payload.diagnostics.withImages = payload.offers.filter((o) => o.imageUrl).length;
-    if (payload.providerOk) await searchStore.setCached(key, payload, { query, governorate: gov, section: sectionHint });
+    if (payload.providerOk) {
+      await searchStore.setCached(key, payload, { query, governorate: gov, section: sectionHint });
+      await checkAlertsAgainstPayload(payload, { query, governorate: gov, section: sectionHint }).catch((err) => console.warn('alert check failed:', err.message));
+    }
     return payload;
   })();
   liveInflight.set(key, { first, job: full });
@@ -548,6 +584,66 @@ app.post('/api/admin/refresh-popular', async (req, res) => {
   res.json({ ...report, nextOffset, done: nextOffset >= popular.length, creditsUsedToday: await searchStore.creditsUsedToday() });
 });
 
+// ===== الفحص الليلي لتنبيهات الأسعار وتذكير انتهاء الاشتراك =====
+// النتائج المحفوظة تُستخدم أولاً (مجاناً)، والبحث الجديد محدود بـ ALERT_CHECKS_PER_NIGHT في اليوم.
+const ALERT_CHECKS_PER_NIGHT = Number.parseInt(process.env.ALERT_CHECKS_PER_NIGHT, 10) >= 0 ? Number.parseInt(process.env.ALERT_CHECKS_PER_NIGHT, 10) : 20;
+const alertCheckBudget = { day: '', used: 0 };
+
+app.post('/api/admin/check-alerts', async (req, res) => {
+  if (!isAuthorizedRefresh(req)) return res.status(401).json({ error: 'unauthorized' });
+  if (!FEATURE_FLAGS.alertsDeliveryEnabled) return res.json({ done: true, skipped: 'alerts_disabled' });
+  const today = new Date().toISOString().slice(0, 10);
+  if (alertCheckBudget.day !== today) Object.assign(alertCheckBudget, { day: today, used: 0 });
+
+  const report = { checked: 0, notified: 0, fromCache: 0, freshSearches: 0, reminders: 0 };
+
+  if (req.query.first === '1') {
+    for (const sub of await alertStore.subscriptionsNeedingReminder().catch(() => [])) {
+      await notifier
+        .notifyUser(sub.userId, {
+          kind: 'subscription_reminder',
+          title: 'تذكير: عضويتك تنتهي قريباً',
+          body: `تنتهي عضوية رادار أسعار العراق في ${new Date(sub.expiresAt).toLocaleDateString('ar-IQ')}. جدّدها لتبقى التنبيهات والميزات فعالة.`,
+          url: '/'
+        })
+        .catch(() => {});
+      await alertStore.markReminded(sub.userId, sub.expiresAt).catch(() => {});
+      report.reminders += 1;
+    }
+  }
+
+  const batch = await alertStore.due(5);
+  for (const alert of batch) {
+    report.checked += 1;
+    const section = alert.section || 'all';
+    const key = liveCacheKey(alert.keyword, alert.governorate, section);
+    // نتائج القسم نفسه أولاً، ثم نتائج "جميع الأقسام" المحفوظة (كلاهما مجاني)
+    let payload =
+      (await searchStore.getCached(key))?.value ||
+      (section !== 'all' ? (await searchStore.getCached(liveCacheKey(alert.keyword, alert.governorate, 'all')))?.value : null) ||
+      null;
+    if (payload) report.fromCache += 1;
+    else if (isSerperConfigured() && alertCheckBudget.used < ALERT_CHECKS_PER_NIGHT) {
+      alertCheckBudget.used += 1;
+      report.freshSearches += 1;
+      await searchStore.reserveCredits(ECONOMICS.creditsPerSearch, { enforce: false });
+      try {
+        // خط البحث نفسه يحفظ النتيجة ويفحص كل التنبيهات المطابقة لها، ومنها هذا التنبيه
+        const { full } = await runSerperPipeline({ query: alert.keyword, gov: alert.governorate, sectionHint: section });
+        await full;
+        // إن لم تُرجع نتائج فلن يُفحص التنبيه داخل الخط، فنعلّمه مفحوصاً كي لا يتكرر بلا نهاية
+        await alertStore.markChecked(alert.id, []);
+        continue;
+      } catch (err) {
+        console.error('alert fresh search failed:', err.message);
+      }
+    }
+    if (payload) report.notified += await checkAlertsAgainstPayload(payload, {}, [alert]);
+    else await alertStore.markChecked(alert.id, []);
+  }
+  res.json({ ...report, done: batch.length === 0 });
+});
+
 const ALLOWED_SECTIONS = ['products', 'cars', 'realestate'];
 const ALLOWED_PLATFORMS = ['facebook', 'instagram', 'google'];
 
@@ -683,21 +779,20 @@ app.post('/api/offers', async (req, res) => {
   }
 });
 
-// التنبيهات: كل مستخدم يرى ويحذف تنبيهاته فقط عبر رقم هاتفه، ولا تُكشف أرقام الآخرين.
-app.get('/api/alerts', async (req, res) => {
-  const phone = safeIraqiMobile(normalizeDigits(String(req.query.phone || '')));
-  if (!phone) return res.json({ alerts: [], deliveryEnabled: FEATURE_FLAGS.alertsDeliveryEnabled });
-  if (!sql) return res.json({ alerts: [], deliveryEnabled: FEATURE_FLAGS.alertsDeliveryEnabled });
+// ===== رادار الأسعار والإشعارات (مرتبطة بحساب غوغل) =====
+
+async function alertLimitFor(user) {
   try {
-    const rows = await sql`
-      SELECT id, keyword, target_price_iqd::bigint AS "targetPriceIQD", governorate,
-             contact_phone AS "contactPhone", contact_channel AS "contactChannel", created_at AS "createdAt"
-      FROM dalal_iraq_alerts
-      WHERE contact_phone = ${phone}
-      ORDER BY created_at DESC
-      LIMIT 30;
-    `;
-    res.json({ alerts: rows.map((r) => ({ ...r, targetPriceIQD: Number(r.targetPriceIQD) })), deliveryEnabled: FEATURE_FLAGS.alertsDeliveryEnabled });
+    if (FEATURE_FLAGS.paymentsEnabled && (await accounts.subscriptionFor(user.id)).active) return MAX_ALERTS_PER_SUBSCRIBER;
+  } catch {}
+  return MAX_ALERTS_PER_USER;
+}
+
+app.get('/api/alerts', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!req.user) return res.json({ alerts: [], deliveryEnabled: FEATURE_FLAGS.alertsDeliveryEnabled, loginRequired: true });
+  try {
+    res.json({ alerts: await alertStore.list(req.user.id), deliveryEnabled: FEATURE_FLAGS.alertsDeliveryEnabled, limit: await alertLimitFor(req.user) });
   } catch (err) {
     console.error('GET /api/alerts failed:', err.message);
     res.status(500).json({ error: 'alerts_unavailable', alerts: [] });
@@ -705,26 +800,27 @@ app.get('/api/alerts', async (req, res) => {
 });
 
 app.post('/api/alerts', async (req, res) => {
-  if (!FEATURE_FLAGS.alertsDeliveryEnabled) {
-    return res.status(503).json({ saved: false, error: 'alerts_delivery_disabled' });
-  }
-  const { keyword, targetPriceIQD, governorate = 'baghdad', contactPhone, contactChannel = 'whatsapp' } = req.body || {};
-  const cleanKeyword = cleanPlainText(keyword, 120);
-  const target = toPositiveIntOrNull(targetPriceIQD);
-  const phone = safeIraqiMobile(normalizeDigits(String(contactPhone || '')));
-  if (!cleanKeyword || !target || !phone) {
-    return res.status(400).json({ error: 'Missing required alert fields' });
-  }
-  if (!sql) return res.status(503).json({ saved: false, error: 'database_unavailable' });
+  if (!FEATURE_FLAGS.alertsDeliveryEnabled) return res.status(503).json({ saved: false, error: 'alerts_delivery_disabled' });
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ saved: false, error: 'login_required' });
+  const { keyword, targetPriceIQD, governorate = 'baghdad', section = 'all' } = req.body || {};
   try {
-    const rows = await sql`
-      INSERT INTO dalal_iraq_alerts (keyword, target_price_iqd, governorate, contact_phone, contact_channel)
-      VALUES (${cleanKeyword}, ${target}, ${IRAQ_GOV_KEYWORDS[governorate] ? governorate : 'baghdad'}, ${phone},
-              ${contactChannel === 'telegram' ? 'telegram' : 'whatsapp'})
-      RETURNING id, keyword, target_price_iqd::bigint AS "targetPriceIQD", governorate,
-                contact_phone AS "contactPhone", contact_channel AS "contactChannel";
-    `;
-    res.status(201).json({ saved: true, alert: rows[0] });
+    const result = await alertStore.create(
+      req.user.id,
+      { keyword, targetPriceIQD, governorate: IRAQ_GOV_KEYWORDS[governorate] ? governorate : 'baghdad', section },
+      await alertLimitFor(req.user)
+    );
+    if (result.error) return res.status(400).json({ saved: false, ...result });
+    // فحص فوري مجاني إن كانت نتائج هذا البحث محفوظة
+    const key = liveCacheKey(result.alert.keyword, result.alert.governorate, result.alert.section || 'all');
+    const hit =
+      (await searchStore.getCached(key)) ||
+      ((result.alert.section || 'all') !== 'all' ? await searchStore.getCached(liveCacheKey(result.alert.keyword, result.alert.governorate, 'all')) : null);
+    if (hit) {
+      const own = (await alertStore.forSearch(result.alert.keyword, result.alert.governorate, result.alert.section || 'all')).filter((a) => a.id === result.alert.id);
+      await checkAlertsAgainstPayload(hit.value, {}, own).catch(() => {});
+    }
+    res.status(201).json({ saved: true, alert: result.alert });
   } catch (err) {
     console.error('POST /api/alerts failed:', err.message);
     res.status(500).json({ error: 'alert_save_failed' });
@@ -732,17 +828,59 @@ app.post('/api/alerts', async (req, res) => {
 });
 
 app.delete('/api/alerts/:id', async (req, res) => {
-  const phone = safeIraqiMobile(normalizeDigits(String(req.query.phone || '')));
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ deleted: false, error: 'login_required' });
   const id = toPositiveIntOrNull(req.params.id, 2_147_483_647);
-  if (!phone || !id) return res.status(400).json({ deleted: false, error: 'phone_and_id_required' });
-  if (!sql) return res.status(503).json({ deleted: false, error: 'database_unavailable' });
+  if (!id) return res.status(400).json({ deleted: false, error: 'invalid_id' });
   try {
-    const rows = await sql`DELETE FROM dalal_iraq_alerts WHERE id = ${id} AND contact_phone = ${phone} RETURNING id`;
-    res.json({ deleted: rows.length > 0 });
+    res.json({ deleted: await alertStore.remove(req.user.id, id) });
   } catch (err) {
     console.error('DELETE /api/alerts failed:', err.message);
     res.status(500).json({ error: 'alert_delete_failed' });
   }
+});
+
+app.get('/api/notifications', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!req.user) return res.json({ items: [], unread: 0 });
+  try {
+    res.json(await notifier.inbox(req.user.id));
+  } catch (err) {
+    console.error('GET /api/notifications failed:', err.message);
+    res.status(500).json({ items: [], unread: 0 });
+  }
+});
+
+app.post('/api/notifications/read', async (req, res) => {
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ error: 'login_required' });
+  await notifier.markAllRead(req.user.id).catch(() => {});
+  res.json({ ok: true });
+});
+
+app.get('/api/push/public-key', async (_req, res) => {
+  if (!FEATURE_FLAGS.alertsDeliveryEnabled) return res.status(503).json({ error: 'alerts_delivery_disabled' });
+  try {
+    res.json({ publicKey: await notifier.publicKey() });
+  } catch (err) {
+    console.error('push key failed:', err.message);
+    res.status(500).json({ error: 'push_unavailable' });
+  }
+});
+
+app.post('/api/push/subscribe', async (req, res) => {
+  if (!FEATURE_FLAGS.alertsDeliveryEnabled) return res.status(503).json({ error: 'alerts_delivery_disabled' });
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ error: 'login_required' });
+  const ok = await notifier.savePushSubscription(req.user.id, req.body?.subscription).catch(() => false);
+  res.status(ok ? 201 : 400).json({ saved: ok });
+});
+
+app.post('/api/push/unsubscribe', async (req, res) => {
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ error: 'login_required' });
+  await notifier.removePushSubscription(req.user.id, req.body?.endpoint).catch(() => {});
+  res.json({ ok: true });
 });
 
 app.get('/api/reviews', async (req, res) => {
@@ -852,6 +990,16 @@ async function confirmQiPayment(paymentId) {
   const remote = await getQiPaymentStatus(QICARD, paymentId);
   if (isPaymentSettled(remote, { expectedAmountIQD: payment.amountIQD, expectedRequestId: payment.requestId })) {
     const activatedNow = await accounts.activateFromPayment(paymentId);
+    if (activatedNow) {
+      notifier
+        .notifyUser(payment.userId, {
+          kind: 'payment',
+          title: '✔ تم تفعيل عضوية رادار أسعار العراق',
+          body: `تم استلام دفعتك (${formatIQD(payment.amountIQD)}) وتفعيل العضوية لمدة ${payment.planDays} يوماً. شكراً لك.`,
+          url: '/'
+        })
+        .catch(() => {});
+    }
     return { found: true, status: 'SUCCESS', activatedNow, userId: payment.userId };
   }
   if (remote.canceled === true || ['FAILED', 'AUTHENTICATION_FAILED'].includes(remote.status)) {

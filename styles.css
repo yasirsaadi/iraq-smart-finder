@@ -1929,13 +1929,14 @@ body {
 
 .modal-grid-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr): يمنع الحقل ذا النص الطويل من الخروج عن حدود النافذة */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
 }
 
 @media (max-width: 540px) {
   .modal-grid-2 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1943,6 +1944,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  min-width: 0;
+}
+
+.field-block input,
+.field-block select,
+.field-block textarea {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .field-block label {

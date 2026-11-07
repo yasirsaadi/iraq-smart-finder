@@ -68,7 +68,7 @@ test('التنبيهات: لا حفظ وهمي ولا كشف لأرقام الآ
   assert.equal(create.status, 503);
   const list = await (await get(PROD, '/api/alerts')).json();
   assert.deepEqual(list.alerts, []);
-  assert.equal((await fetch(`http://127.0.0.1:${PROD}/api/alerts/1`, { method: 'DELETE' })).status, 400);
+  assert.equal((await fetch(`http://127.0.0.1:${PROD}/api/alerts/1`, { method: 'DELETE' })).status, 401, 'الحذف يتطلب تسجيل الدخول');
 });
 
 test('إضافة العروض والتقييمات: تحقق المدخلات وعدم ادعاء الحفظ دون قاعدة بيانات', async () => {
@@ -135,4 +135,16 @@ test('صفحتا الخصوصية والشروط حقيقيتان ومرتبطت
   const home = await (await get(PROD, '/')).text();
   assert.match(home, /href="\/privacy"/);
   assert.match(home, /href="\/terms"/);
+});
+
+test('الإشعارات وإشعارات المتصفح: تتطلب تسجيل الدخول، وملف عامل الخدمة متاح', async () => {
+  assert.deepEqual(await (await get(PROD, '/api/notifications')).json(), { items: [], unread: 0 });
+  assert.equal((await post(PROD, '/api/push/subscribe', { subscription: {} })).status, 503, 'معطل حين يكون الدخول معطلاً');
+  assert.equal((await post(DEMO, '/api/push/subscribe', { subscription: {} })).status, 401, 'يتطلب تسجيل الدخول');
+  const key = await (await get(DEMO, '/api/push/public-key')).json();
+  assert.match(key.publicKey, /^[A-Za-z0-9_-]{80,100}$/);
+  const sw = await get(PROD, '/sw.js');
+  assert.equal(sw.status, 200);
+  assert.match(sw.headers.get('content-type'), /javascript/);
+  assert.equal((await fetch(`http://127.0.0.1:${PROD}/api/admin/check-alerts`, { method: 'POST' })).status, 401);
 });
