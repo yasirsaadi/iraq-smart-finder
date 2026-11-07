@@ -974,17 +974,36 @@ function timeAgo(iso) {
   return h < 24 ? `منذ ${h} ساعة` : `منذ ${Math.round(h / 24)} يوم`;
 }
 
-async function loadNotifications({ markRead = false } = {}) {
+/** يحدّث عدّاد الإشعارات غير المقروءة على الزر، وعلى أيقونة التطبيق إن كان مثبتاً على الشاشة الرئيسية. */
+function setUnreadCount(n) {
+  const count = Math.max(0, Number(n) || 0);
+  state.unreadNotifications = count;
+  const badge = document.getElementById('radarCountBadge');
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.classList.toggle('has-unread', count > 0);
+  try {
+    if (count > 0) navigator.setAppBadge?.(count)?.catch?.(() => {});
+    else navigator.clearAppBadge?.()?.catch?.(() => {});
+  } catch {}
+}
+
+/** يعلّم كل الإشعارات مقروءة (يُستدعى عند إغلاق نافذة الرادار بعد أن يراها المستخدم). */
+function markNotificationsRead() {
+  if (!state.user || !state.unreadNotifications) return;
+  setUnreadCount(0);
+  fetch('/api/notifications/read', { method: 'POST' }).catch(() => {});
+}
+
+async function loadNotifications() {
   if (!state.user) {
-    document.getElementById('radarCountBadge').textContent = 0;
+    setUnreadCount(0);
     return;
   }
   try {
     const res = await fetch('/api/notifications', { cache: 'no-store' });
     const data = await res.json();
     state.notifications = data.items || [];
-    document.getElementById('radarCountBadge').textContent = markRead ? 0 : data.unread || 0;
-    if (markRead && data.unread) fetch('/api/notifications/read', { method: 'POST' }).catch(() => {});
+    setUnreadCount(data.unread);
   } catch {
     state.notifications = [];
   }
@@ -1848,12 +1867,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     radarModal.showModal();
     loadPriceAlerts();
-    loadNotifications({ markRead: true });
+    loadNotifications();
     refreshPushStatus();
   }
   document.getElementById('openRadarBtn').addEventListener('click', openRadarModal);
   document.getElementById('createAlertFromMeterBtn').addEventListener('click', openRadarModal);
   document.getElementById('closeRadarBtn').addEventListener('click', () => radarModal.close());
+  // الإشعارات تُعدّ مقروءة بعد أن يراها المستخدم في النافذة ويغلقها، لا لحظة فتحها
+  radarModal.addEventListener('close', markNotificationsRead);
   document.getElementById('enablePushBtn').addEventListener('click', togglePush);
   document.getElementById('activeAlertsList').addEventListener('click', (e) => {
     const del = e.target.closest('[data-delete-alert]');
@@ -1902,7 +1923,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setAlertEditMode(null);
     await loadPriceAlerts();
-    await loadNotifications({ markRead: true });
+    await loadNotifications();
   });
 
   // نافذة البحث بصورة الإعلان
@@ -2272,6 +2293,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (state.user && state.config.alertsDeliveryEnabled) {
         loadNotifications();
         setTimeout(maybeAskForPush, 1500);
+        // تحديث العدّاد فور وصول إشعار والصفحة مفتوحة، وعند العودة إليها
+        navigator.serviceWorker?.addEventListener('message', (e) => {
+          if (e.data?.type === 'radar-notification') loadNotifications();
+        });
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && state.user) loadNotifications();
+        });
       }
     }
 
