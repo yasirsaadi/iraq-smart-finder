@@ -201,6 +201,72 @@ test('النصوص الخارجية الخبيثة لا تُنفَّذ، وال�
   await page.close();
 });
 
+test('لا حكم على الأرخص أو السعر العادل دون 3 عروض متجانسة، والأسعار المستخرجة تقديرية والمسافات صادقة', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  const two = {
+    providerOk: true,
+    offers: [
+      liveOffer('b1', 'ايفون 15 نظيف', 1_500_000),
+      liveOffer('b2', 'ايفون 15 مستعمل', 1_400_000, { governorate: 'basra', district: 'البصرة' }),
+      liveOffer('b3', 'ايفون 15 بدون سعر', null, { governorate: 'baghdad', locationDetected: false })
+    ]
+  };
+  await page.route('**/api/live-search**', (route) => route.fulfill({ json: two }));
+  await page.fill('#searchQuery', 'ايفون 15');
+  await page.press('#searchQuery', 'Enter');
+  await page.waitForSelector('#resultsGrid article');
+
+  assert.match(await page.textContent('#bestPriceTitle'), /لا توجد 3 عروض متجانسة/);
+  assert.equal(await page.textContent('#bestPriceValue'), '—');
+  assert.match(await page.textContent('#smartMatchTitle'), /لا توجد 3 عروض متجانسة/);
+  assert.equal(await page.textContent('#meterAvgPrice'), '—');
+  assert.match(await page.textContent('#meterFairNote'), /عينة غير كافية: 2/);
+  const grid = await page.textContent('#resultsGrid');
+  assert.doesNotMatch(grid, /الأقل سعراً بين العروض المماثلة|الترشيح الأفضل|أغلى من الوسيط/);
+
+  const local = await page.textContent('[data-offer-id="b1"]');
+  assert.match(local, /سعر تقديري مستخرج آلياً من مقتطف البحث/);
+  assert.match(local, /• تقديري/);
+  assert.match(local, /داخل محافظتك \(المسافة الفعلية غير معروفة\)/);
+  assert.doesNotMatch(local, /(^|\D)0 كم/);
+  assert.match(await page.textContent('[data-offer-id="b2"]'), /نحو \d+0 كم بخط مستقيم بين مركزي المحافظتين \(ليست مسافة الطريق\)/);
+  assert.match(await page.textContent('[data-offer-id="b3"]'), /الموقع غير محدد في الإعلان/);
+  assert.doesNotMatch(await page.textContent('#nearestItemDistance'), /(^|\D)0 كم/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('البحث بصورة: الصورة للمعاينة فقط ولا يُستنتج شيء من اسم الملف', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  await page.click('#openImageSearchBtn');
+  const text = await page.textContent('#imageSearchModal');
+  assert.match(text, /للمعاينة فقط/);
+  assert.doesNotMatch(text, /نستخرج|لنستخرج|تحليل الصورة آلياً/);
+  await page.setInputFiles('#adScreenshotInput', { name: 'iphone-15-pro-max.png', mimeType: 'image/png', buffer: Buffer.from('89504e470d0a1a0a', 'hex') });
+  assert.equal(await page.inputValue('#imageExtractedQuery'), '', 'لا تعبئة آلية من اسم الملف');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('إضافة عرض دون تسجيل دخول: لا يظهر العرض ولا رسالة نجاح', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  let posted = false;
+  await page.route('**/api/offers', (route) => {
+    if (route.request().method() === 'POST') posted = true;
+    route.continue();
+  });
+  await page.click('#openAnalyzerBtn');
+  await page.fill('#postStoreName', 'متجر تجريبي');
+  await page.fill('#postRawText', 'ايفون 15 للبيع السعر مليون ونص بغداد 07701234567');
+  await page.click('#analyzerSubmitBtn');
+  await page.waitForSelector('#analyzerFormStatus:not([hidden])');
+  assert.match(await page.textContent('#analyzerFormStatus'), /تتطلب تسجيل الدخول/);
+  assert.equal(posted, false);
+  assert.equal(await page.locator('#resultsGrid article').count(), 0);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('وضع العرض التجريبي: العروض موسومة وأسعار العقارات لا تدخل في مقارنة الأجهزة', { skip: SKIP }, async () => {
   const { page, errors } = await openPage(DEMO);
   await page.waitForSelector('#resultsGrid article');

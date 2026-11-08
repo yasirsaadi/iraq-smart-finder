@@ -220,6 +220,8 @@ async function initNeonDatabase() {
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS delivery_local_iqd INTEGER DEFAULT 4000`;
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS delivery_national_iqd INTEGER DEFAULT 7000`;
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS direct_url TEXT`;
+    // صاحب العرض (العروض القديمة تبقى بلا مالك: NULL)
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS user_id INTEGER`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS dalal_iraq_alerts (
@@ -246,6 +248,10 @@ async function initNeonDatabase() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `;
+    // تقييم واحد لكل حساب لكل جهة (يُعدَّل ولا يتكرر). التقييمات القديمة المجهولة تبقى كما هي (user_id = NULL).
+    await sql`ALTER TABLE dalal_iraq_reviews ADD COLUMN IF NOT EXISTS user_id INTEGER`;
+    await sql`ALTER TABLE dalal_iraq_reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS dalal_iraq_reviews_user_store_uidx ON dalal_iraq_reviews (user_id, store_name) WHERE user_id IS NOT NULL`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS dalal_iraq_subscriptions (
@@ -348,6 +354,36 @@ function isRateLimited(ip) {
   rateBuckets.set(ip, bucket);
   if (rateBuckets.size > 5000) rateBuckets.clear();
   return bucket.count > RATE_MAX_REQUESTS;
+}
+
+// حدود الإرسال لكل حساب (إضافة العروض والتقييمات) لمنع الإغراق
+const actionBuckets = new Map();
+const ACTION_LIMITS = {
+  offer: { max: 5, windowMs: 60 * 60 * 1000 },
+  review: { max: 10, windowMs: 60 * 60 * 1000 }
+};
+function isActionLimited(action, userId) {
+  const { max, windowMs } = ACTION_LIMITS[action];
+  const key = `${action}:${userId}`;
+  const now = Date.now();
+  const recent = (actionBuckets.get(key) || []).filter((t) => now - t < windowMs);
+  if (recent.length >= max) {
+    actionBuckets.set(key, recent);
+    return true;
+  }
+  recent.push(now);
+  actionBuckets.set(key, recent);
+  if (actionBuckets.size > 10000) actionBuckets.clear();
+  return false;
+}
+
+/** شروط مشتركة لأي إضافة من المستخدمين: الدخول مفعّل، الطلب من الموقع نفسه، المستخدم مسجّل، ولم يتجاوز الحد. */
+function rejectUserWrite(req, res, action) {
+  if (!FEATURE_FLAGS.loginEnabled) return res.status(503).json({ saved: false, error: 'login_disabled' });
+  if (!isSameOriginRequest(req)) return res.status(403).json({ saved: false, error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ saved: false, error: 'login_required' });
+  if (isActionLimited(action, req.user.id)) return res.status(429).json({ saved: false, error: 'too_many_submissions' });
+  return null;
 }
 
 // عمليات المرحلة الثانية الجارية في الخلفية، حتى لا يتكرر البحث نفسه ولا يُدفع ثمنه مرتين
@@ -463,10 +499,13 @@ app.get('/api/live-search', async (req, res) => {
   const gov = IRAQ_GOV_KEYWORDS[String(req.query.gov || '')] ? String(req.query.gov) : 'baghdad';
   const sectionRaw = String(req.query.section || 'all').trim();
   const sectionHint = ['all', 'products', 'cars', 'realestate'].includes(sectionRaw) ? sectionRaw : 'all';
-  const debug = req.query.debug === '1';
+  // وضع التشخيص يتجاوز الذاكرة المشتركة، فهو للمشرف فقط حتى لا تتكرر الطلبات المدفوعة
+  const debug = req.query.debug === '1' && isAuthorizedRefresh(req);
+  const isCompletion = req.query.wait === '1';
 
   if (!query) return res.json({ offers: [] });
-  if (isRateLimited(req.ip || 'unknown')) {
+  // طلب الاستكمال لا يبدأ بحثاً مدفوعاً، فلا يُحسب ضمن حد الطلبات
+  if (!isCompletion && isRateLimited(req.ip || 'unknown')) {
     return res.status(429).json({ error: 'rate_limited', providerOk: false, offers: [] });
   }
 
@@ -494,9 +533,12 @@ app.get('/api/live-search', async (req, res) => {
     }
   }
 
+  // ٣) طلب استكمال لبحث انتهى أو تعذر: لا يبدأ بحثاً جديداً ولا يُحسب من الحصة
+  if (isCompletion) return res.json({ query, providerOk: false, pending: false, completionUnavailable: true, offers: [] });
+
   try {
     if (isSerperConfigured()) {
-      // ٣) سقف الرصيد اليومي للموقع كله، ثم حصة الزائر الشهرية من عمليات البحث الجديدة
+      // ٤) سقف الرصيد اليومي للموقع كله، ثم حصة الزائر الشهرية من عمليات البحث الجديدة
       const reserved = await searchStore.reserveCredits(ECONOMICS.creditsPerSearch);
       if (!reserved) {
         return res.json({ query, providerOk: false, budgetExhausted: true, offers: [] });
@@ -720,6 +762,7 @@ app.get('/api/offers', async (_req, res) => {
 });
 
 app.post('/api/offers', async (req, res) => {
+  if (rejectUserWrite(req, res, 'offer')) return;
   const body = req.body || {};
   const title = cleanPlainText(body.title, 160);
   if (!title) return res.status(400).json({ error: 'Title is required' });
@@ -758,12 +801,12 @@ app.post('/api/offers', async (req, res) => {
       INSERT INTO dalal_iraq_offers (
         external_id, section, specs, title, category, keywords, image_url, platform, store_name,
         verified, allows_inspection, trust_rating, reviews_count, price_iqd, delivery_local_iqd, delivery_national_iqd,
-        governorate, district, delivery, phone, snippet, direct_url, posted_ago
+        governorate, district, delivery, phone, snippet, direct_url, posted_ago, user_id
       ) VALUES (
         ${extId}, ${offer.section}, ${JSON.stringify(offer.specs)}, ${offer.title}, ${offer.category},
         ${offer.keywords}, ${offer.imageUrl}, ${offer.platform}, ${offer.storeName}, false, ${offer.allowsInspection},
         NULL, 0, ${offer.priceIQD}, ${offer.deliveryLocalIQD}, ${offer.deliveryNationalIQD},
-        ${offer.governorate}, ${offer.district}, ${offer.delivery}, ${offer.phone}, ${offer.snippet}, ${offer.directUrl}, NULL
+        ${offer.governorate}, ${offer.district}, ${offer.delivery}, ${offer.phone}, ${offer.snippet}, ${offer.directUrl}, NULL, ${req.user.id}
       )
       RETURNING external_id AS id, created_at AS "postedAt";
     `;
@@ -920,7 +963,13 @@ app.get('/api/reviews', async (req, res) => {
     const rows = storeName
       ? await sql`SELECT id, store_name, platform, rating, allows_inspection, comment, reviewer_gov, created_at FROM dalal_iraq_reviews WHERE store_name = ${storeName} ORDER BY created_at DESC LIMIT 20`
       : await sql`SELECT id, store_name, platform, rating, allows_inspection, comment, reviewer_gov, created_at FROM dalal_iraq_reviews ORDER BY created_at DESC LIMIT 30`;
-    res.json({ reviews: rows });
+    let mine = null;
+    if (storeName && req.user) {
+      const own = await sql`SELECT id, rating, allows_inspection, comment FROM dalal_iraq_reviews WHERE store_name = ${storeName} AND user_id = ${req.user.id} LIMIT 1`;
+      mine = own[0] || null;
+    }
+    res.set('Cache-Control', 'no-store');
+    res.json({ reviews: rows, mine });
   } catch (err) {
     console.error('GET /api/reviews failed:', err.message);
     res.status(500).json({ error: 'reviews_unavailable', reviews: [] });
@@ -928,6 +977,7 @@ app.get('/api/reviews', async (req, res) => {
 });
 
 app.post('/api/reviews', async (req, res) => {
+  if (rejectUserWrite(req, res, 'review')) return;
   const { storeName, platform = 'facebook', rating = 5, allowsInspection = true, comment = '', reviewerGov = 'baghdad' } = req.body || {};
   const cleanStore = cleanPlainText(storeName, 120);
   const cleanRating = Math.round(Number(rating));
@@ -935,13 +985,24 @@ app.post('/api/reviews', async (req, res) => {
   if (!(cleanRating >= 1 && cleanRating <= 5)) return res.status(400).json({ error: 'rating_must_be_1_to_5' });
   if (!sql) return res.status(503).json({ saved: false, error: 'database_unavailable' });
   try {
-    const inserted = await sql`
-      INSERT INTO dalal_iraq_reviews (store_name, platform, rating, allows_inspection, comment, reviewer_gov)
-      VALUES (${cleanStore}, ${ALLOWED_PLATFORMS.includes(platform) ? platform : 'facebook'}, ${cleanRating},
-              ${Boolean(allowsInspection)}, ${cleanPlainText(comment, 600)}, ${IRAQ_GOV_KEYWORDS[reviewerGov] ? reviewerGov : 'baghdad'})
+    // تقييم واحد لكل حساب لكل جهة: التقييم الجديد يحل محل السابق بدل أن يتكرر
+    const existing = await sql`SELECT id FROM dalal_iraq_reviews WHERE user_id = ${req.user.id} AND store_name = ${cleanStore} LIMIT 1`;
+    const values = {
+      platform: ALLOWED_PLATFORMS.includes(platform) ? platform : 'facebook',
+      allows: Boolean(allowsInspection),
+      comment: cleanPlainText(comment, 600),
+      gov: IRAQ_GOV_KEYWORDS[reviewerGov] ? reviewerGov : 'baghdad'
+    };
+    const saved = await sql`
+      INSERT INTO dalal_iraq_reviews (store_name, platform, rating, allows_inspection, comment, reviewer_gov, user_id)
+      VALUES (${cleanStore}, ${values.platform}, ${cleanRating}, ${values.allows}, ${values.comment}, ${values.gov}, ${req.user.id})
+      ON CONFLICT (user_id, store_name) WHERE user_id IS NOT NULL
+      DO UPDATE SET platform = EXCLUDED.platform, rating = EXCLUDED.rating, allows_inspection = EXCLUDED.allows_inspection,
+                    comment = EXCLUDED.comment, reviewer_gov = EXCLUDED.reviewer_gov, updated_at = NOW()
       RETURNING id, store_name, platform, rating, allows_inspection, comment, reviewer_gov, created_at;
     `;
-    res.status(201).json({ saved: true, review: inserted[0] });
+    const updated = existing.length > 0;
+    res.status(updated ? 200 : 201).json({ saved: true, updated, review: saved[0] });
   } catch (err) {
     console.error('POST /api/reviews failed:', err.message);
     res.status(500).json({ error: 'review_save_failed' });

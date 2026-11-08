@@ -128,7 +128,7 @@
             </svg>
           </button>
 
-          <button type="button" id="openImageSearchBtn" class="image-search-trigger" title="ارفع لقطة شاشة لإعلان ممول للبحث عن مصدره الأرخص">
+          <button type="button" id="openImageSearchBtn" class="image-search-trigger" title="اكتب اسم المنتج الظاهر في الإعلان للبحث عنه؛ الصورة للمعاينة فقط">
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
               <circle cx="12" cy="13" r="3"></circle>
@@ -467,7 +467,7 @@
 
       <div class="overview-card overview-nearest">
         <div class="overview-header">
-          <span class="overview-badge badge-blue">الأقرب لمحافظتك</span>
+          <span class="overview-badge badge-blue">الأقرب حسب المحافظة (تقريبي)</span>
           <a href="#resultsGrid" class="overview-jump" id="jumpToNearestBtn">عرض التفاصيل</a>
         </div>
         <h2 class="overview-title" id="nearestItemTitle">—</h2>
@@ -607,7 +607,7 @@
         <div class="sort-segmented" id="sortPills">
           <button type="button" class="sort-pill active" data-sort="smart">الأفضل قيمةً ومسافةً</button>
           <button type="button" class="sort-pill" data-sort="cheapest">الأقل سعراً</button>
-          <button type="button" class="sort-pill" data-sort="nearest">الأقرب لمحافظتي</button>
+          <button type="button" class="sort-pill" data-sort="nearest">الأقرب حسب المحافظة</button>
         </div>
 
         <label class="local-only-toggle" title="جمع كلفة التوصيل لمحافظتك مع سعر السلعة لمعرفة التكلفة الصافية">
@@ -736,8 +736,9 @@
 
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="fillSamplePostBtn">تعبئة مثال تجريبي</button>
-        <button type="submit" class="btn-submit">حفظ العرض في رادار أسعار العراق</button>
+        <button type="submit" class="btn-submit" id="analyzerSubmitBtn">حفظ العرض في رادار أسعار العراق</button>
       </div>
+      <div id="analyzerFormStatus" class="alert-row" role="status" hidden></div>
     </form>
   </dialog>
 
@@ -811,8 +812,8 @@
   <dialog id="imageSearchModal" class="commercial-modal">
     <div class="modal-top">
       <div>
-        <h2>البحث بلقطة الشاشة لكشف المصدر الأرخص</h2>
-        <p>ارفع لقطة شاشة لأي إعلان ممول (سلعة أو سيارة أو عقار) لنستخرج بياناته ونقارن سعره بأرخص العروض في العراق.</p>
+        <h2>البحث عن منتج إعلان رأيته</h2>
+        <p>البحث يعتمد على اسم المنتج الذي تكتبه أنت. الصورة اختيارية وللمعاينة فقط؛ الموقع لا يحلل الصورة ولا يستخرج منها أي بيانات.</p>
       </div>
       <button type="button" class="modal-close" id="closeImageSearchBtn" aria-label="إغلاق">✕</button>
     </div>
@@ -827,13 +828,13 @@
             <circle cx="9" cy="9" r="2"></circle>
             <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
           </svg>
-          <strong>اضغط هنا لرفع صورة الإعلان أو لقطة الشاشة</strong>
-          <span>يدعم جميع صور الهواتف ولقطات شاشة فيسبوك وانستغرام</span>
+          <strong>صورة الإعلان (اختياري، للمعاينة فقط)</strong>
+          <span>تبقى في متصفحك ولا تُرفع إلى الخادم ولا تُحلَّل</span>
         </div>
       </label>
 
       <div class="field-block">
-        <label for="imageExtractedQuery">اسم السلعة أو السيارة أو العقار المكتوب في الإعلان</label>
+        <label for="imageExtractedQuery">اكتب اسم السلعة أو السيارة أو العقار كما يظهر في الإعلان (مطلوب)</label>
         <input type="text" id="imageExtractedQuery" placeholder="مثال: كيا سبورتاج 2024، ماكينة قهوة ديلونجي..." required />
       </div>
 
@@ -843,7 +844,7 @@
       </div>
 
       <div class="modal-actions">
-        <button type="submit" class="btn-submit">ابحث عن المصدر الأرخص في العراق</button>
+        <button type="submit" class="btn-submit">ابحث بهذا الاسم وقارن الأسعار</button>
       </div>
     </form>
   </dialog>
@@ -886,8 +887,9 @@
       </div>
 
       <div class="modal-actions">
-        <button type="submit" class="btn-submit">نشر التقييم في سجل الموثوقية</button>
+        <button type="submit" class="btn-submit" id="reviewSubmitBtn">نشر التقييم في سجل الموثوقية</button>
       </div>
+      <div id="reviewFormStatus" class="alert-row" role="status" hidden></div>
 
       <div class="radar-list-section">
         <h3 class="sub-heading">آراء وتجارب المشترين السابقين:</h3>

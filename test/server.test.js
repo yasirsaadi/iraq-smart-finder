@@ -71,12 +71,41 @@ test('التنبيهات: لا حفظ وهمي ولا كشف لأرقام الآ
   assert.equal((await fetch(`http://127.0.0.1:${PROD}/api/alerts/1`, { method: 'DELETE' })).status, 401, 'الحذف يتطلب تسجيل الدخول');
 });
 
-test('إضافة العروض والتقييمات: تحقق المدخلات وعدم ادعاء الحفظ دون قاعدة بيانات', async () => {
-  assert.equal((await post(PROD, '/api/offers', {})).status, 400);
-  const res = await post(PROD, '/api/offers', { title: 'عرض', directUrl: 'javascript:alert(1)' });
-  assert.equal(res.status, 503);
-  assert.equal((await res.json()).saved, false);
-  assert.equal((await post(PROD, '/api/reviews', { storeName: 'متجر', rating: 9 })).status, 400);
+test('إضافة العروض والتقييمات تتطلب تسجيل الدخول ولا تدّعي الحفظ', async () => {
+  // الدخول معطل: لا إضافة إطلاقاً
+  const off = await post(PROD, '/api/offers', { title: 'عرض', directUrl: 'javascript:alert(1)' });
+  assert.equal(off.status, 503);
+  assert.equal((await off.json()).saved, false);
+  assert.equal((await post(PROD, '/api/reviews', { storeName: 'متجر', rating: 5 })).status, 503);
+  // الدخول مفعل لكن الزائر غير مسجل
+  const anonOffer = await post(DEMO, '/api/offers', { title: 'عرض' });
+  assert.equal(anonOffer.status, 401);
+  assert.deepEqual(await anonOffer.json(), { saved: false, error: 'login_required' });
+  assert.equal((await post(DEMO, '/api/reviews', { storeName: 'متجر', rating: 5 })).status, 401);
+  // طلب من موقع آخر يُرفض قبل أي شيء
+  const cross = await fetch(`http://127.0.0.1:${DEMO}/api/reviews`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' },
+    body: JSON.stringify({ storeName: 'متجر', rating: 1 })
+  });
+  assert.equal(cross.status, 403);
+});
+
+test('استكمال البحث (wait=1) لا يبدأ بحثاً مدفوعاً ولا يُحسب ضمن حد الطلبات', async () => {
+  for (let i = 0; i < 25; i++) {
+    const r = await get(PROD, `/api/live-search?q=${encodeURIComponent('ايفون ' + i)}&wait=1`);
+    assert.equal(r.status, 200, 'لا حد طلبات على الاستكمال');
+    const data = await r.json();
+    assert.equal(data.completionUnavailable, true);
+    assert.equal(data.quotaExceeded, undefined);
+    assert.deepEqual(data.offers, []);
+  }
+});
+
+test('وضع التشخيص لا يتجاوز الذاكرة المشتركة دون رمز المشرف', async () => {
+  const r = await (await get(PROD, `/api/live-search?q=${encodeURIComponent('ايفون تشخيص')}&debug=1&wait=1`)).json();
+  assert.equal(r.debug, undefined);
+  assert.equal(r.completionUnavailable, true, 'عومل كطلب عادي');
 });
 
 test('البحث الحي يتحقق من المعاملات ولا يعيد أخطاء داخلية', async () => {

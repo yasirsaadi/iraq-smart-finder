@@ -111,6 +111,46 @@ function calculateDistanceKm(govKey1, govKey2) {
   return Math.round(R * c);
 }
 
+/** رسالة مفهومة لفشل الحفظ حسب رد الخادم. */
+function saveErrorMessage(status, data) {
+  if (status === 401) return 'يجب تسجيل الدخول بحساب غوغل أولاً. لم يُحفظ شيء.';
+  if (status === 429) return 'أرسلت عدداً كبيراً من الطلبات خلال وقت قصير. انتظر قليلاً ثم أعد المحاولة.';
+  if (status === 403) return 'رُفض الطلب لأسباب أمنية. حدّث الصفحة ثم أعد المحاولة.';
+  if (status === 503) return 'الحفظ غير متاح حالياً على الخادم. لم يُحفظ شيء.';
+  if (status === 400) return data?.message || 'تحقق من البيانات المدخلة ثم أعد المحاولة.';
+  if (status === 0) return 'تعذر الاتصال بالخادم. تحقق من الإنترنت؛ لم يُحفظ شيء.';
+  return 'حدث خطأ في الخادم ولم يُحفظ شيء. أعد المحاولة لاحقاً.';
+}
+
+async function postJson(url, body) {
+  try {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {}
+    return { ok: res.ok && data?.saved === true, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: null };
+  }
+}
+
+/**
+ * وصف المسافة بصدق: نعرف المحافظة فقط لا العنوان، فالمسافة خط مستقيم تقريبي بين مركزي المحافظتين
+ * وليست مسافة الطريق، وداخل المحافظة نفسها لا نعرض صفراً لأن المسافة الفعلية غير معروفة.
+ */
+function describeDistance(offer) {
+  if (offer.distanceKm === null || offer.distanceKm === undefined) return 'الموقع غير محدد في الإعلان';
+  if (offer.distanceKm === 0) return 'داخل محافظتك (المسافة الفعلية غير معروفة)';
+  const approx = Math.max(10, Math.round(offer.distanceKm / 10) * 10);
+  return `نحو ${approx} كم بخط مستقيم بين مركزي المحافظتين (ليست مسافة الطريق)`;
+}
+
+/** السعر مؤكد فقط إن كان العرض موثقاً ولم يُستخرج آلياً من نتيجة بحث. */
+function isVerifiedPrice(offer) {
+  return offer.source !== 'live' && offer.source !== 'demo' && offer.verified === true && offer.priceSource !== 'search_snippet';
+}
+
 function normalizeDigits(str) {
   return String(str)
     .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
@@ -269,10 +309,10 @@ async function performLiveSearch(queryText) {
     applyData(data);
     if (data && data.quotaExceeded) {
       banner.hidden = false;
-      banner.textContent = `استنفدت عمليات البحث الجديدة المتاحة لهذا الشهر (${data.quotaLimit}). عمليات البحث التي سبق أن بحثها زوار آخرون تبقى متاحة مجاناً، ويمكنك استخدام أزرار البحث المباشر أدناه.`;
+      banner.textContent = `استنفدت حصتك من عمليات البحث الجديدة لهذا الشهر (${data.quotaLimit} بحثاً)، وتتجدد مع بداية الشهر القادم. النتائج المحفوظة تبقى متاحة مجاناً: أي بحث أُجري خلال آخر ${state.config.cacheTtlHours || 12} ساعة يظهر فوراً دون أن يُحسب، ويمكنك أيضاً استخدام أزرار البحث المباشر أدناه.`;
     } else if (data && data.budgetExhausted) {
       banner.hidden = false;
-      banner.textContent = 'بلغ الموقع الحد اليومي لعمليات البحث الجديدة. جرّب بحثاً شائعاً أو عد غداً، أو استخدم أزرار البحث المباشر أدناه.';
+      banner.textContent = 'بلغ الموقع الحد اليومي لعمليات البحث الجديدة، ويتجدد الحد غداً. النتائج المحفوظة تبقى متاحة مجاناً، فجرّب بحثاً شائعاً أو استخدم أزرار البحث المباشر أدناه.';
     } else if (data && data.cached && data.cachedAt) {
       banner.hidden = false;
       banner.textContent = `نتائج محفوظة حديثاً: آخر تحديث منذ ${describeAge(data.cachedAt)}. (${(data.offers || []).length} نتيجة بروابطها الأصلية)`;
@@ -296,6 +336,8 @@ async function performLiveSearch(queryText) {
         if (controller === activeSearchController && full && Array.isArray(full.offers) && full.offers.length >= (data.offers || []).length) {
           applyData(full);
           banner.textContent = `اكتمل البحث: ${full.offers.length} نتيجة من فيسبوك وانستغرام والمواقع العراقية، بروابطها الأصلية.`;
+        } else if (controller === activeSearchController) {
+          banner.textContent = 'تعذر استكمال بقية النتائج؛ المعروض هو النتائج الأولى فقط، ولم يُحسب ذلك بحثاً جديداً.';
         }
       } catch (err) {
         if (err.name !== 'AbortError') banner.textContent = 'تعذر استكمال بقية النتائج؛ المعروض هو النتائج الأولى فقط.';
@@ -471,16 +513,19 @@ function getProcessedOffers() {
       groupMedianIQD: st ? st.median : null,
       savingVsMedianIQD,
       isPriceOutlier,
+      isReliablyComparable: reliable,
       isCheapest: reliable && offer.itemPriceIQD === st.inlierMin,
       isNearest: offer.distanceKm !== null && offer.distanceKm === minDist,
       isOverpriced: reliable && offer.itemPriceIQD > st.median * 1.15
     };
   });
 
-  const maxSmartScore = Math.max(...filtered.filter((o) => !o.isPriceOutlier).map((o) => o.smartScore));
+  // الترشيح يُبنى على مقارنة سعرية، فلا يُمنح إلا لعرض ضمن 3 عروض متجانسة على الأقل
+  const rankable = filtered.filter((o) => o.isReliablyComparable);
+  const maxSmartScore = rankable.length ? Math.max(...rankable.map((o) => o.smartScore)) : null;
   filtered = filtered.map((offer) => ({
     ...offer,
-    isBestSmart: !offer.isPriceOutlier && offer.smartScore === maxSmartScore
+    isBestSmart: offer.isReliablyComparable && offer.smartScore === maxSmartScore
   }));
 
   const allFiltered = [...filtered];
@@ -554,6 +599,9 @@ function renderSpecializedSpecsHtml(offer) {
 
 window.openStoreReviewModal = async function (storeName) {
   const modal = document.getElementById('reviewModal');
+  const status = document.getElementById('reviewFormStatus');
+  if (status) status.hidden = true;
+  document.getElementById('reviewCommentInput').value = '';
   document.getElementById('reviewStoreNameInput').value = storeName;
   document.getElementById('reviewModalStoreTitle').textContent = `سجل الموثوقية وتجارب المشترين مع: ${storeName} (تقييمات المستخدمين، غير موثقة)`;
   modal.showModal();
@@ -564,9 +612,18 @@ async function loadStoreReviews(storeName) {
   const box = document.getElementById('storeReviewsList');
   box.innerHTML = '<div class="alert-row">جاري تحميل تقييمات المتجر...</div>';
   try {
-    const res = await fetch(`/api/reviews?store=${encodeURIComponent(storeName)}`);
+    const res = await fetch(`/api/reviews?store=${encodeURIComponent(storeName)}`, { cache: 'no-store' });
     const data = await res.json();
     const reviews = data.reviews || [];
+    // تقييمك السابق لهذه الجهة (إن وُجد) يُعرض للتعديل بدل إضافة تقييم مكرر
+    const mine = data.mine || null;
+    const submitBtn = document.getElementById('reviewSubmitBtn');
+    if (submitBtn) submitBtn.textContent = mine ? 'تحديث تقييمك السابق' : 'نشر التقييم في سجل الموثوقية';
+    if (mine) {
+      document.getElementById('reviewRatingSelect').value = String(mine.rating);
+      document.getElementById('reviewInspectionSelect').value = mine.allows_inspection ? 'true' : 'false';
+      document.getElementById('reviewCommentInput').value = mine.comment || '';
+    }
     if (reviews.length === 0) {
       box.innerHTML = '<div class="alert-row">لا توجد تقييمات سابقة مسجلة لهذه الجهة حتى الآن. كن أول من يقيمها!</div>';
       return;
@@ -617,15 +674,24 @@ function renderApp() {
   const MIN_N = PriceEngine.MIN_COMPARABLE_OFFERS;
   const meterFairNote = document.getElementById('meterFairNote');
   const meterMinNote = document.getElementById('meterMinNote');
-  if (stats) {
+  if (stats && stats.count < MIN_N) {
+    // أقل من 3 عروض متجانسة: لا حكم على السعر العادل ولا على الأرخص
+    document.getElementById('meterMinPrice').textContent = '—';
+    document.getElementById('meterAvgPrice').textContent = '—';
+    document.getElementById('meterMaxPrice').textContent = '—';
+    document.getElementById('meterMaxDiffNote').textContent = 'لا مقارنة دون 3 عروض متجانسة';
+    if (meterFairNote) {
+      meterFairNote.textContent = `عينة غير كافية: ${stats.count} عرض مماثل مسعّر (${stats.label}) • يلزم ${MIN_N} عروض متجانسة على الأقل للحكم على السعر`;
+    }
+    if (meterMinNote) meterMinNote.textContent = 'لا يُحدَّد الأرخص قبل توفر عروض كافية للمقارنة';
+  } else if (stats) {
     const lowValue = stats.inlierMin;
     const highValue = stats.inlierMax;
     document.getElementById('meterMinPrice').textContent = `${formatIQD(lowValue)} (${convertIQDtoUSD(lowValue)})`;
     document.getElementById('meterAvgPrice').textContent = `${formatIQD(stats.median)} (${convertIQDtoUSD(stats.median)})`;
     document.getElementById('meterMaxPrice').textContent = `${formatIQD(highValue)} (${convertIQDtoUSD(highValue)})`;
 
-    const sampleNote =
-      stats.count < MIN_N ? ` • عينة صغيرة (${stats.count}) لا تكفي لحكم موثوق` : '';
+    const sampleNote = '';
     if (meterFairNote) {
       meterFairNote.textContent = `الوسيط لـ ${stats.count} عرض مماثل (${stats.label}) • المتوسط الحسابي: ${formatIQD(Math.round(stats.mean))}${sampleNote}`;
     }
@@ -638,7 +704,7 @@ function renderApp() {
     document.getElementById('meterMaxDiffNote').textContent =
       diff > 0 ? `أغلى من أقل عرض مماثل بمقدار ${formatIQD(diff)}` : 'لا يوجد فرق سعري بين العروض المماثلة';
 
-    if (state.adComparisonPrice && state.adComparisonPrice > lowValue) {
+    if (state.adComparisonPrice && stats.count >= MIN_N && state.adComparisonPrice > lowValue) {
       const savedFromAd = state.adComparisonPrice - lowValue;
       const banner = document.getElementById('searchStatusBanner');
       banner.hidden = false;
@@ -655,40 +721,48 @@ function renderApp() {
 
   if (allFiltered.length > 0) {
     // الأرخص يُختار من مجموعة المقارنة نفسها وليس من خليط فئات مختلفة
+    // لا يُعلن "الأرخص" إلا عند وجود 3 عروض متجانسة مسعّرة على الأقل
     const focusPriced = allFiltered.filter(
-      (o) => o.effectivePriceIQD && o.effectivePriceIQD > 0 && o.comparisonKey === focusKey && !o.isPriceOutlier
+      (o) => o.effectivePriceIQD && o.effectivePriceIQD > 0 && o.comparisonKey === focusKey && o.isReliablyComparable
     );
-    const cheapest = focusPriced.length
-      ? [...focusPriced].sort((a, b) => a.effectivePriceIQD - b.effectivePriceIQD)[0]
-      : allFiltered[0];
+    const cheapest = focusPriced.length ? [...focusPriced].sort((a, b) => a.effectivePriceIQD - b.effectivePriceIQD)[0] : null;
     const located = allFiltered.filter((o) => o.distanceKm !== null);
     const nearest = located.length
       ? [...located].sort((a, b) => a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999999) - (b.effectivePriceIQD || 999999999999))[0]
       : allFiltered[0];
-    const smartest = [...allFiltered].sort((a, b) => Number(a.isPriceOutlier) - Number(b.isPriceOutlier) || b.smartScore - a.smartScore)[0];
+    const smartest = allFiltered.find((o) => o.isBestSmart) || null;
+    const priceKind = (o) => (isVerifiedPrice(o) ? 'سعر موثق' : 'سعر تقديري غير مؤكد');
 
     state.topCardTargets = {
-      cheapest: cheapest.id,
+      cheapest: cheapest?.id || null,
       nearest: nearest.id,
-      smart: smartest.id
+      smart: smartest?.id || null
     };
 
-    document.getElementById('bestPriceTitle').textContent = cheapest.title;
-    document.getElementById('bestPriceValue').textContent = formatIQD(cheapest.effectivePriceIQD);
-    document.getElementById('bestPricePlatform').textContent = `${getPlatformName(cheapest.platform)} • ${govLabel(cheapest)}`;
+    if (cheapest) {
+      document.getElementById('bestPriceTitle').textContent = cheapest.title;
+      document.getElementById('bestPriceValue').textContent = formatIQD(cheapest.effectivePriceIQD);
+      document.getElementById('bestPricePlatform').textContent = `${getPlatformName(cheapest.platform)} • ${govLabel(cheapest)} • ${priceKind(cheapest)}`;
+    } else {
+      document.getElementById('bestPriceTitle').textContent = `لا توجد ${MIN_N} عروض متجانسة مسعّرة لتحديد الأرخص`;
+      document.getElementById('bestPriceValue').textContent = '—';
+      document.getElementById('bestPricePlatform').textContent = 'افتح المصادر وقارن يدوياً';
+    }
 
     document.getElementById('nearestItemTitle').textContent = nearest.title;
     document.getElementById('nearestItemDistance').textContent =
-      nearest.distanceKm === null
-        ? 'الموقع غير محدد في الإعلان'
-        : nearest.distanceKm === 0
-          ? `داخل محافظتك (${govLabel(nearest)})`
-          : `يبعد ${nearest.distanceKm} كم (${govLabel(nearest)})`;
+      nearest.distanceKm === null ? describeDistance(nearest) : `${govLabel(nearest)} • ${describeDistance(nearest)}`;
     document.getElementById('nearestItemPrice').textContent = formatIQD(nearest.effectivePriceIQD);
 
-    document.getElementById('smartMatchTitle').textContent = smartest.title;
-    document.getElementById('smartMatchMeta').textContent = `${formatIQD(smartest.effectivePriceIQD)} • ${govLabel(smartest)}`;
-    document.getElementById('smartMatchSaving').textContent = `معيار التوافق ${smartest.smartScore}%`;
+    if (smartest) {
+      document.getElementById('smartMatchTitle').textContent = smartest.title;
+      document.getElementById('smartMatchMeta').textContent = `${formatIQD(smartest.effectivePriceIQD)} • ${govLabel(smartest)}`;
+      document.getElementById('smartMatchSaving').textContent = `معيار التوافق ${smartest.smartScore}%`;
+    } else {
+      document.getElementById('smartMatchTitle').textContent = `لا توجد ${MIN_N} عروض متجانسة مسعّرة لترشيح موثوق`;
+      document.getElementById('smartMatchMeta').textContent = '—';
+      document.getElementById('smartMatchSaving').textContent = '';
+    }
   } else {
     document.getElementById('bestPriceTitle').textContent = state.isSearchingLive ? 'جاري البحث الحي...' : 'لا توجد عروض مطابقة';
     document.getElementById('bestPriceValue').textContent = '—';
@@ -735,12 +809,8 @@ function renderApp() {
       const isDemo = offer.source === 'demo';
       const isLive = offer.source === 'live';
       const govName = govLabel(offer);
-      const distText =
-        offer.distanceKm === null
-          ? 'المسافة غير معروفة'
-          : offer.distanceKm === 0
-            ? 'متوفر داخل محافظتك'
-            : `يبعد ${offer.distanceKm} كم عن محافظتك`;
+      const distText = describeDistance(offer);
+      const verifiedPrice = isVerifiedPrice(offer);
       const hasOriginalUrl = Boolean(safeHttpUrl(offer.directUrl));
       const directUrl = buildOfferDirectUrl(offer);
       const imgUrl = getProductImageUrl(offer);
@@ -788,7 +858,11 @@ function renderApp() {
       }
       if (isLive && offer.itemPriceIQD) {
         const matched = offer.priceMeta?.matchedText ? ` («${esc(offer.priceMeta.matchedText)}»)` : '';
-        deliveryBreakdownHtml += `<span class="delivery-breakdown">السعر مستخرج آلياً من مقتطف البحث${matched} وغير موثق</span>`;
+        deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر تقديري مستخرج آلياً من مقتطف البحث${matched} — ليس سعراً مؤكداً، تحقق منه في المصدر</span>`;
+      } else if (!isDemo && offer.itemPriceIQD && !verifiedPrice) {
+        deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر أدخله المعلن ولم يُتحقق منه</span>`;
+      } else if (verifiedPrice && offer.itemPriceIQD) {
+        deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر متحقَّق منه من مصدر موثق</span>`;
       }
 
       let inspectionLabel;
@@ -834,7 +908,7 @@ function renderApp() {
               <div class="card-ribbons">
                 ${isDemo ? '<span class="ribbon-tag ribbon-overpriced">عرض تجريبي (غير حقيقي)</span>' : ''}
                 ${offer.isCheapest ? '<span class="ribbon-tag ribbon-cheapest">الأقل سعراً بين العروض المماثلة</span>' : ''}
-                ${offer.isNearest ? '<span class="ribbon-tag ribbon-nearest">الأقرب لمحافظتك</span>' : ''}
+                ${offer.isNearest ? `<span class="ribbon-tag ribbon-nearest">${offer.distanceKm === 0 ? 'داخل محافظتك' : 'الأقرب تقديرياً حسب المحافظة'}</span>` : ''}
                 ${offer.isBestSmart ? '<span class="ribbon-tag ribbon-smart">الترشيح الأفضل</span>' : ''}
                 ${offer.isOverpriced ? '<span class="ribbon-tag ribbon-overpriced">أغلى من الوسيط للعروض المماثلة</span>' : ''}
                 ${offer.isPriceOutlier ? '<span class="ribbon-tag ribbon-overpriced">سعر شاذ عن العروض المماثلة — تحقق منه</span>' : ''}
@@ -874,6 +948,7 @@ function renderApp() {
             <div class="price-main-row">
               <span class="price-iqd" style="${!offer.effectivePriceIQD ? 'font-size:0.92rem; color:var(--brand-primary);' : ''}">${formatIQD(offer.effectivePriceIQD)}</span>
               ${usdText ? `<span class="price-usd">(${esc(usdText)})</span>` : ''}
+              ${offer.effectivePriceIQD && !isDemo && !verifiedPrice ? '<span class="price-usd" title="السعر غير مؤكد">• تقديري</span>' : ''}
             </div>
             ${deliveryBreakdownHtml}
             ${
@@ -1746,8 +1821,19 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAnalyzerPreview();
   });
 
-  document.getElementById('analyzerForm').addEventListener('submit', (e) => {
+  document.getElementById('analyzerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const formStatus = document.getElementById('analyzerFormStatus');
+    const submitBtn = document.getElementById('analyzerSubmitBtn');
+    const showStatus = (text) => {
+      formStatus.hidden = false;
+      formStatus.textContent = text;
+    };
+    if (!state.user) {
+      showStatus('إضافة العروض تتطلب تسجيل الدخول بحساب غوغل لمنع الإعلانات الوهمية والمتكررة.');
+      openLoginModal(() => analyzerModal.showModal());
+      return;
+    }
     const section = postSectionSelect.value;
     const platform = document.getElementById('postPlatformSelect').value;
     const storeName = document.getElementById('postStoreName').value.trim();
@@ -1802,7 +1888,17 @@ document.addEventListener('DOMContentLoaded', () => {
       postedAgo: null
     };
 
-    state.offers.unshift(newOffer);
+    // لا يظهر العرض ولا رسالة النجاح إلا بعد أن يؤكد الخادم الحفظ
+    submitBtn.disabled = true;
+    showStatus('جاري الحفظ...');
+    const { ok, status: code, data } = await postJson('/api/offers', newOffer);
+    submitBtn.disabled = false;
+    if (!ok) {
+      showStatus(saveErrorMessage(code, data));
+      return;
+    }
+    formStatus.hidden = true;
+    state.offers.unshift({ ...newOffer, id: data.offer?.id || newOffer.id, postedAt: data.offer?.postedAt || newOffer.postedAt });
     state.selectedSection = section;
     document.querySelectorAll('.vertical-tab').forEach((t) => {
       t.classList.toggle('active', t.getAttribute('data-section') === section);
@@ -1811,21 +1907,9 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.value = '';
     analyzerModal.close();
     renderApp();
-
-    fetch('/api/offers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newOffer)
-    })
-      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
-        if (!ok || !data.saved) {
-          const banner = document.getElementById('searchStatusBanner');
-          banner.hidden = false;
-          banner.textContent = 'تعذر حفظ العرض في قاعدة البيانات؛ سيظهر في هذا المتصفح فقط حتى إعادة تحميل الصفحة.';
-        }
-      })
-      .catch(() => {});
+    const banner = document.getElementById('searchStatusBanner');
+    banner.hidden = false;
+    banner.textContent = 'تم حفظ عرضك. يظهر لجميع الزوار على أنه عرض غير موثق.';
   });
 
   // نافذة رادار التنبيهات (تتطلب تسجيل الدخول بغوغل)
@@ -1944,15 +2028,8 @@ document.addEventListener('DOMContentLoaded', () => {
       screenshotPreviewImg.hidden = false;
     };
     reader.readAsDataURL(file);
-
-    const cleanName = file.name
-      .replace(/\.[^.]+$/, '')
-      .replace(/[-_]/g, ' ')
-      .replace(/screenshot|img|image|whatsapp|photo|\d{4,}/gi, '')
-      .trim();
-    if (cleanName.length >= 3 && !imageExtractedQuery.value) {
-      imageExtractedQuery.value = cleanName;
-    }
+    // الصورة للمعاينة فقط: لا تحليل ولا استخراج، والبحث يعتمد على الاسم الذي يكتبه المستخدم
+    imageExtractedQuery.focus();
   });
 
   document.getElementById('imageSearchForm').addEventListener('submit', (e) => {
@@ -1969,7 +2046,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const banner = document.getElementById('searchStatusBanner');
     banner.hidden = false;
-    banner.textContent = `جاري فحص صورة الإعلان والبحث عن المصدر الأرخص في العراق لـ: ${q}...`;
+    banner.textContent = `جاري البحث بالاسم الذي كتبته: ${q}...`;
 
     performLiveSearch(q);
   });
@@ -1983,20 +2060,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const rating = Number(document.getElementById('reviewRatingSelect').value);
     const allowsInspection = document.getElementById('reviewInspectionSelect').value === 'true';
     const comment = document.getElementById('reviewCommentInput').value.trim();
+    const status = document.getElementById('reviewFormStatus');
+    const submitBtn = document.getElementById('reviewSubmitBtn');
+    const showStatus = (text) => {
+      status.hidden = false;
+      status.textContent = text;
+    };
 
-    await fetch('/api/reviews', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        storeName,
-        rating,
-        allowsInspection,
-        comment,
-        reviewerGov: state.selectedGov
-      })
-    }).catch(() => {});
+    if (!state.user) {
+      showStatus('التقييم يتطلب تسجيل الدخول بحساب غوغل حتى لا تتكرر التقييمات الوهمية.');
+      openLoginModal(() => window.openStoreReviewModal(storeName));
+      return;
+    }
 
-    document.getElementById('reviewCommentInput').value = '';
+    submitBtn.disabled = true;
+    showStatus('جاري الحفظ...');
+    const { ok, status: code, data } = await postJson('/api/reviews', {
+      storeName,
+      rating,
+      allowsInspection,
+      comment,
+      reviewerGov: state.selectedGov
+    });
+    submitBtn.disabled = false;
+    if (!ok) {
+      showStatus(saveErrorMessage(code, data));
+      return;
+    }
+    showStatus(data.updated ? 'تم تحديث تقييمك السابق لهذه الجهة.' : 'تم حفظ تقييمك.');
     await loadStoreReviews(storeName);
   });
 
