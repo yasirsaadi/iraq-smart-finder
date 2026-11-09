@@ -88,3 +88,12 @@ function safeFromCodePoint(code) {
     return '';
   }
 }
+
+// الأسماء العامة (اسم منصة أو نطاق موقع) لا تمثل تاجراً محدداً، فلا تُقبل لها تقييمات
+// حتى لا تُجمع تحتها تقييمات بائعين مختلفين. تُستخدم في المتصفح والخادم معاً.
+const GENERIC_SELLER_NAMES = new Set(['منشور أو صفحة على فيسبوك', 'منشور أو حساب على انستغرام', 'معلن غير مسمى', 'فيسبوك', 'انستغرام', 'مواقع الويب']);
+
+export function isReviewableSellerName(name) {
+  const n = String(name || '').trim();
+  return n.length >= 2 && !GENERIC_SELLER_NAMES.has(n) && !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(n);
+}

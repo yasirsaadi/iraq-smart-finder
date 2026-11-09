@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, safeHttpUrl, safeIraqiMobile, htmlToPlainText, cleanPlainText } from '../shared/sanitize.js';
+import { escapeHtml, safeHttpUrl, safeIraqiMobile, htmlToPlainText, cleanPlainText, isReviewableSellerName } from '../shared/sanitize.js';
 
 test('escapeHtml يعطّل الوسوم وكسر الخصائص', () => {
   assert.equal(escapeHtml('<img src=x onerror=alert(1)>'), '&lt;img src&#61;x onerror&#61;alert(1)&gt;');
@@ -35,4 +35,12 @@ test('رقم الهاتف العراقي', () => {
 test('cleanPlainText يزيل محارف التحكم واتجاه النص المخفية', () => {
   assert.equal(cleanPlainText('a‮b\u0000c   d', 10), 'abc d');
   assert.equal(cleanPlainText('x'.repeat(50), 5), 'xxxxx');
+});
+
+test('الأسماء العامة للمنصات والمواقع لا تُقيَّم كتاجر محدد', () => {
+  for (const generic of ['منشور أو صفحة على فيسبوك', 'منشور أو حساب على انستغرام', 'معلن غير مسمى', 'iq.opensooq.com', 'elryan.com', 'www.facebook.com', '', ' ']) {
+    assert.equal(isReviewableSellerName(generic), false, generic);
+  }
+  assert.equal(isReviewableSellerName('معرض النهضة للسيارات'), true);
+  assert.equal(isReviewableSellerName('Al Rayan Store'), true);
 });

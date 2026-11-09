@@ -168,8 +168,12 @@ test('النصوص الخارجية الخبيثة لا تُنفَّذ، وال�
   assert.ok(hrefs.every((h) => /^https:\/\//.test(h)), hrefs.join(' | '));
   assert.match(await page.textContent('[data-offer-id="a1"] .product-title'), /<img src=x/);
 
-  // زر التقييم بالتفويض يعرض اسم المتجر نصاً فقط، والتعليق الخبيث لا يُنفَّذ
-  await page.click('[data-offer-id="a1"] .trust-rate-btn');
+  // نتائج البحث الحي لا تحدد بائعاً بعينه: لا زر تقييم لها
+  assert.equal(await page.locator('#resultsGrid [data-action="review"]').count(), 0);
+  assert.match(await page.textContent('[data-offer-id="a2"]'), /بائع غير محدد/);
+  assert.match(await page.textContent('[data-offer-id="a2"]'), /التقييم غير متاح: هوية البائع الحقيقية غير معروفة/);
+  // نافذة التقييم تعرض اسم المتجر نصاً فقط، والتعليق الخبيث لا يُنفَّذ
+  await page.evaluate(() => window.openStoreReviewModal("x');window.__xss=2;//"));
   await page.waitForSelector('#storeReviewsList .alert-row strong');
   assert.equal(await page.evaluate(() => window.__xss), undefined);
   assert.match(await page.textContent('#reviewModalStoreTitle'), /window\.__xss=2/);
@@ -177,7 +181,7 @@ test('النصوص الخارجية الخبيثة لا تُنفَّذ، وال�
 
   // لا تقييم ولا وقت ولا توثيق مختلق
   const card = await page.textContent('[data-offer-id="a2"]');
-  assert.match(card, /لا توجد تقييمات/);
+  assert.match(card, /بائع غير محدد/);
   assert.match(card, /بلا تاريخ نشر/);
   assert.match(card, /غير موثق/);
   assert.doesNotMatch(card, /4\.8/);
@@ -199,6 +203,125 @@ test('النصوص الخارجية الخبيثة لا تُنفَّذ، وال�
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'live-mock.png'), fullPage: true });
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+test('لا حكم على الأرخص أو السعر العادل دون 3 عروض متجانسة، والأسعار المستخرجة تقديرية والمسافات صادقة', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  const two = {
+    providerOk: true,
+    offers: [
+      liveOffer('b1', 'ايفون 15 نظيف', 1_500_000),
+      liveOffer('b2', 'ايفون 15 مستعمل', 1_400_000, { governorate: 'basra', district: 'البصرة' }),
+      liveOffer('b3', 'ايفون 15 بدون سعر', null, { governorate: 'baghdad', locationDetected: false })
+    ]
+  };
+  await page.route('**/api/live-search**', (route) => route.fulfill({ json: two }));
+  await page.fill('#searchQuery', 'ايفون 15');
+  await page.press('#searchQuery', 'Enter');
+  await page.waitForSelector('#resultsGrid article');
+
+  assert.match(await page.textContent('#bestPriceTitle'), /لا توجد 3 عروض متجانسة/);
+  assert.equal(await page.textContent('#bestPriceValue'), '—');
+  assert.match(await page.textContent('#smartMatchTitle'), /لا توجد 3 عروض متجانسة/);
+  assert.equal(await page.textContent('#meterAvgPrice'), '—');
+  assert.match(await page.textContent('#meterFairNote'), /عينة غير كافية: 2/);
+  const grid = await page.textContent('#resultsGrid');
+  assert.doesNotMatch(grid, /الأقل سعراً بين العروض المماثلة|الترشيح الأفضل|أغلى من الوسيط/);
+
+  const local = await page.textContent('[data-offer-id="b1"]');
+  assert.match(local, /سعر تقديري مستخرج آلياً من مقتطف البحث/);
+  assert.match(local, /• سعر تقديري/);
+  assert.doesNotMatch(local, /سعر معلن غير موثّق/);
+  assert.match(local, /داخل محافظتك \(المسافة الفعلية غير معروفة\)/);
+  assert.doesNotMatch(local, /(^|\D)0 كم/);
+  assert.match(await page.textContent('[data-offer-id="b2"]'), /نحو \d+0 كم بخط مستقيم بين مركزي المحافظتين \(ليست مسافة الطريق\)/);
+  assert.match(await page.textContent('[data-offer-id="b3"]'), /الموقع غير محدد في الإعلان/);
+  assert.doesNotMatch(await page.textContent('#nearestItemDistance'), /(^|\D)0 كم/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('البحث بصورة: الصورة للمعاينة فقط ولا يُستنتج شيء من اسم الملف', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  await page.click('#openImageSearchBtn');
+  const text = await page.textContent('#imageSearchModal');
+  assert.match(text, /للمعاينة فقط/);
+  assert.doesNotMatch(text, /نستخرج|لنستخرج|تحليل الصورة آلياً/);
+  await page.setInputFiles('#adScreenshotInput', { name: 'iphone-15-pro-max.png', mimeType: 'image/png', buffer: Buffer.from('89504e470d0a1a0a', 'hex') });
+  assert.equal(await page.inputValue('#imageExtractedQuery'), '', 'لا تعبئة آلية من اسم الملف');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('إضافة عرض دون تسجيل دخول: لا يظهر العرض ولا رسالة نجاح', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  let posted = false;
+  await page.route('**/api/offers', (route) => {
+    if (route.request().method() === 'POST') posted = true;
+    route.continue();
+  });
+  await page.click('#openAnalyzerBtn');
+  await page.fill('#postStoreName', 'متجر تجريبي');
+  await page.fill('#postRawText', 'ايفون 15 للبيع السعر مليون ونص بغداد 07701234567');
+  await page.click('#analyzerSubmitBtn');
+  await page.waitForSelector('#analyzerFormStatus:not([hidden])');
+  assert.match(await page.textContent('#analyzerFormStatus'), /تتطلب تسجيل الدخول/);
+  assert.equal(posted, false);
+  assert.equal(await page.locator('#resultsGrid article').count(), 0);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('عرض أدخله مستخدم: «سعر معلن غير موثّق»، ومسودة التقييم تبقى بعد طلب تسجيل الدخول', { skip: SKIP }, async () => {
+  const browserCtx = await browser.newContext({ viewport: { width: 1366, height: 900 } });
+  const page = await browserCtx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  const userOffer = liveOffer('u1', 'ايفون 15 من متجر محلي', 1_450_000, {
+    source: 'user',
+    storeName: 'متجر الكرادة للهواتف',
+    priceSource: undefined,
+    priceMeta: null
+  });
+  await page.route('**/api/offers', (route) => route.fulfill({ json: { source: 'neon', offers: [userOffer] } }));
+  // تقييم سابق محفوظ للمستخدم لا يجوز أن يمحو المسودة الجديدة
+  await page.route('**/api/reviews?**', (route) =>
+    route.fulfill({ json: { reviews: [], mine: { id: 1, rating: 5, allows_inspection: true, comment: 'تقييم قديم' } } })
+  );
+  let posted = false;
+  await page.route('**/api/reviews', (route) => {
+    posted = true;
+    route.fulfill({ status: 401, json: { saved: false, error: 'login_required' } });
+  });
+  await page.route('**/api/live-search**', (route) => route.fulfill({ json: { providerOk: true, offers: [] } }));
+  await page.goto(`http://127.0.0.1:${PROD}/`, { waitUntil: 'networkidle' });
+  await page.fill('#searchQuery', 'ايفون 15');
+  await page.press('#searchQuery', 'Enter');
+  const card = page.locator('[data-offer-id="u1"]');
+  await card.waitFor();
+  assert.match(await card.textContent(), /• سعر معلن غير موثّق/);
+  assert.match(await card.textContent(), /سعر معلن غير موثّق: أدخله المعلن/);
+  assert.doesNotMatch(await card.textContent(), /سعر تقديري/);
+
+  await card.locator('.trust-rate-btn').click();
+  await page.waitForSelector('#reviewModal[open]');
+  await page.selectOption('#reviewRatingSelect', '2');
+  await page.selectOption('#reviewInspectionSelect', 'false');
+  await page.fill('#reviewCommentInput', 'رفض الفحص وطلب تحويل المبلغ مقدماً');
+  await page.click('#reviewSubmitBtn');
+  await page.waitForSelector('#loginModal[open]');
+  assert.equal(posted, false, 'لا إرسال قبل تسجيل الدخول');
+  assert.match(await page.textContent('#reviewFormStatus'), /سيبقى ما كتبته كما هو/);
+  // ما يحدث بعد نجاح الدخول: إعادة فتح نافذة التقييم للجهة نفسها
+  await page.evaluate(() => document.getElementById('loginModal').close());
+  await page.evaluate(() => window.openStoreReviewModal('متجر الكرادة للهواتف'));
+  await page.waitForTimeout(300);
+  assert.equal(await page.inputValue('#reviewCommentInput'), 'رفض الفحص وطلب تحويل المبلغ مقدماً');
+  assert.equal(await page.inputValue('#reviewRatingSelect'), '2');
+  assert.equal(await page.inputValue('#reviewInspectionSelect'), 'false');
+  assert.match(await page.textContent('#reviewFormStatus'), /تم الاحتفاظ بتقييمك/);
+  assert.deepEqual(errors, []);
+  await browserCtx.close();
 });
 
 test('وضع العرض التجريبي: العروض موسومة وأسعار العقارات لا تدخل في مقارنة الأجهزة', { skip: SKIP }, async () => {

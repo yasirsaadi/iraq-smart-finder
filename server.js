@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { neon } from '@neondatabase/serverless';
 import { normalizeDigits, hasTerm, normalizeForMatch } from './shared/price-engine.js';
-import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities } from './shared/sanitize.js';
+import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities, isReviewableSellerName } from './shared/sanitize.js';
 import { parseYahooResults, buildLiveOffer } from './lib/live-results.js';
 import { attachListingImages } from './lib/listing-images.js';
 import { createSearchStore, initSearchStoreTables, readEconomicsConfig, quotaSubjectFor } from './lib/search-store.js';
@@ -22,6 +22,8 @@ import {
 } from './lib/accounts.js';
 import { createNotifier, initNotificationTables } from './lib/notifications.js';
 import { createAlertStore, initAlertColumns, findAlertMatches, formatIQD, MAX_ALERTS_PER_USER, MAX_ALERTS_PER_SUBSCRIBER } from './lib/price-alerts.js';
+import { refreshPopularBatch, checkDueAlerts } from './lib/background-jobs.js';
+import { createActionLimiter, initActionLimitTable } from './lib/action-limits.js';
 import { isSerperConfigured, buildSerperQueries, serperSearchRaw, needsResolve, serperResolve, mapSerperOrganic } from './lib/serper-provider.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -220,6 +222,8 @@ async function initNeonDatabase() {
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS delivery_local_iqd INTEGER DEFAULT 4000`;
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS delivery_national_iqd INTEGER DEFAULT 7000`;
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS direct_url TEXT`;
+    // صاحب العرض (العروض القديمة تبقى بلا مالك: NULL)
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS user_id INTEGER`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS dalal_iraq_alerts (
@@ -246,6 +250,10 @@ async function initNeonDatabase() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `;
+    // تقييم واحد لكل حساب لكل جهة (يُعدَّل ولا يتكرر). التقييمات القديمة المجهولة تبقى كما هي (user_id = NULL).
+    await sql`ALTER TABLE dalal_iraq_reviews ADD COLUMN IF NOT EXISTS user_id INTEGER`;
+    await sql`ALTER TABLE dalal_iraq_reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS dalal_iraq_reviews_user_store_uidx ON dalal_iraq_reviews (user_id, store_name) WHERE user_id IS NOT NULL`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS dalal_iraq_subscriptions (
@@ -271,6 +279,7 @@ async function initNeonDatabase() {
     await sql`ALTER TABLE dalal_iraq_searches ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'all'`;
     await initSearchStoreTables(sql);
     await initAccountTables(sql);
+    await initActionLimitTable(sql);
     await initNotificationTables(sql);
     await initAlertColumns(sql);
   } catch (err) {
@@ -348,6 +357,30 @@ function isRateLimited(ip) {
   rateBuckets.set(ip, bucket);
   if (rateBuckets.size > 5000) rateBuckets.clear();
   return bucket.count > RATE_MAX_REQUESTS;
+}
+
+// حدود الإرسال لكل حساب (إضافة العروض والتقييمات)، محفوظة في قاعدة البيانات فتبقى بعد إعادة التشغيل
+const actionLimiter = createActionLimiter({ sql });
+
+/** شروط أي إضافة من المستخدمين قبل فحص البيانات: الدخول مفعّل، الطلب من الموقع نفسه، المستخدم مسجّل، ولا إغراق. */
+function rejectUnauthorizedWrite(req, res) {
+  if (!FEATURE_FLAGS.loginEnabled) return res.status(503).json({ saved: false, error: 'login_disabled' });
+  if (!isSameOriginRequest(req)) return res.status(403).json({ saved: false, error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ saved: false, error: 'login_required' });
+  // منع الإغراق بكل المحاولات (حتى غير الصالحة) دون أن تُخصم من حصة الإرسال
+  if (isRateLimited(`write:${req.user.id}`)) return res.status(429).json({ saved: false, error: 'rate_limited' });
+  return null;
+}
+
+/** يخصم من حصة الإرسال فقط بعد قبول البيانات، مباشرة قبل الحفظ. */
+async function rejectOverQuota(req, res, action) {
+  try {
+    if (await actionLimiter.isLimited(action, req.user.id)) return res.status(429).json({ saved: false, error: 'too_many_submissions' });
+  } catch (err) {
+    console.error('action limit check failed:', err.message);
+    return res.status(503).json({ saved: false, error: 'limit_check_unavailable' });
+  }
+  return null;
 }
 
 // عمليات المرحلة الثانية الجارية في الخلفية، حتى لا يتكرر البحث نفسه ولا يُدفع ثمنه مرتين
@@ -463,10 +496,13 @@ app.get('/api/live-search', async (req, res) => {
   const gov = IRAQ_GOV_KEYWORDS[String(req.query.gov || '')] ? String(req.query.gov) : 'baghdad';
   const sectionRaw = String(req.query.section || 'all').trim();
   const sectionHint = ['all', 'products', 'cars', 'realestate'].includes(sectionRaw) ? sectionRaw : 'all';
-  const debug = req.query.debug === '1';
+  // وضع التشخيص يتجاوز الذاكرة المشتركة، فهو للمشرف فقط حتى لا تتكرر الطلبات المدفوعة
+  const debug = req.query.debug === '1' && isAuthorizedRefresh(req);
+  const isCompletion = req.query.wait === '1';
 
   if (!query) return res.json({ offers: [] });
-  if (isRateLimited(req.ip || 'unknown')) {
+  // طلب الاستكمال لا يبدأ بحثاً مدفوعاً، فلا يُحسب ضمن حد الطلبات
+  if (!isCompletion && isRateLimited(req.ip || 'unknown')) {
     return res.status(429).json({ error: 'rate_limited', providerOk: false, offers: [] });
   }
 
@@ -494,9 +530,12 @@ app.get('/api/live-search', async (req, res) => {
     }
   }
 
+  // ٣) طلب استكمال لبحث انتهى أو تعذر: لا يبدأ بحثاً جديداً ولا يُحسب من الحصة
+  if (isCompletion) return res.json({ query, providerOk: false, pending: false, completionUnavailable: true, offers: [] });
+
   try {
     if (isSerperConfigured()) {
-      // ٣) سقف الرصيد اليومي للموقع كله، ثم حصة الزائر الشهرية من عمليات البحث الجديدة
+      // ٤) سقف الرصيد اليومي للموقع كله، ثم حصة الزائر الشهرية من عمليات البحث الجديدة
       const reserved = await searchStore.reserveCredits(ECONOMICS.creditsPerSearch);
       if (!reserved) {
         return res.json({ query, providerOk: false, budgetExhausted: true, offers: [] });
@@ -558,30 +597,29 @@ app.post('/api/admin/refresh-popular', async (req, res) => {
   // لا نعيد تحديث نتيجة ما زال أمامها أكثر من نصف عمرها
   const freshEnoughMs = (ECONOMICS.cacheTtlHours * 3600 * 1000) / 2;
 
-  const report = { total: popular.length, offset, refreshed: 0, skipped: 0, failed: 0 };
-  for (const row of slice) {
+  const items = slice.map((row) => {
     const query = cleanPlainText(row.query, 120);
     const gov = IRAQ_GOV_KEYWORDS[row.governorate] ? row.governorate : 'baghdad';
-    const sectionHint = ['all', 'products', 'cars', 'realestate'].includes(row.section) ? row.section : 'all';
-    const key = liveCacheKey(query, gov, sectionHint);
-    const age = await searchStore.cachedAgeMs(key);
-    if (age !== null && age < freshEnoughMs) {
-      report.skipped += 1;
-      continue;
-    }
-    try {
-      await searchStore.reserveCredits(ECONOMICS.creditsPerSearch, { enforce: false });
-      const { full } = await runSerperPipeline({ query, gov, sectionHint });
-      const payload = await full;
-      if (payload.providerOk) report.refreshed += 1;
-      else report.failed += 1;
-    } catch (err) {
-      console.error('nightly refresh failed for one query:', err.message);
-      report.failed += 1;
-    }
-  }
+    const section = ['all', 'products', 'cars', 'realestate'].includes(row.section) ? row.section : 'all';
+    return { key: liveCacheKey(query, gov, section), query, gov, section };
+  });
+  // التحديث الليلي يخضع لسقف الرصيد اليومي نفسه، ويتوقف فور نفاده
+  const report = await refreshPopularBatch({
+    items,
+    cachedAgeMs: (key) => searchStore.cachedAgeMs(key),
+    freshEnoughMs,
+    reserveCredits: () => searchStore.reserveCredits(ECONOMICS.creditsPerSearch),
+    runSearch: async (item) => (await runSerperPipeline({ query: item.query, gov: item.gov, sectionHint: item.section })).full
+  });
   const nextOffset = offset + slice.length;
-  res.json({ ...report, nextOffset, done: nextOffset >= popular.length, creditsUsedToday: await searchStore.creditsUsedToday() });
+  res.json({
+    total: popular.length,
+    offset,
+    ...report,
+    nextOffset,
+    done: report.budgetExhausted || nextOffset >= popular.length,
+    creditsUsedToday: await searchStore.creditsUsedToday()
+  });
 });
 
 // ===== الفحص الليلي لتنبيهات الأسعار وتذكير انتهاء الاشتراك =====
@@ -613,35 +651,29 @@ app.post('/api/admin/check-alerts', async (req, res) => {
   }
 
   const batch = await alertStore.due(5);
-  for (const alert of batch) {
-    report.checked += 1;
-    const section = alert.section || 'all';
-    const key = liveCacheKey(alert.keyword, alert.governorate, section);
+  const result = await checkDueAlerts({
+    alerts: batch,
     // نتائج القسم نفسه أولاً، ثم نتائج "جميع الأقسام" المحفوظة (كلاهما مجاني)
-    let payload =
-      (await searchStore.getCached(key))?.value ||
-      (section !== 'all' ? (await searchStore.getCached(liveCacheKey(alert.keyword, alert.governorate, 'all')))?.value : null) ||
-      null;
-    if (payload) report.fromCache += 1;
-    else if (isSerperConfigured() && alertCheckBudget.used < ALERT_CHECKS_PER_NIGHT) {
-      alertCheckBudget.used += 1;
-      report.freshSearches += 1;
-      await searchStore.reserveCredits(ECONOMICS.creditsPerSearch, { enforce: false });
-      try {
-        // خط البحث نفسه يحفظ النتيجة ويفحص كل التنبيهات المطابقة لها، ومنها هذا التنبيه
-        const { full } = await runSerperPipeline({ query: alert.keyword, gov: alert.governorate, sectionHint: section });
-        await full;
-        // إن لم تُرجع نتائج فلن يُفحص التنبيه داخل الخط، فنعلّمه مفحوصاً كي لا يتكرر بلا نهاية
-        await alertStore.markChecked(alert.id, []);
-        continue;
-      } catch (err) {
-        console.error('alert fresh search failed:', err.message);
-      }
-    }
-    if (payload) report.notified += await checkAlertsAgainstPayload(payload, {}, [alert]);
-    else await alertStore.markChecked(alert.id, []);
-  }
-  res.json({ ...report, done: batch.length === 0 });
+    getPayload: async (alert) => {
+      const section = alert.section || 'all';
+      return (
+        (await searchStore.getCached(liveCacheKey(alert.keyword, alert.governorate, section)))?.value ||
+        (section !== 'all' ? (await searchStore.getCached(liveCacheKey(alert.keyword, alert.governorate, 'all')))?.value : null) ||
+        null
+      );
+    },
+    canSearch: isSerperConfigured(),
+    freshSearchAllowance: Math.max(0, ALERT_CHECKS_PER_NIGHT - alertCheckBudget.used),
+    reserveCredits: () => searchStore.reserveCredits(ECONOMICS.creditsPerSearch),
+    runSearch: async (alert) => (await runSerperPipeline({ query: alert.keyword, gov: alert.governorate, sectionHint: alert.section || 'all' })).full,
+    checkPayload: (payload, alert) => checkAlertsAgainstPayload(payload, {}, [alert]),
+    markChecked: (alert, urls) => alertStore.markChecked(alert.id, urls)
+  });
+  alertCheckBudget.used = ALERT_CHECKS_PER_NIGHT - result.freshSearchAllowanceLeft;
+  const { freshSearchAllowanceLeft, ...counts } = result;
+  Object.assign(report, counts);
+  // التنبيهات المؤجلة تبقى مستحقة وتُعاد في التشغيل القادم؛ نتوقف الآن كي لا تتكرر الدفعة نفسها
+  res.json({ ...report, done: batch.length === 0 || result.deferred > 0 });
 });
 
 const ALLOWED_SECTIONS = ['products', 'cars', 'realestate'];
@@ -720,6 +752,7 @@ app.get('/api/offers', async (_req, res) => {
 });
 
 app.post('/api/offers', async (req, res) => {
+  if (rejectUnauthorizedWrite(req, res)) return;
   const body = req.body || {};
   const title = cleanPlainText(body.title, 160);
   if (!title) return res.status(400).json({ error: 'Title is required' });
@@ -750,6 +783,7 @@ app.post('/api/offers', async (req, res) => {
   };
 
   if (!sql) return res.status(503).json({ saved: false, source: 'memory', error: 'database_unavailable' });
+  if (await rejectOverQuota(req, res, 'offer')) return;
 
   try {
     const extId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -758,12 +792,12 @@ app.post('/api/offers', async (req, res) => {
       INSERT INTO dalal_iraq_offers (
         external_id, section, specs, title, category, keywords, image_url, platform, store_name,
         verified, allows_inspection, trust_rating, reviews_count, price_iqd, delivery_local_iqd, delivery_national_iqd,
-        governorate, district, delivery, phone, snippet, direct_url, posted_ago
+        governorate, district, delivery, phone, snippet, direct_url, posted_ago, user_id
       ) VALUES (
         ${extId}, ${offer.section}, ${JSON.stringify(offer.specs)}, ${offer.title}, ${offer.category},
         ${offer.keywords}, ${offer.imageUrl}, ${offer.platform}, ${offer.storeName}, false, ${offer.allowsInspection},
         NULL, 0, ${offer.priceIQD}, ${offer.deliveryLocalIQD}, ${offer.deliveryNationalIQD},
-        ${offer.governorate}, ${offer.district}, ${offer.delivery}, ${offer.phone}, ${offer.snippet}, ${offer.directUrl}, NULL
+        ${offer.governorate}, ${offer.district}, ${offer.delivery}, ${offer.phone}, ${offer.snippet}, ${offer.directUrl}, NULL, ${req.user.id}
       )
       RETURNING external_id AS id, created_at AS "postedAt";
     `;
@@ -920,7 +954,13 @@ app.get('/api/reviews', async (req, res) => {
     const rows = storeName
       ? await sql`SELECT id, store_name, platform, rating, allows_inspection, comment, reviewer_gov, created_at FROM dalal_iraq_reviews WHERE store_name = ${storeName} ORDER BY created_at DESC LIMIT 20`
       : await sql`SELECT id, store_name, platform, rating, allows_inspection, comment, reviewer_gov, created_at FROM dalal_iraq_reviews ORDER BY created_at DESC LIMIT 30`;
-    res.json({ reviews: rows });
+    let mine = null;
+    if (storeName && req.user) {
+      const own = await sql`SELECT id, rating, allows_inspection, comment FROM dalal_iraq_reviews WHERE store_name = ${storeName} AND user_id = ${req.user.id} LIMIT 1`;
+      mine = own[0] || null;
+    }
+    res.set('Cache-Control', 'no-store');
+    res.json({ reviews: rows, mine });
   } catch (err) {
     console.error('GET /api/reviews failed:', err.message);
     res.status(500).json({ error: 'reviews_unavailable', reviews: [] });
@@ -928,20 +968,37 @@ app.get('/api/reviews', async (req, res) => {
 });
 
 app.post('/api/reviews', async (req, res) => {
+  if (rejectUnauthorizedWrite(req, res)) return;
   const { storeName, platform = 'facebook', rating = 5, allowsInspection = true, comment = '', reviewerGov = 'baghdad' } = req.body || {};
   const cleanStore = cleanPlainText(storeName, 120);
   const cleanRating = Math.round(Number(rating));
   if (!cleanStore) return res.status(400).json({ error: 'Store name required' });
+  // نتائج البحث الحي تحمل اسم المنصة أو نطاق الموقع، وهذا لا يمثل بائعاً محدداً
+  if (!isReviewableSellerName(cleanStore)) {
+    return res.status(400).json({ saved: false, error: 'seller_identity_unknown', message: 'لا يمكن تقييم هذه الجهة: الاسم عام (منصة أو موقع) ولا يحدد بائعاً بعينه.' });
+  }
   if (!(cleanRating >= 1 && cleanRating <= 5)) return res.status(400).json({ error: 'rating_must_be_1_to_5' });
   if (!sql) return res.status(503).json({ saved: false, error: 'database_unavailable' });
+  if (await rejectOverQuota(req, res, 'review')) return;
   try {
-    const inserted = await sql`
-      INSERT INTO dalal_iraq_reviews (store_name, platform, rating, allows_inspection, comment, reviewer_gov)
-      VALUES (${cleanStore}, ${ALLOWED_PLATFORMS.includes(platform) ? platform : 'facebook'}, ${cleanRating},
-              ${Boolean(allowsInspection)}, ${cleanPlainText(comment, 600)}, ${IRAQ_GOV_KEYWORDS[reviewerGov] ? reviewerGov : 'baghdad'})
+    // تقييم واحد لكل حساب لكل جهة: التقييم الجديد يحل محل السابق بدل أن يتكرر
+    const existing = await sql`SELECT id FROM dalal_iraq_reviews WHERE user_id = ${req.user.id} AND store_name = ${cleanStore} LIMIT 1`;
+    const values = {
+      platform: ALLOWED_PLATFORMS.includes(platform) ? platform : 'facebook',
+      allows: Boolean(allowsInspection),
+      comment: cleanPlainText(comment, 600),
+      gov: IRAQ_GOV_KEYWORDS[reviewerGov] ? reviewerGov : 'baghdad'
+    };
+    const saved = await sql`
+      INSERT INTO dalal_iraq_reviews (store_name, platform, rating, allows_inspection, comment, reviewer_gov, user_id)
+      VALUES (${cleanStore}, ${values.platform}, ${cleanRating}, ${values.allows}, ${values.comment}, ${values.gov}, ${req.user.id})
+      ON CONFLICT (user_id, store_name) WHERE user_id IS NOT NULL
+      DO UPDATE SET platform = EXCLUDED.platform, rating = EXCLUDED.rating, allows_inspection = EXCLUDED.allows_inspection,
+                    comment = EXCLUDED.comment, reviewer_gov = EXCLUDED.reviewer_gov, updated_at = NOW()
       RETURNING id, store_name, platform, rating, allows_inspection, comment, reviewer_gov, created_at;
     `;
-    res.status(201).json({ saved: true, review: inserted[0] });
+    const updated = existing.length > 0;
+    res.status(updated ? 200 : 201).json({ saved: true, updated, review: saved[0] });
   } catch (err) {
     console.error('POST /api/reviews failed:', err.message);
     res.status(500).json({ error: 'review_save_failed' });
