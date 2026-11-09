@@ -362,11 +362,18 @@ function isRateLimited(ip) {
 // حدود الإرسال لكل حساب (إضافة العروض والتقييمات)، محفوظة في قاعدة البيانات فتبقى بعد إعادة التشغيل
 const actionLimiter = createActionLimiter({ sql });
 
-/** شروط مشتركة لأي إضافة من المستخدمين: الدخول مفعّل، الطلب من الموقع نفسه، المستخدم مسجّل، ولم يتجاوز الحد. */
-async function rejectUserWrite(req, res, action) {
+/** شروط أي إضافة من المستخدمين قبل فحص البيانات: الدخول مفعّل، الطلب من الموقع نفسه، المستخدم مسجّل، ولا إغراق. */
+function rejectUnauthorizedWrite(req, res) {
   if (!FEATURE_FLAGS.loginEnabled) return res.status(503).json({ saved: false, error: 'login_disabled' });
   if (!isSameOriginRequest(req)) return res.status(403).json({ saved: false, error: 'bad_origin' });
   if (!req.user) return res.status(401).json({ saved: false, error: 'login_required' });
+  // منع الإغراق بكل المحاولات (حتى غير الصالحة) دون أن تُخصم من حصة الإرسال
+  if (isRateLimited(`write:${req.user.id}`)) return res.status(429).json({ saved: false, error: 'rate_limited' });
+  return null;
+}
+
+/** يخصم من حصة الإرسال فقط بعد قبول البيانات، مباشرة قبل الحفظ. */
+async function rejectOverQuota(req, res, action) {
   try {
     if (await actionLimiter.isLimited(action, req.user.id)) return res.status(429).json({ saved: false, error: 'too_many_submissions' });
   } catch (err) {
@@ -745,7 +752,7 @@ app.get('/api/offers', async (_req, res) => {
 });
 
 app.post('/api/offers', async (req, res) => {
-  if (await rejectUserWrite(req, res, 'offer')) return;
+  if (rejectUnauthorizedWrite(req, res)) return;
   const body = req.body || {};
   const title = cleanPlainText(body.title, 160);
   if (!title) return res.status(400).json({ error: 'Title is required' });
@@ -776,6 +783,7 @@ app.post('/api/offers', async (req, res) => {
   };
 
   if (!sql) return res.status(503).json({ saved: false, source: 'memory', error: 'database_unavailable' });
+  if (await rejectOverQuota(req, res, 'offer')) return;
 
   try {
     const extId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -960,7 +968,7 @@ app.get('/api/reviews', async (req, res) => {
 });
 
 app.post('/api/reviews', async (req, res) => {
-  if (await rejectUserWrite(req, res, 'review')) return;
+  if (rejectUnauthorizedWrite(req, res)) return;
   const { storeName, platform = 'facebook', rating = 5, allowsInspection = true, comment = '', reviewerGov = 'baghdad' } = req.body || {};
   const cleanStore = cleanPlainText(storeName, 120);
   const cleanRating = Math.round(Number(rating));
@@ -971,6 +979,7 @@ app.post('/api/reviews', async (req, res) => {
   }
   if (!(cleanRating >= 1 && cleanRating <= 5)) return res.status(400).json({ error: 'rating_must_be_1_to_5' });
   if (!sql) return res.status(503).json({ saved: false, error: 'database_unavailable' });
+  if (await rejectOverQuota(req, res, 'review')) return;
   try {
     // تقييم واحد لكل حساب لكل جهة: التقييم الجديد يحل محل السابق بدل أن يتكرر
     const existing = await sql`SELECT id FROM dalal_iraq_reviews WHERE user_id = ${req.user.id} AND store_name = ${cleanStore} LIMIT 1`;

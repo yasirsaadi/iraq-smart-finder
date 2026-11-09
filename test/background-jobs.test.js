@@ -31,7 +31,7 @@ test('التحديث الليلي يتوقف عند نفاد الرصيد الي
   assert.equal(await store.creditsUsedToday(), 8, 'لم يُصرف أكثر من السقف');
 });
 
-function alertHarness({ credits, allowance = 20, cached = {}, failSearchFor = [] }) {
+function alertHarness({ credits, allowance = 20, cached = {}, failSearchFor = [], providerFailFor = [] }) {
   const { store, reserve } = budgetOf(credits);
   const checked = [];
   const searched = [];
@@ -48,6 +48,7 @@ function alertHarness({ credits, allowance = 20, cached = {}, failSearchFor = []
       runSearch: async (a) => {
         searched.push(a.keyword);
         if (failSearchFor.includes(a.keyword)) throw new Error('provider down');
+        if (providerFailFor.includes(a.keyword)) return { providerOk: false, offers: [] };
         return { providerOk: true };
       },
       checkPayload: async () => 1,
@@ -82,4 +83,13 @@ test('فحص التنبيهات: النتيجة المحفوظة الفارغة 
   const r = await checkDueAlerts(h.deps([{ id: 1, keyword: 'empty' }]));
   assert.deepEqual(h.checked, ['empty']);
   assert.equal(r.deferred, 0);
+});
+
+test('فحص التنبيهات: نتيجة المزود غير الناجحة لا تُعدّ فحصاً ولا تحدّث تاريخ الفحص', async () => {
+  const h = alertHarness({ credits: 100, providerFailFor: ['bad'] });
+  const r = await checkDueAlerts(h.deps([{ id: 1, keyword: 'bad' }, { id: 2, keyword: 'good' }]));
+  assert.deepEqual(h.searched, ['bad', 'good']);
+  assert.deepEqual(h.checked, ['good'], 'فقط البحث الناجح يعلّم التنبيه مفحوصاً');
+  assert.equal(r.deferred, 1);
+  assert.equal(r.checked, 1);
 });
