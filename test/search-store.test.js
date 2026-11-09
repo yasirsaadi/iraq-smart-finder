@@ -21,8 +21,8 @@ test('سقف الرصيد اليومي يمنع الصرف بعد بلوغه، �
   assert.equal(await store.reserveCredits(4), false, 'تجاوز السقف');
   await store.refundCredits(4);
   assert.equal(await store.reserveCredits(4), true);
-  assert.equal(await store.reserveCredits(4, { enforce: false }), true, 'التحديث الليلي يُسجَّل دون منع');
-  assert.equal(await store.creditsUsedToday(), 12);
+  assert.equal(await store.reserveCredits(4, { enforce: false }), false, 'لا يوجد أي تجاوز للسقف، حتى للمهام الليلية');
+  assert.equal(await store.creditsUsedToday(), 8);
 });
 
 test('حصة البحث الجديد الشهرية لكل زائر', async () => {

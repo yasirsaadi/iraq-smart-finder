@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { neon } from '@neondatabase/serverless';
 import { normalizeDigits, hasTerm, normalizeForMatch } from './shared/price-engine.js';
-import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities } from './shared/sanitize.js';
+import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities, isReviewableSellerName } from './shared/sanitize.js';
 import { parseYahooResults, buildLiveOffer } from './lib/live-results.js';
 import { attachListingImages } from './lib/listing-images.js';
 import { createSearchStore, initSearchStoreTables, readEconomicsConfig, quotaSubjectFor } from './lib/search-store.js';
@@ -22,6 +22,8 @@ import {
 } from './lib/accounts.js';
 import { createNotifier, initNotificationTables } from './lib/notifications.js';
 import { createAlertStore, initAlertColumns, findAlertMatches, formatIQD, MAX_ALERTS_PER_USER, MAX_ALERTS_PER_SUBSCRIBER } from './lib/price-alerts.js';
+import { refreshPopularBatch, checkDueAlerts } from './lib/background-jobs.js';
+import { createActionLimiter, initActionLimitTable } from './lib/action-limits.js';
 import { isSerperConfigured, buildSerperQueries, serperSearchRaw, needsResolve, serperResolve, mapSerperOrganic } from './lib/serper-provider.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -277,6 +279,7 @@ async function initNeonDatabase() {
     await sql`ALTER TABLE dalal_iraq_searches ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'all'`;
     await initSearchStoreTables(sql);
     await initAccountTables(sql);
+    await initActionLimitTable(sql);
     await initNotificationTables(sql);
     await initAlertColumns(sql);
   } catch (err) {
@@ -356,33 +359,20 @@ function isRateLimited(ip) {
   return bucket.count > RATE_MAX_REQUESTS;
 }
 
-// حدود الإرسال لكل حساب (إضافة العروض والتقييمات) لمنع الإغراق
-const actionBuckets = new Map();
-const ACTION_LIMITS = {
-  offer: { max: 5, windowMs: 60 * 60 * 1000 },
-  review: { max: 10, windowMs: 60 * 60 * 1000 }
-};
-function isActionLimited(action, userId) {
-  const { max, windowMs } = ACTION_LIMITS[action];
-  const key = `${action}:${userId}`;
-  const now = Date.now();
-  const recent = (actionBuckets.get(key) || []).filter((t) => now - t < windowMs);
-  if (recent.length >= max) {
-    actionBuckets.set(key, recent);
-    return true;
-  }
-  recent.push(now);
-  actionBuckets.set(key, recent);
-  if (actionBuckets.size > 10000) actionBuckets.clear();
-  return false;
-}
+// حدود الإرسال لكل حساب (إضافة العروض والتقييمات)، محفوظة في قاعدة البيانات فتبقى بعد إعادة التشغيل
+const actionLimiter = createActionLimiter({ sql });
 
 /** شروط مشتركة لأي إضافة من المستخدمين: الدخول مفعّل، الطلب من الموقع نفسه، المستخدم مسجّل، ولم يتجاوز الحد. */
-function rejectUserWrite(req, res, action) {
+async function rejectUserWrite(req, res, action) {
   if (!FEATURE_FLAGS.loginEnabled) return res.status(503).json({ saved: false, error: 'login_disabled' });
   if (!isSameOriginRequest(req)) return res.status(403).json({ saved: false, error: 'bad_origin' });
   if (!req.user) return res.status(401).json({ saved: false, error: 'login_required' });
-  if (isActionLimited(action, req.user.id)) return res.status(429).json({ saved: false, error: 'too_many_submissions' });
+  try {
+    if (await actionLimiter.isLimited(action, req.user.id)) return res.status(429).json({ saved: false, error: 'too_many_submissions' });
+  } catch (err) {
+    console.error('action limit check failed:', err.message);
+    return res.status(503).json({ saved: false, error: 'limit_check_unavailable' });
+  }
   return null;
 }
 
@@ -600,30 +590,29 @@ app.post('/api/admin/refresh-popular', async (req, res) => {
   // لا نعيد تحديث نتيجة ما زال أمامها أكثر من نصف عمرها
   const freshEnoughMs = (ECONOMICS.cacheTtlHours * 3600 * 1000) / 2;
 
-  const report = { total: popular.length, offset, refreshed: 0, skipped: 0, failed: 0 };
-  for (const row of slice) {
+  const items = slice.map((row) => {
     const query = cleanPlainText(row.query, 120);
     const gov = IRAQ_GOV_KEYWORDS[row.governorate] ? row.governorate : 'baghdad';
-    const sectionHint = ['all', 'products', 'cars', 'realestate'].includes(row.section) ? row.section : 'all';
-    const key = liveCacheKey(query, gov, sectionHint);
-    const age = await searchStore.cachedAgeMs(key);
-    if (age !== null && age < freshEnoughMs) {
-      report.skipped += 1;
-      continue;
-    }
-    try {
-      await searchStore.reserveCredits(ECONOMICS.creditsPerSearch, { enforce: false });
-      const { full } = await runSerperPipeline({ query, gov, sectionHint });
-      const payload = await full;
-      if (payload.providerOk) report.refreshed += 1;
-      else report.failed += 1;
-    } catch (err) {
-      console.error('nightly refresh failed for one query:', err.message);
-      report.failed += 1;
-    }
-  }
+    const section = ['all', 'products', 'cars', 'realestate'].includes(row.section) ? row.section : 'all';
+    return { key: liveCacheKey(query, gov, section), query, gov, section };
+  });
+  // التحديث الليلي يخضع لسقف الرصيد اليومي نفسه، ويتوقف فور نفاده
+  const report = await refreshPopularBatch({
+    items,
+    cachedAgeMs: (key) => searchStore.cachedAgeMs(key),
+    freshEnoughMs,
+    reserveCredits: () => searchStore.reserveCredits(ECONOMICS.creditsPerSearch),
+    runSearch: async (item) => (await runSerperPipeline({ query: item.query, gov: item.gov, sectionHint: item.section })).full
+  });
   const nextOffset = offset + slice.length;
-  res.json({ ...report, nextOffset, done: nextOffset >= popular.length, creditsUsedToday: await searchStore.creditsUsedToday() });
+  res.json({
+    total: popular.length,
+    offset,
+    ...report,
+    nextOffset,
+    done: report.budgetExhausted || nextOffset >= popular.length,
+    creditsUsedToday: await searchStore.creditsUsedToday()
+  });
 });
 
 // ===== الفحص الليلي لتنبيهات الأسعار وتذكير انتهاء الاشتراك =====
@@ -655,35 +644,29 @@ app.post('/api/admin/check-alerts', async (req, res) => {
   }
 
   const batch = await alertStore.due(5);
-  for (const alert of batch) {
-    report.checked += 1;
-    const section = alert.section || 'all';
-    const key = liveCacheKey(alert.keyword, alert.governorate, section);
+  const result = await checkDueAlerts({
+    alerts: batch,
     // نتائج القسم نفسه أولاً، ثم نتائج "جميع الأقسام" المحفوظة (كلاهما مجاني)
-    let payload =
-      (await searchStore.getCached(key))?.value ||
-      (section !== 'all' ? (await searchStore.getCached(liveCacheKey(alert.keyword, alert.governorate, 'all')))?.value : null) ||
-      null;
-    if (payload) report.fromCache += 1;
-    else if (isSerperConfigured() && alertCheckBudget.used < ALERT_CHECKS_PER_NIGHT) {
-      alertCheckBudget.used += 1;
-      report.freshSearches += 1;
-      await searchStore.reserveCredits(ECONOMICS.creditsPerSearch, { enforce: false });
-      try {
-        // خط البحث نفسه يحفظ النتيجة ويفحص كل التنبيهات المطابقة لها، ومنها هذا التنبيه
-        const { full } = await runSerperPipeline({ query: alert.keyword, gov: alert.governorate, sectionHint: section });
-        await full;
-        // إن لم تُرجع نتائج فلن يُفحص التنبيه داخل الخط، فنعلّمه مفحوصاً كي لا يتكرر بلا نهاية
-        await alertStore.markChecked(alert.id, []);
-        continue;
-      } catch (err) {
-        console.error('alert fresh search failed:', err.message);
-      }
-    }
-    if (payload) report.notified += await checkAlertsAgainstPayload(payload, {}, [alert]);
-    else await alertStore.markChecked(alert.id, []);
-  }
-  res.json({ ...report, done: batch.length === 0 });
+    getPayload: async (alert) => {
+      const section = alert.section || 'all';
+      return (
+        (await searchStore.getCached(liveCacheKey(alert.keyword, alert.governorate, section)))?.value ||
+        (section !== 'all' ? (await searchStore.getCached(liveCacheKey(alert.keyword, alert.governorate, 'all')))?.value : null) ||
+        null
+      );
+    },
+    canSearch: isSerperConfigured(),
+    freshSearchAllowance: Math.max(0, ALERT_CHECKS_PER_NIGHT - alertCheckBudget.used),
+    reserveCredits: () => searchStore.reserveCredits(ECONOMICS.creditsPerSearch),
+    runSearch: async (alert) => (await runSerperPipeline({ query: alert.keyword, gov: alert.governorate, sectionHint: alert.section || 'all' })).full,
+    checkPayload: (payload, alert) => checkAlertsAgainstPayload(payload, {}, [alert]),
+    markChecked: (alert, urls) => alertStore.markChecked(alert.id, urls)
+  });
+  alertCheckBudget.used = ALERT_CHECKS_PER_NIGHT - result.freshSearchAllowanceLeft;
+  const { freshSearchAllowanceLeft, ...counts } = result;
+  Object.assign(report, counts);
+  // التنبيهات المؤجلة تبقى مستحقة وتُعاد في التشغيل القادم؛ نتوقف الآن كي لا تتكرر الدفعة نفسها
+  res.json({ ...report, done: batch.length === 0 || result.deferred > 0 });
 });
 
 const ALLOWED_SECTIONS = ['products', 'cars', 'realestate'];
@@ -762,7 +745,7 @@ app.get('/api/offers', async (_req, res) => {
 });
 
 app.post('/api/offers', async (req, res) => {
-  if (rejectUserWrite(req, res, 'offer')) return;
+  if (await rejectUserWrite(req, res, 'offer')) return;
   const body = req.body || {};
   const title = cleanPlainText(body.title, 160);
   if (!title) return res.status(400).json({ error: 'Title is required' });
@@ -977,11 +960,15 @@ app.get('/api/reviews', async (req, res) => {
 });
 
 app.post('/api/reviews', async (req, res) => {
-  if (rejectUserWrite(req, res, 'review')) return;
+  if (await rejectUserWrite(req, res, 'review')) return;
   const { storeName, platform = 'facebook', rating = 5, allowsInspection = true, comment = '', reviewerGov = 'baghdad' } = req.body || {};
   const cleanStore = cleanPlainText(storeName, 120);
   const cleanRating = Math.round(Number(rating));
   if (!cleanStore) return res.status(400).json({ error: 'Store name required' });
+  // نتائج البحث الحي تحمل اسم المنصة أو نطاق الموقع، وهذا لا يمثل بائعاً محدداً
+  if (!isReviewableSellerName(cleanStore)) {
+    return res.status(400).json({ saved: false, error: 'seller_identity_unknown', message: 'لا يمكن تقييم هذه الجهة: الاسم عام (منصة أو موقع) ولا يحدد بائعاً بعينه.' });
+  }
   if (!(cleanRating >= 1 && cleanRating <= 5)) return res.status(400).json({ error: 'rating_must_be_1_to_5' });
   if (!sql) return res.status(503).json({ saved: false, error: 'database_unavailable' });
   try {

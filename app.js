@@ -3,7 +3,7 @@
 // ============================================================================
 
 import * as PriceEngine from './shared/price-engine.js';
-import { escapeHtml as esc, safeHttpUrl, safeIraqiMobile } from './shared/sanitize.js';
+import { escapeHtml as esc, safeHttpUrl, safeIraqiMobile, isReviewableSellerName } from './shared/sanitize.js';
 
 const IRAQ_GOVERNORATES = {
   baghdad: { name: 'بغداد', lat: 33.3152, lon: 44.3661, keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي', 'الشورجة', 'السنك', 'النهضة', 'البياع', 'اليرموك', 'بسماية', 'الجادرية'] },
@@ -149,6 +149,13 @@ function describeDistance(offer) {
 /** السعر مؤكد فقط إن كان العرض موثقاً ولم يُستخرج آلياً من نتيجة بحث. */
 function isVerifiedPrice(offer) {
   return offer.source !== 'live' && offer.source !== 'demo' && offer.verified === true && offer.priceSource !== 'search_snippet';
+}
+
+/** تسمية نوع السعر: مستخرج آلياً = تقديري، أدخله المستخدم = معلن غير موثّق. */
+function priceKindLabel(offer) {
+  if (isVerifiedPrice(offer)) return 'سعر موثّق';
+  if (offer.source === 'live' || offer.priceSource === 'search_snippet') return 'سعر تقديري';
+  return 'سعر معلن غير موثّق';
 }
 
 function normalizeDigits(str) {
@@ -597,14 +604,21 @@ function renderSpecializedSpecsHtml(offer) {
   return '';
 }
 
+// مسودة التقييم تُحفظ حين يُطلب تسجيل الدخول، وتُعاد كما هي بعده
+let reviewDraft = null;
+
 window.openStoreReviewModal = async function (storeName) {
   const modal = document.getElementById('reviewModal');
   const status = document.getElementById('reviewFormStatus');
-  if (status) status.hidden = true;
-  document.getElementById('reviewCommentInput').value = '';
+  const draft = reviewDraft && reviewDraft.storeName === storeName ? reviewDraft : null;
+  if (status) {
+    status.hidden = !draft;
+    if (draft) status.textContent = 'تم الاحتفاظ بتقييمك كما كتبته. راجعه ثم اضغط زر النشر.';
+  }
+  if (!draft) document.getElementById('reviewCommentInput').value = '';
   document.getElementById('reviewStoreNameInput').value = storeName;
   document.getElementById('reviewModalStoreTitle').textContent = `سجل الموثوقية وتجارب المشترين مع: ${storeName} (تقييمات المستخدمين، غير موثقة)`;
-  modal.showModal();
+  if (!modal.open) modal.showModal();
   await loadStoreReviews(storeName);
 };
 
@@ -619,10 +633,13 @@ async function loadStoreReviews(storeName) {
     const mine = data.mine || null;
     const submitBtn = document.getElementById('reviewSubmitBtn');
     if (submitBtn) submitBtn.textContent = mine ? 'تحديث تقييمك السابق' : 'نشر التقييم في سجل الموثوقية';
-    if (mine) {
-      document.getElementById('reviewRatingSelect').value = String(mine.rating);
-      document.getElementById('reviewInspectionSelect').value = mine.allows_inspection ? 'true' : 'false';
-      document.getElementById('reviewCommentInput').value = mine.comment || '';
+    const draft = reviewDraft && reviewDraft.storeName === storeName ? reviewDraft : null;
+    const fill = draft || (mine && { rating: mine.rating, allowsInspection: mine.allows_inspection, comment: mine.comment });
+    // المسودة غير المرسلة لها الأولوية على التقييم السابق المحفوظ
+    if (fill) {
+      document.getElementById('reviewRatingSelect').value = String(fill.rating);
+      document.getElementById('reviewInspectionSelect').value = fill.allowsInspection ? 'true' : 'false';
+      document.getElementById('reviewCommentInput').value = fill.comment || '';
     }
     if (reviews.length === 0) {
       box.innerHTML = '<div class="alert-row">لا توجد تقييمات سابقة مسجلة لهذه الجهة حتى الآن. كن أول من يقيمها!</div>';
@@ -731,7 +748,7 @@ function renderApp() {
       ? [...located].sort((a, b) => a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999999) - (b.effectivePriceIQD || 999999999999))[0]
       : allFiltered[0];
     const smartest = allFiltered.find((o) => o.isBestSmart) || null;
-    const priceKind = (o) => (isVerifiedPrice(o) ? 'سعر موثق' : 'سعر تقديري غير مؤكد');
+    const priceKind = priceKindLabel;
 
     state.topCardTargets = {
       cheapest: cheapest?.id || null,
@@ -816,6 +833,8 @@ function renderApp() {
       const imgUrl = getProductImageUrl(offer);
       const usdText = convertIQDtoUSD(offer.effectivePriceIQD);
       const storeName = String(offer.storeName || 'معلن غير مسمى');
+      // نتائج البحث الحي لا تحدد بائعاً بعينه (اسمها اسم المنصة أو الموقع)، فلا تقييم لها
+      const canReviewSeller = !isLive && isReviewableSellerName(storeName);
       const specsHtml = renderSpecializedSpecsHtml(offer);
       const phone = safeIraqiMobile(offer.phone);
       const hasReviews = Number(offer.reviewsCount) > 0 && Number.isFinite(Number(offer.trustRating)) && offer.trustRating !== null;
@@ -860,9 +879,9 @@ function renderApp() {
         const matched = offer.priceMeta?.matchedText ? ` («${esc(offer.priceMeta.matchedText)}»)` : '';
         deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر تقديري مستخرج آلياً من مقتطف البحث${matched} — ليس سعراً مؤكداً، تحقق منه في المصدر</span>`;
       } else if (!isDemo && offer.itemPriceIQD && !verifiedPrice) {
-        deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر أدخله المعلن ولم يُتحقق منه</span>`;
+        deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر معلن غير موثّق: أدخله المعلن ولم يتحقق منه أحد</span>`;
       } else if (verifiedPrice && offer.itemPriceIQD) {
-        deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر متحقَّق منه من مصدر موثق</span>`;
+        deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر موثّق من مصدر متحقَّق منه</span>`;
       }
 
       let inspectionLabel;
@@ -891,9 +910,13 @@ function renderApp() {
             <span class="seller-name">${esc(storeName)}</span>
           </div>
           <div style="display:flex; align-items:center; gap:6px;">
-            <button type="button" class="trust-rate-btn" data-action="review" data-store="${esc(storeName)}" title="عرض وإضافة تقييمات المستخدمين لهذه الجهة">
+            ${
+              canReviewSeller
+                ? `<button type="button" class="trust-rate-btn" data-action="review" data-store="${esc(storeName)}" title="عرض وإضافة تقييمات المستخدمين لهذه الجهة">
               ${ratingText}
-            </button>
+            </button>`
+                : '<span class="post-time" title="نتيجة بحث آلية لا تحدد بائعاً بعينه، فلا تُجمع تحتها تقييمات بائعين مختلفين">بائع غير محدد</span>'
+            }
             <span class="post-time">${esc(formatPostedTime(offer))}</span>
           </div>
         </div>
@@ -923,9 +946,13 @@ function renderApp() {
 
           <div class="trust-and-inspection-row">
             <span class="inspection-pill">${esc(inspectionLabel)}</span>
-            <button type="button" class="overview-jump" style="background:none; border:none; cursor:pointer;" data-action="review" data-store="${esc(storeName)}">
+            ${
+              canReviewSeller
+                ? `<button type="button" class="overview-jump" style="background:none; border:none; cursor:pointer;" data-action="review" data-store="${esc(storeName)}">
               تقييم الجهة أو الإبلاغ
-            </button>
+            </button>`
+                : '<span class="delivery-breakdown">التقييم غير متاح: هوية البائع الحقيقية غير معروفة في نتائج البحث</span>'
+            }
           </div>
 
           <div class="logistics-grid">
@@ -948,7 +975,7 @@ function renderApp() {
             <div class="price-main-row">
               <span class="price-iqd" style="${!offer.effectivePriceIQD ? 'font-size:0.92rem; color:var(--brand-primary);' : ''}">${formatIQD(offer.effectivePriceIQD)}</span>
               ${usdText ? `<span class="price-usd">(${esc(usdText)})</span>` : ''}
-              ${offer.effectivePriceIQD && !isDemo && !verifiedPrice ? '<span class="price-usd" title="السعر غير مؤكد">• تقديري</span>' : ''}
+              ${offer.effectivePriceIQD && !isDemo && !verifiedPrice ? `<span class="price-usd" title="السعر غير مؤكد">• ${esc(priceKindLabel(offer))}</span>` : ''}
             </div>
             ${deliveryBreakdownHtml}
             ${
@@ -1831,7 +1858,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     if (!state.user) {
       showStatus('إضافة العروض تتطلب تسجيل الدخول بحساب غوغل لمنع الإعلانات الوهمية والمتكررة.');
-      openLoginModal(() => analyzerModal.showModal());
+      openLoginModal(() => {
+        if (!analyzerModal.open) analyzerModal.showModal();
+      });
       return;
     }
     const section = postSectionSelect.value;
@@ -2068,7 +2097,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (!state.user) {
-      showStatus('التقييم يتطلب تسجيل الدخول بحساب غوغل حتى لا تتكرر التقييمات الوهمية.');
+      reviewDraft = { storeName, rating, allowsInspection, comment };
+      showStatus('التقييم يتطلب تسجيل الدخول بحساب غوغل حتى لا تتكرر التقييمات الوهمية. سيبقى ما كتبته كما هو.');
       openLoginModal(() => window.openStoreReviewModal(storeName));
       return;
     }
@@ -2087,6 +2117,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showStatus(saveErrorMessage(code, data));
       return;
     }
+    reviewDraft = null;
     showStatus(data.updated ? 'تم تحديث تقييمك السابق لهذه الجهة.' : 'تم حفظ تقييمك.');
     await loadStoreReviews(storeName);
   });
