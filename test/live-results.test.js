@@ -70,3 +70,42 @@ test('صفحة بلا نتائج قابلة للقراءة (تحقق أو بني
   assert.deepEqual(parseYahooResults('<html><body>Please verify you are human</body></html>'), []);
   assert.deepEqual(parseYahooResults(''), []);
 });
+
+test('المواقع العراقية المضافة: اسم المصدر الصحيح، والإعلان الفردي فقط يعطي سعراً', () => {
+  const ctx2 = { gov: 'baghdad', detectGov: () => ({ gov: 'baghdad', district: 'بغداد', detected: true }), usdRate: 1500 };
+  const mk = (url, title, snippet, query, sectionHint) =>
+    buildLiveOffer({ url, host: new URL(url).hostname.replace(/^www\./, ''), title, snippet }, { ...ctx2, query, sectionHint });
+
+  const carAd = mk('https://www.cars.iq/front/car-detail/12482', 'تويوتا كامري 2020 - Cars.iq', 'Toyota Camry 2020 تويوتا كامري 2020 وارد امريكي السعر 21 مليون', 'تويوتا كامري 2020', 'cars');
+  assert.equal(carAd.storeName, 'Cars.iq (cars.iq)');
+  assert.equal(carAd.directUrl, 'https://www.cars.iq/front/car-detail/12482', 'الرابط الأصلي كما هو');
+  assert.equal(carAd.isListingPage, false);
+  assert.equal(carAd.priceIQD, 21_000_000);
+
+  const compare = mk('https://www.iqcars.iq/ar/compare/toyota-camry-2021-vs-nissan', 'تويوتا كامري 2021 LE-2.5-vs-نيسان باترول 2026', 'تويوتا كامري السعر 30 مليون', 'تويوتا كامري', 'cars');
+  assert.equal(compare.storeName, 'IQ Cars (iqcars.iq)');
+  assert.equal(compare.isListingPage, true, 'صفحة مقارنة مواصفات ليست إعلاناً');
+  assert.equal(compare.priceIQD, null);
+
+  const estateCat = mk('https://shanashel.com/properties/baghdad/hay-al-bunuk/sell-houses', 'بيوت للبيع في حي البنوك بغداد | شناشيل', 'بيت للبيع 250 متر السعر 300 مليون', 'بيت للبيع بغداد', 'realestate');
+  assert.equal(estateCat.storeName, 'شناشيل (shanashel.com)');
+  assert.equal(estateCat.isListingPage, true);
+  assert.equal(estateCat.priceIQD, null);
+
+  const phoneAd = mk('https://albastiya.com/listings/ad5f29fa-a906-4d4a-a969-e413576f911d', 'ايفون 15 — موبايلات | البسطية', 'ايفون 15 للبيع 1,250,000 IQD بغداد', 'ايفون 15', 'products');
+  assert.equal(phoneAd.storeName, 'البسطية (albastiya.com)');
+  assert.equal(phoneAd.isListingPage, false);
+  assert.ok(phoneAd.priceIQD > 0);
+  assert.equal(mk('https://albastiya.com/wanted/5fd9be92-0139-47cc-89dd-c10a500a44d0', 'ايفون 15 للشراء | البسطية', 'ايفون 15', 'ايفون 15', 'products'), null, 'صفحات "مطلوب" ليست عروضاً');
+  assert.equal(mk('https://albastiya.com/category/electronics', 'ايفون 15 إعلانات الهواتف - البسطية', 'ايفون 15 1,250,000 IQD', 'ايفون 15', 'products').isListingPage, true);
+
+  assert.equal(mk('https://www.soqna-iq.com/view_category.php?cat=phones', 'ايفون 15 قسم الهواتف - سوقنه', 'ايفون 15 5,000,000 دينار', 'ايفون 15', 'products').isListingPage, true);
+  assert.equal(mk('https://ajiiba.com/en/listings/7de5df64-739d-4250-95c0-538ff995a0c5', 'For Sale – ايفون 15 · Erbil - Ajiiba', 'ايفون 15 1 730 000 IQD', 'ايفون 15', 'products').isListingPage, false);
+  assert.equal(mk('https://ajiiba.com/en/c/electronics', 'ايفون 15 Electronics for sale - Ajiiba', 'ايفون 15', 'ايفون 15', 'products').isListingPage, true);
+  const kryari = mk('https://kryari.com/ar/l/9190db1c-382f-4e84-9d39-a0795a7a60fc/apple-iphone-15-case', 'ايفون 15 كفر · 98,000 د.ع · KRYARI', 'ايفون 15 كفر', 'ايفون 15', 'products');
+  assert.equal(kryari.storeName, 'KRYARI (kryari.com)');
+  assert.equal(kryari.isListingPage, false);
+  assert.equal(mk('https://iraq-sooq.com/category/tibbi', 'ايفون 15 المستلزمات - سوق العراق', 'ايفون 15', 'ايفون 15', 'products').isListingPage, true);
+  // أسماء المصادر ليست أسماء تجار
+  assert.equal(describeSource('elryan.com').storeName, 'الريان (elryan.com)');
+});

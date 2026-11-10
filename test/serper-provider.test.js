@@ -61,3 +61,21 @@ test('صفحات الفئات في السوق المفتوح لا تعطي سع�
   assert.equal(ad.isListingPage, false);
   assert.equal(ad.priceIQD, 29_250_000);
 });
+
+test('خطة الاستعلامات: ثلاثة استعلامات دائماً، والمتاجر موزعة حسب التخصص', () => {
+  for (const sec of ['all', 'products', 'cars', 'realestate']) assert.equal(buildSerperQueries('س', 'بغداد', sec).length, 3, sec);
+  const cars = buildSerperQueries('تويوتا كامري 2020', 'بغداد', 'cars')[2].q;
+  assert.match(cars, /site:iqcars\.iq/);
+  assert.match(cars, /site:cars\.iq/);
+  assert.doesNotMatch(cars, /site:shanashel\.com|site:elryan\.com|site:miswag\.com/);
+  const estate = buildSerperQueries('بيت للبيع', 'بغداد', 'realestate')[2].q;
+  assert.match(estate, /site:shanashel\.com/);
+  assert.doesNotMatch(estate, /site:cars\.iq|site:iqcars\.iq|site:elryan\.com/);
+  const phones = buildSerperQueries('ايفون 15', 'بغداد', 'products')[2].q;
+  for (const s of ['iq.opensooq.com', 'elryan.com', 'miswag.com', 'alnabaa.com', 'albastiya.com', 'soqna-iq.com', 'ajiiba.com', 'kryari.com', 'iraq-sooq.com']) {
+    assert.ok(phones.includes(`site:${s}`), s);
+  }
+  assert.doesNotMatch(phones, /site:cars\.iq|site:shanashel\.com/);
+  const all = buildSerperQueries('ايفون 15', 'بغداد', 'all')[2].q;
+  assert.equal((all.match(/site:/g) || []).length, 12, 'كل المواقع الاثني عشر في البحث العام');
+});

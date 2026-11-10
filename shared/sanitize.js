@@ -95,5 +95,6 @@ const GENERIC_SELLER_NAMES = new Set(['منشور أو صفحة على فيسب�
 
 export function isReviewableSellerName(name) {
   const n = String(name || '').trim();
-  return n.length >= 2 && !GENERIC_SELLER_NAMES.has(n) && !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(n);
+  // أي اسم يحمل نطاق موقع (مثل "البسطية (albastiya.com)") هو اسم مصدر لا تاجر
+  return n.length >= 2 && !GENERIC_SELLER_NAMES.has(n) && !/(^|[\s(])[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(?=$|[\s)])/i.test(n);
 }

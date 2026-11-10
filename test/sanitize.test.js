@@ -41,6 +41,8 @@ test('الأسماء العامة للمنصات والمواقع لا تُقي�
   for (const generic of ['منشور أو صفحة على فيسبوك', 'منشور أو حساب على انستغرام', 'معلن غير مسمى', 'iq.opensooq.com', 'elryan.com', 'www.facebook.com', '', ' ']) {
     assert.equal(isReviewableSellerName(generic), false, generic);
   }
+  assert.equal(isReviewableSellerName('البسطية (albastiya.com)'), false, 'اسم مصدر مع نطاقه');
+  assert.equal(isReviewableSellerName('Cars.iq (cars.iq)'), false);
   assert.equal(isReviewableSellerName('معرض النهضة للسيارات'), true);
   assert.equal(isReviewableSellerName('Al Rayan Store'), true);
 });
