@@ -128,12 +128,12 @@
             </svg>
           </button>
 
-          <button type="button" id="openImageSearchBtn" class="image-search-trigger" title="اكتب اسم المنتج الظاهر في الإعلان للبحث عنه؛ الصورة للمعاينة فقط">
+          <button type="button" id="openImageSearchBtn" class="image-search-trigger" title="رأيت إعلاناً؟ اعرف هل سعره عادل مقارنة بأسعار السوق">
             <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
               <circle cx="12" cy="13" r="3"></circle>
             </svg>
-            <span>بحث بصورة إعلان</span>
+            <span>افحص سعر إعلان</span>
           </button>
         </div>
 
@@ -330,6 +330,17 @@
         <strong>محددات مقارنة السيارات في معارض العراق:</strong>
         <span>قارن بالدفتر والورقة والدينار العراقي عبر معارض النهضة، البياع، أربيل، البصرة، والموصل</span>
       </div>
+      <form class="car-finder-row" id="carFinderForm" autocomplete="off">
+        <div class="spec-select-group">
+          <label for="carModelInput">الطراز:</label>
+          <input type="text" id="carModelInput" placeholder="مثال: كامري، سوناتا، لاندكروزر" maxlength="40" />
+        </div>
+        <div class="spec-select-group">
+          <label for="carYearInput">سنة الصنع:</label>
+          <input type="text" inputmode="numeric" id="carYearInput" placeholder="مثال: 2020" maxlength="4" />
+        </div>
+        <button type="submit" class="btn-submit car-finder-btn">ابحث عن هذه السيارة وقارن سعرها</button>
+      </form>
       <div class="spec-filter-controls">
         <div class="spec-select-group">
           <label for="carBrandFilter">الماركة:</label>
@@ -496,6 +507,7 @@
         <div>
           <h2 class="fair-meter-title">مؤشر السعر العادل وكاشف الغلاء في السوق العراقي</h2>
           <p class="fair-meter-subtitle">يقارن كل عرض بعروض مماثلة فقط (نفس الفئة والطراز ونوع الصفقة)، ويعرض الوسيط والمتوسط الحسابي كلاً باسمه:</p>
+          <p class="price-guide-note" id="priceGuideNote" hidden></p>
         </div>
         <button type="button" class="btn-create-alert-inline" id="createAlertFromMeterBtn" hidden>
           + راقب هبوط السعر عبر الرادار
@@ -812,13 +824,46 @@
   <dialog id="imageSearchModal" class="commercial-modal">
     <div class="modal-top">
       <div>
-        <h2>البحث عن منتج إعلان رأيته</h2>
-        <p>البحث يعتمد على اسم المنتج الذي تكتبه أنت. الصورة اختيارية وللمعاينة فقط؛ الموقع لا يحلل الصورة ولا يستخرج منها أي بيانات.</p>
+        <h2>افحص سعر إعلان رأيته: هل هو عادل؟</h2>
+        <p>اكتب اسم ما في الإعلان وسعره (أو الصق نص الإعلان)، ونقارنه بأسعار مماثلة رصدناها. الصورة اختيارية وللمعاينة فقط؛ الموقع لا يحلل الصورة.</p>
       </div>
       <button type="button" class="modal-close" id="closeImageSearchBtn" aria-label="إغلاق">✕</button>
     </div>
 
     <form id="imageSearchForm" class="modal-form">
+      <div class="field-block">
+        <label for="imageExtractedQuery">اكتب اسم السلعة أو السيارة أو العقار كما يظهر في الإعلان (مطلوب)</label>
+        <input type="text" id="imageExtractedQuery" placeholder="مثال: كيا سبورتاج 2024، ماكينة قهوة ديلونجي..." required />
+      </div>
+
+
+      <div class="field-block" id="adAreaBlock" hidden>
+        <label for="adAreaInput">مساحة العقار بالمتر المربع (يُقارن سعر المتر إن كتبتها)</label>
+        <input type="text" inputmode="numeric" id="adAreaInput" placeholder="مثال: 200" maxlength="6" />
+      </div>
+
+      <div class="field-block">
+        <label for="adPastedText">نص الإعلان (اختياري — الصقه ليُقرأ السعر منه تلقائياً)</label>
+        <textarea id="adPastedText" rows="3" maxlength="2000" placeholder="الصق هنا نص المنشور من فيسبوك أو أي موقع"></textarea>
+      </div>
+
+      <div class="modal-grid-2">
+        <div class="field-block">
+          <label for="adSectionSelect">نوع الإعلان</label>
+          <select id="adSectionSelect">
+            <option value="cars">سيارة</option>
+            <option value="realestate">عقار</option>
+            <option value="products">سلعة أو جهاز</option>
+          </select>
+        </div>
+        <div class="field-block">
+          <label for="adSeenPriceInput">السعر المكتوب في الإعلان (د.ع)</label>
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="adSeenPriceInput" placeholder="مثال: 35000000" data-money="true" />
+        </div>
+      </div>
+
+
+
       <label for="adScreenshotInput" class="upload-dropzone" id="dropzoneArea">
         <input type="file" id="adScreenshotInput" accept="image/*" hidden />
         <img id="screenshotPreviewImg" class="screenshot-preview" hidden alt="معاينة لقطة الشاشة" />
@@ -833,19 +878,11 @@
         </div>
       </label>
 
-      <div class="field-block">
-        <label for="imageExtractedQuery">اكتب اسم السلعة أو السيارة أو العقار كما يظهر في الإعلان (مطلوب)</label>
-        <input type="text" id="imageExtractedQuery" placeholder="مثال: كيا سبورتاج 2024، ماكينة قهوة ديلونجي..." required />
-      </div>
-
-      <div class="field-block">
-        <label for="adSeenPriceInput">السعر الذي رأيته في الإعلان بالدينار العراقي (اختياري - لنحسب لك كم ستوفر)</label>
-        <input type="text" inputmode="numeric" data-numeric-only="true" id="adSeenPriceInput" placeholder="مثال: 35000000" data-money="true" />
-      </div>
-
       <div class="modal-actions">
-        <button type="submit" class="btn-submit">ابحث بهذا الاسم وقارن الأسعار</button>
+        <button type="submit" class="btn-submit" id="adCheckBtn">افحص السعر</button>
+        <button type="button" class="btn-secondary" id="adCompareLiveBtn" hidden>ابحث الآن وقارن مع العروض الحالية</button>
       </div>
+      <div id="adVerdictBox" class="ad-verdict" role="status" hidden></div>
     </form>
   </dialog>
 

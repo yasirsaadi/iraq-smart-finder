@@ -718,3 +718,22 @@ export function extractPriceForQuery(query, title, snippet, options = {}) {
   }
   return null;
 }
+
+/**
+ * حكم على سعر إعلان مقارنة بدليل السعر (وسيط وربعيات أسعار مماثلة).
+ * لا حكم دون 3 أسعار مماثلة على الأقل. السعر المنخفض جداً يُعامل كإنذار لا كصفقة.
+ */
+export function judgeAdPrice(priceIQD, guide) {
+  if (!(Number(priceIQD) > 0)) return { verdict: 'no_price' };
+  if (!guide || !guide.enough || !(guide.median > 0)) return { verdict: 'insufficient', count: guide?.count || 0 };
+  const price = Number(priceIQD);
+  const { median, q1, q3, count } = guide;
+  const diffPct = Math.round(((price - median) / median) * 100);
+  let verdict;
+  if (price < median * 0.6) verdict = 'suspicious_low';
+  else if (price < q1) verdict = 'below_market';
+  else if (price <= q3) verdict = 'fair';
+  else if (price <= median * 1.3) verdict = 'above_market';
+  else verdict = 'overpriced';
+  return { verdict, diffPct, diffIQD: Math.round(price - median), median, q1, q3, count };
+}

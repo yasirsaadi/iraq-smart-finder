@@ -1910,6 +1910,285 @@ body {
   font-weight: 700;
 }
 
+/* نتيجة فحص سعر الإعلان */
+.ad-verdict {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-medium);
+  background-color: var(--bg-subtle);
+  font-size: 0.84rem;
+  display: grid;
+  gap: 6px;
+}
+
+.ad-verdict ul {
+  margin: 4px 0 0;
+  padding-inline-start: 18px;
+}
+
+.ad-verdict small {
+  color: var(--text-muted);
+}
+
+.ad-verdict.verdict-fair,
+.ad-verdict.verdict-below_market {
+  border-color: #86efac;
+  background-color: #f0fdf4;
+}
+
+.ad-verdict.verdict-above_market {
+  border-color: #fcd34d;
+  background-color: #fffbeb;
+}
+
+.ad-verdict.verdict-overpriced,
+.ad-verdict.verdict-suspicious_low {
+  border-color: #fca5a5;
+  background-color: #fef2f2;
+}
+
+/* دليل السعر من ذاكرة الأسعار */
+.price-guide-note {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+/* نموذج البحث عن سيارة بعينها: الماركة من القائمة + الطراز + السنة */
+.car-finder-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.car-finder-row input {
+  font-family: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+  width: 170px;
+}
+
+.car-finder-row #carYearInput {
+  width: 90px;
+}
+
+.car-finder-btn {
+  padding: 7px 14px;
+}
+
+/* --------------------------------------------------------------------------
+   6-ب. النتائج كقائمة عمودية: الصورة أولاً، ثم التفاصيل، ثم السعر والإجراءات
+   -------------------------------------------------------------------------- */
+.commercial-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.product-card.result-row {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr) 236px;
+  align-items: stretch;
+}
+
+.product-card.result-row.is-spotlight-target::before {
+  grid-column: 1 / -1;
+}
+
+.product-card.result-row.is-stale {
+  opacity: 0.82;
+}
+
+.row-media {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background-color: var(--bg-subtle);
+  border-inline-end: 1px solid var(--border-medium);
+  min-height: 132px;
+  overflow: hidden;
+}
+
+.row-media .product-thumb-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-color: var(--bg-subtle);
+}
+
+.row-main {
+  min-width: 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row-main .card-ribbons:empty {
+  display: none;
+}
+
+.row-main .product-title {
+  font-size: 0.98rem;
+}
+
+.row-meta,
+.row-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.row-meta .seller-name {
+  font-size: 0.76rem;
+}
+
+.row-meta-sep {
+  color: var(--border-medium);
+}
+
+.post-time.is-old {
+  color: #b45309;
+  font-weight: 700;
+}
+
+.ribbon-stale {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.row-main .seller-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.row-main .trust-and-inspection-row {
+  justify-content: flex-start;
+}
+
+.row-side.card-footer-box {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: none;
+  border-inline-start: 1px solid var(--border-medium);
+}
+
+.row-side .card-cta-group {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.row-side .btn-open-offer,
+.row-side .btn-copy-phone {
+  justify-content: center;
+}
+
+.price-kind-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.listing-pages-box {
+  background-color: var(--bg-surface);
+  border: 1.5px dashed var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+
+.listing-pages-box summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--brand-primary);
+}
+
+.listing-pages-box ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.listing-pages-box li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 6px;
+}
+
+.listing-pages-box li span {
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-size: 0.74rem;
+}
+
+@media (max-width: 860px) {
+  .product-card.result-row {
+    grid-template-columns: 128px minmax(0, 1fr);
+  }
+
+  .row-side.card-footer-box {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    border-inline-start: none;
+    border-top: 1px solid var(--border-medium);
+  }
+
+  .row-side .card-cta-group {
+    flex-direction: row;
+  }
+}
+
+@media (max-width: 480px) {
+  /* على الهاتف: الصورة شريط في أعلى البطاقة، والتفاصيل بعرض الشاشة كاملاً */
+  .product-card.result-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .row-media {
+    min-height: 170px;
+    border-inline-end: none;
+    border-bottom: 1px solid var(--border-medium);
+  }
+
+  .row-main {
+    padding: 8px 10px;
+  }
+
+  .row-main .product-title {
+    font-size: 0.9rem;
+  }
+
+  .listing-pages-box li {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
 /* ==========================================================================
    7. النوافذ المنبثقة (Modals)
    ========================================================================== */

@@ -189,3 +189,14 @@ test('حفظ سعر الصرف في الحساب يتطلب تسجيل الدخ�
   assert.equal((await send({ exchangeRate100USD: 152000 })).status, 401);
   assert.equal((await post(PROD, '/api/account/preferences', { exchangeRate100USD: 152000 })).status, 503, 'معطل حين يكون الدخول معطلاً');
 });
+
+test('فهرس الإعلانات ودليل الأسعار: مجانيان ومحميان', async () => {
+  assert.deepEqual(await (await get(PROD, '/api/indexed-search?q=')).json(), { offers: [] });
+  assert.deepEqual((await (await get(PROD, `/api/indexed-search?q=${encodeURIComponent('بيت')}&section=realestate`)).json()).offers, []);
+  assert.equal((await get(PROD, `/api/price-guide?q=${encodeURIComponent('كامري')}`)).status, 400, 'القسم مطلوب');
+  const g = await (await get(PROD, `/api/price-guide?q=${encodeURIComponent('كامري 2020')}&section=cars`)).json();
+  assert.equal(g.count, 0);
+  assert.equal((await post(PROD, '/api/admin/ingest-listings', { listings: [] })).status, 401, 'الإدخال للزاحف فقط');
+  const bot = await (await get(PROD, '/bot')).text();
+  assert.match(bot, /IraqPriceRadarBot/);
+});

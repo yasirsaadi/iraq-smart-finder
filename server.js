@@ -24,6 +24,7 @@ import { createNotifier, initNotificationTables } from './lib/notifications.js';
 import { createAlertStore, initAlertColumns, findAlertMatches, formatIQD, MAX_ALERTS_PER_USER, MAX_ALERTS_PER_SUBSCRIBER } from './lib/price-alerts.js';
 import { refreshPopularBatch, checkDueAlerts } from './lib/background-jobs.js';
 import { createActionLimiter, initActionLimitTable } from './lib/action-limits.js';
+import { createListingIndex, initListingTables, normalizeIncomingListing } from './lib/listing-index.js';
 import { isSerperConfigured, buildSerperQueries, serperSearchRaw, needsResolve, serperResolve, mapSerperOrganic } from './lib/serper-provider.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -280,6 +281,7 @@ async function initNeonDatabase() {
     await initSearchStoreTables(sql);
     await initAccountTables(sql);
     await initActionLimitTable(sql);
+    await initListingTables(sql);
     await initNotificationTables(sql);
     await initAlertColumns(sql);
   } catch (err) {
@@ -300,6 +302,7 @@ const searchStore = createSearchStore({ sql, config: ECONOMICS });
 const accounts = createAccountStore({ sql });
 const notifier = createNotifier({ sql });
 const alertStore = createAlertStore({ sql });
+const listingIndex = createListingIndex({ sql });
 
 /**
  * يفحص تنبيهات الأسعار المطابقة لبحث محفوظ ويرسل الإشعارات. لا يستهلك أي رصيد بحث.
@@ -454,6 +457,8 @@ async function runSerperPipeline({ query, gov, sectionHint, debug = false }) {
     payload.diagnostics.withImages = payload.offers.filter((o) => o.imageUrl).length;
     if (payload.providerOk) {
       await searchStore.setCached(key, payload, { query, governorate: gov, section: sectionHint });
+      // ذاكرة الأسعار: كل سعر لإعلان فردي يُحفظ لبناء دليل السعر (دون أي رصيد إضافي)
+      await listingIndex.recordLiveOffers(payload.offers).catch((err) => console.warn('price memory write failed:', err.message));
       await checkAlertsAgainstPayload(payload, { query, governorate: gov, section: sectionHint }).catch((err) => console.warn('alert check failed:', err.message));
     }
     return payload;
@@ -574,6 +579,50 @@ app.get('/api/live-search', async (req, res) => {
   } catch (err) {
     console.error('live-search failed:', err.message);
     res.status(500).json({ error: 'live_search_failed', offers: [] });
+  }
+});
+
+// ===== فهرس الإعلانات المجمّعة ودليل الأسعار (مجانيان، لا يستهلكان رصيد البحث) =====
+const SECTION_VALUES = ['all', 'products', 'cars', 'realestate'];
+
+app.get('/api/indexed-search', async (req, res) => {
+  const query = cleanPlainText(req.query.q, 120);
+  const section = SECTION_VALUES.includes(req.query.section) ? req.query.section : 'all';
+  const gov = IRAQ_GOV_KEYWORDS[String(req.query.gov || '')] ? String(req.query.gov) : null;
+  if (!query) return res.json({ offers: [] });
+  if (isRateLimited(`idx:${req.ip || 'unknown'}`)) return res.status(429).json({ error: 'rate_limited', offers: [] });
+  try {
+    res.json({ offers: await listingIndex.search({ query, section, governorate: gov }) });
+  } catch (err) {
+    console.error('indexed search failed:', err.message);
+    res.status(500).json({ error: 'indexed_search_failed', offers: [] });
+  }
+});
+
+app.get('/api/price-guide', async (req, res) => {
+  const query = cleanPlainText(req.query.q, 120);
+  const section = ['products', 'cars', 'realestate'].includes(req.query.section) ? req.query.section : null;
+  if (!query || !section) return res.status(400).json({ error: 'query_and_section_required' });
+  if (isRateLimited(`guide:${req.ip || 'unknown'}`)) return res.status(429).json({ error: 'rate_limited' });
+  try {
+    res.json(await listingIndex.priceGuide({ query, section }));
+  } catch (err) {
+    console.error('price guide failed:', err.message);
+    res.status(500).json({ error: 'price_guide_failed', count: 0 });
+  }
+});
+
+// يستقبل دفعات الزاحف الليلي (مهمة مجدولة في GitHub Actions) — محمي بالرمز السري نفسه
+app.post('/api/admin/ingest-listings', async (req, res) => {
+  if (!isAuthorizedRefresh(req)) return res.status(401).json({ error: 'unauthorized' });
+  const items = Array.isArray(req.body?.listings) ? req.body.listings.slice(0, 500) : [];
+  const clean = items.map((l) => normalizeIncomingListing(l, { detectGov: detectGovFromText, usdRate: STORED_USD_RATE })).filter(Boolean);
+  try {
+    const saved = await listingIndex.upsertListings(clean);
+    res.json({ received: items.length, saved, rejected: items.length - clean.length, totals: await listingIndex.stats() });
+  } catch (err) {
+    console.error('ingest failed:', err.message);
+    res.status(500).json({ error: 'ingest_failed' });
   }
 });
 
@@ -1218,6 +1267,7 @@ app.post('/api/searches', async (req, res) => {
 // صفحات السياسات العامة (مطلوبة لنشر تطبيق تسجيل الدخول لدى غوغل)
 app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'legal', 'privacy.html')));
 app.get('/terms', (_req, res) => res.sendFile(path.join(__dirname, 'legal', 'terms.html')));
+app.get('/bot', (_req, res) => res.sendFile(path.join(__dirname, 'legal', 'bot.html')));
 
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));

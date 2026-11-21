@@ -1,0 +1,84 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createListingIndex, normalizeIncomingListing, buildPriceGuide } from '../lib/listing-index.js';
+
+const detectGov = (t) => (/بغداد/.test(t) ? { governorate: 'baghdad', district: 'بغداد' } : /البصرة/.test(t) ? { governorate: 'basra', district: 'البصرة' } : null);
+const raw = (over = {}) => ({
+  url: 'https://shanashel.com/property/71',
+  source: 'shanashel.com',
+  sourceName: 'شناشيل (shanashel.com)',
+  section: 'realestate',
+  title: 'بيت للبيع في السيدية',
+  description: 'دار حديث 4 نوم',
+  priceAmount: 600000000,
+  currency: 'IQD',
+  deal: 'sale',
+  region: 'بغداد',
+  city: 'السيدية',
+  areaSqm: 150,
+  rooms: 4,
+  postedAt: '2026-11-01T10:00:00Z',
+  ...over
+});
+
+test('تنظيف الإعلان القادم: سعر بالدينار أو الدولار، ورفض الروابط والأقسام غير الصالحة', () => {
+  const l = normalizeIncomingListing(raw(), { detectGov });
+  assert.equal(l.priceIQD, 600000000);
+  assert.equal(l.governorate, 'baghdad');
+  assert.equal(l.postedAt, '2026-11-01T10:00:00.000Z');
+  assert.equal(normalizeIncomingListing(raw({ priceAmount: 20000, currency: 'USD', section: 'cars', title: 'كامري 2020' }), { usdRate: 1500 }).priceIQD, 30_000_000);
+  assert.equal(normalizeIncomingListing(raw({ url: 'javascript:alert(1)' })), null);
+  assert.equal(normalizeIncomingListing(raw({ section: 'weapons' })), null);
+  assert.equal(normalizeIncomingListing(raw({ currency: 'EUR' })).priceIQD, null, 'عملة غير معروفة: بلا سعر');
+  assert.equal(normalizeIncomingListing(raw({ postedAt: '2099-01-01' })).postedAt, null, 'لا تواريخ مستقبلية');
+});
+
+test('الفهرس: بحث مجاني ذو صلة، ومحافظة المستخدم أولاً، وسعر معلن من الموقع', async () => {
+  const idx = createListingIndex({ sql: null });
+  await idx.upsertListings([
+    normalizeIncomingListing(raw(), { detectGov }),
+    normalizeIncomingListing(raw({ url: 'https://shanashel.com/property/72', title: 'بيت للبيع في البصرة الجزائر', region: 'البصرة', city: 'الجزائر' }), { detectGov }),
+    normalizeIncomingListing(raw({ url: 'https://shanashel.com/property/73', title: 'شقة للايجار في المنصور', deal: 'rent', priceAmount: 800000 }), { detectGov })
+  ]);
+  const hits = await idx.search({ query: 'بيت للبيع', section: 'realestate', governorate: 'basra' });
+  assert.equal(hits.length, 2);
+  assert.equal(hits[0].governorate, 'basra', 'محافظة المستخدم أولاً');
+  const h = hits.find((x) => x.directUrl.endsWith('/71'));
+  assert.equal(h.source, 'indexed');
+  assert.equal(h.storeName, 'شناشيل (shanashel.com)');
+  assert.equal(h.priceSource, 'listing_structured_data');
+  assert.equal(h.specs.areaSqm, 150);
+  assert.equal(h.isListingPage, false);
+  assert.equal(h.phone, null, 'لا أرقام هواتف من الزاحف');
+  assert.equal((await idx.search({ query: 'سيارة كامري', section: 'all' })).length, 0);
+});
+
+test('ذاكرة الأسعار: إعلانات البيع الفردية فقط، والإيجار وصفحات الأقسام مستبعدة', async () => {
+  const idx = createListingIndex({ sql: null });
+  const live = (id, title, price, extra = {}) => ({ directUrl: `https://www.facebook.com/p/${id}`, section: 'cars', title, priceIQD: price, platform: 'facebook', ...extra });
+  const n = await idx.recordLiveOffers([
+    live(1, 'تويوتا كامري 2020 للبيع', 30_000_000),
+    live(2, 'تويوتا كامري 2020 نظيفة', 31_000_000),
+    live(3, 'كامري 2020 وارد', 29_000_000),
+    live(4, 'تويوتا كامري 2020 صفحة قسم', 25_000_000, { isListingPage: true }),
+    live(5, 'كامري 2020 للايجار', 900_000, { priceIsRent: true }),
+    live(6, 'كامري 2020 بلا سعر', null)
+  ]);
+  assert.equal(n, 3);
+  const guide = await idx.priceGuide({ query: 'كامري 2020', section: 'cars' });
+  assert.equal(guide.count, 3);
+  assert.equal(guide.enough, true);
+  assert.equal(guide.median, 30_000_000);
+  assert.deepEqual(guide.byKind, { estimated: 3 });
+  assert.equal((await idx.priceGuide({ query: 'سوناتا 2020', section: 'cars' })).count, 0);
+});
+
+test('دليل السعر: أقل من 3 أسعار ليس كافياً، وسعر المتر للعقارات', () => {
+  const obs = (i, price, area) => ({ url: `u${i}`, title: 'بيت للبيع في بغداد', groupKey: 'realestate|sale|house', priceIQD: price, areaSqm: area, priceKind: 'declared', observedAt: '2026-11-20T00:00:00Z' });
+  const small = buildPriceGuide('بيت للبيع', 'realestate', [obs(1, 300e6, 150), obs(2, 320e6, 160)]);
+  assert.equal(small.enough, false);
+  const g = buildPriceGuide('بيت للبيع', 'realestate', [obs(1, 300e6, 150), obs(2, 320e6, 160), obs(3, 400e6, 200), obs(4, 360e6, 180)]);
+  assert.equal(g.enough, true);
+  assert.equal(g.perSqmMedian, 2_000_000);
+  assert.equal(g.lastObservedAt, '2026-11-20T00:00:00.000Z');
+});

@@ -171,7 +171,7 @@ test('النصوص الخارجية الخبيثة لا تُنفَّذ، وال�
   // نتائج البحث الحي لا تحدد بائعاً بعينه: لا زر تقييم لها
   assert.equal(await page.locator('#resultsGrid [data-action="review"]').count(), 0);
   assert.match(await page.textContent('[data-offer-id="a2"]'), /بائع غير محدد/);
-  assert.match(await page.textContent('[data-offer-id="a2"]'), /التقييم غير متاح: هوية البائع الحقيقية غير معروفة/);
+  assert.match(await page.getAttribute('[data-offer-id="a2"] .row-meta ~ .trust-and-inspection-row .post-time', 'title'), /التقييم غير متاح: هوية البائع الحقيقية غير معروفة/);
   // نافذة التقييم تعرض اسم المتجر نصاً فقط، والتعليق الخبيث لا يُنفَّذ
   await page.evaluate(() => window.openStoreReviewModal("x');window.__xss=2;//"));
   await page.waitForSelector('#storeReviewsList .alert-row strong');
@@ -322,6 +322,73 @@ test('عرض أدخله مستخدم: «سعر معلن غير موثّق»، و
   assert.match(await page.textContent('#reviewFormStatus'), /تم الاحتفاظ بتقييمك/);
   assert.deepEqual(errors, []);
   await browserCtx.close();
+});
+
+test('فحص سعر إعلان: يُقرأ السعر من النص الملصوق ويُحكم عليه مقابل دليل السعر', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  let guideUrl = '';
+  await page.route('**/api/price-guide**', (route) => {
+    guideUrl = route.request().url();
+    route.fulfill({
+      json: { count: 12, enough: true, median: 30_000_000, q1: 28_000_000, q3: 32_000_000, min: 26e6, max: 34e6, label: 'سيارات • كامري', windowDays: 120, byKind: { declared: 4, estimated: 8 } }
+    });
+  });
+  await page.click('#openImageSearchBtn');
+  await page.fill('#imageExtractedQuery', 'تويوتا كامري 2020');
+  await page.fill('#adPastedText', 'للبيع تويوتا كامري 2020 وارد امريكي السعر 45 مليون بغداد');
+  assert.equal(await page.inputValue('#adSeenPriceInput'), '45,000,000', 'السعر قُرئ من النص');
+  assert.equal(await page.inputValue('#adSectionSelect'), 'cars');
+  await page.click('#adCheckBtn');
+  await page.waitForSelector('#adVerdictBox.verdict-overpriced');
+  const verdict = await page.textContent('#adVerdictBox');
+  assert.match(verdict, /أغلى من السوق بـ 50%/);
+  assert.match(verdict, /الوسيط 30 مليون د\.ع/);
+  assert.match(verdict, /بالسونار/);
+  assert.match(guideUrl, /section=cars/);
+  assert.equal(await page.isVisible('#adCompareLiveBtn'), true);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('القائمة العمودية: إعلانات الفهرس أولاً، وصفحات الأقسام منفصلة، والإعلان القديم موسوم', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  await page.route('**/api/indexed-search**', (route) =>
+    route.fulfill({
+      json: {
+        offers: [
+          liveOffer('idx-1', 'بيت للبيع في السيدية 150 متر', 600_000_000, {
+            source: 'indexed', section: 'realestate', storeName: 'شناشيل (shanashel.com)', priceSource: 'listing_structured_data', priceMeta: null,
+            directUrl: 'https://shanashel.com/property/71', postedAt: new Date(Date.now() - 3 * 86400000).toISOString(), imageUrl: null, specs: { areaSqm: 150 }
+          })
+        ]
+      }
+    })
+  );
+  await page.route('**/api/live-search**', (route) =>
+    route.fulfill({
+      json: {
+        providerOk: true,
+        offers: [
+          liveOffer('L1', 'بيت للبيع في بغداد الدورة', 300_000_000, { section: 'realestate', searchDateText: 'منذ 5 أشهر' }),
+          liveOffer('L2', 'بيوت ومنازل للبيع في بغداد (593) - السوق المفتوح', null, { section: 'realestate', isListingPage: true, storeName: 'السوق المفتوح (iq.opensooq.com)', directUrl: 'https://iq.opensooq.com/ar/baghdad/real-estate' })
+        ]
+      }
+    })
+  );
+  await page.fill('#searchQuery', 'بيت للبيع');
+  await page.press('#searchQuery', 'Enter');
+  await page.waitForSelector('[data-offer-id="idx-1"]');
+  const ids = await page.$$eval('#resultsGrid article', (as) => as.map((a) => a.getAttribute('data-offer-id')));
+  assert.deepEqual(ids, ['idx-1', 'L1'], 'صفحة القسم ليست بطاقة إعلان، والقديم بعد الحديث');
+  const idx = await page.textContent('[data-offer-id="idx-1"]');
+  assert.match(idx, /سعر معلن في الموقع غير موثّق/);
+  assert.match(idx, /نُشر منذ 3 يوم/);
+  assert.match(await page.textContent('[data-offer-id="L1"]'), /إعلان قديم/);
+  assert.match(await page.textContent('#resultsGrid .listing-pages-box summary'), /صفحات أقسام وبحث في المواقع \(1\)/);
+  const layout = await page.$eval('[data-offer-id="idx-1"]', (el) => getComputedStyle(el).display);
+  assert.equal(layout, 'grid');
+  assert.deepEqual(errors, []);
+  await page.close();
 });
 
 test('وضع العرض التجريبي: العروض موسومة وأسعار العقارات لا تدخل في مقارنة الأجهزة', { skip: SKIP }, async () => {
