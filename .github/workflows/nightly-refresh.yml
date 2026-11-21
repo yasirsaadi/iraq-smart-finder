@@ -6,7 +6,16 @@ name: Nightly popular-search refresh
 on:
   schedule:
     - cron: '17 0 * * *' # 03:17 بتوقيت بغداد
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      crawl_max:
+        description: 'Max listing pages per crawled site (initial seed can use more)'
+        required: false
+        default: '200'
+      only_crawl:
+        description: 'Run only the crawler (skip popular-search refresh and alert checks)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -17,6 +26,7 @@ concurrency:
 
 jobs:
   refresh:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.only_crawl != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -61,3 +71,20 @@ jobs:
             done_flag=$(echo "$body" | jq -r '.done | tostring' 2>/dev/null || echo "error")
             if [ "$done_flag" != "false" ]; then break; fi
           done
+
+  # الزاحف الليلي: يجمع إعلانات المواقع التي تسمح بذلك (شناشيل، عجيبة) ويغذي فهرس الموقع ودليل الأسعار
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      SITE_URL: ${{ vars.SITE_URL || 'https://iraq-smart-finder.onrender.com' }}
+      REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Wake the site
+        run: curl -s -o /dev/null --retry 5 --retry-delay 10 --retry-all-errors -m 90 "$SITE_URL/healthz" || true
+      - name: Crawl allowed listing sites
+        run: node scripts/crawl.mjs --max=${{ github.event.inputs.crawl_max || '200' }} --delay=1500

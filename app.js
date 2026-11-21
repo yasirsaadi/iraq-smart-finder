@@ -75,6 +75,8 @@ const state = {
   user: null,
   subscription: { active: false },
   liveOffers: [],
+  indexedOffers: [],
+  priceGuide: null,
   alerts: [],
   isSearchingLive: false,
   selectedSection: 'all', // 'all' | 'products' | 'cars' | 'realestate'
@@ -155,6 +157,7 @@ function isVerifiedPrice(offer) {
 function priceKindLabel(offer) {
   if (isVerifiedPrice(offer)) return 'سعر موثّق';
   if (offer.source === 'live' || offer.priceSource === 'search_snippet') return 'سعر تقديري';
+  if (offer.source === 'indexed') return 'سعر معلن في الموقع غير موثّق';
   return 'سعر معلن غير موثّق';
 }
 
@@ -213,18 +216,54 @@ function govLabel(offer) {
   return IRAQ_GOVERNORATES[offer.governorate].name;
 }
 
-function formatPostedTime(offer) {
+// الإعلان الأقدم من هذا العدد من الأيام يُوسم "قديم" ويتأخر في الترتيب
+const STALE_AFTER_DAYS = 60;
+
+/**
+ * عمر الإعلان بالأيام من تاريخ نشره، أو من تاريخ نتيجة البحث ("منذ 3 أيام"، "3 days ago"، "Sep 23, 2026").
+ * يعيد null إن لم يُعرف التاريخ؛ لا نخمّن تاريخاً.
+ */
+function offerAgeDays(offer) {
   const ts = offer.postedAt ? Date.parse(offer.postedAt) : NaN;
+  if (Number.isFinite(ts)) return Math.max(0, (Date.now() - ts) / 86400000);
+  const text = normalizeDigits(String(offer.searchDateText || '')).trim().toLowerCase();
+  if (!text) return null;
+  const units = [
+    [/دقيق|minute|min/, 1 / 1440],
+    [/ساع|hour/, 1 / 24],
+    [/يوم|ايام|أيام|day/, 1],
+    [/اسبوع|أسبوع|اسابيع|أسابيع|week/, 7],
+    [/شهر|اشهر|أشهر|month/, 30],
+    [/سنه|سنة|سنوات|عام|year/, 365]
+  ];
+  for (const [re, days] of units) {
+    if (!re.test(text)) continue;
+    const n = Number((text.match(/\d+/) || [])[0]);
+    const dual = /(يومين|اسبوعين|أسبوعين|شهرين|سنتين)/.test(text) ? 2 : null;
+    return (Number.isFinite(n) && n > 0 ? n : dual || 1) * days;
+  }
+  const abs = Date.parse(text);
+  return Number.isFinite(abs) ? Math.max(0, (Date.now() - abs) / 86400000) : null;
+}
+
+function formatPostedTime(offer) {
+  if (offer.source === 'demo' && offer.postedAgo) return offer.postedAgo;
+  const ts = offer.postedAt ? Date.parse(offer.postedAt) : NaN;
+  const verb = offer.source === 'user' ? 'أضيف' : 'نُشر';
   if (Number.isFinite(ts)) {
     const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
-    if (mins < 1) return 'أضيف الآن';
-    if (mins < 60) return `أضيف منذ ${mins} دقيقة`;
+    if (mins < 1) return `${verb} الآن`;
+    if (mins < 60) return `${verb} منذ ${mins} دقيقة`;
     const hours = Math.round(mins / 60);
-    if (hours < 24) return `أضيف منذ ${hours} ساعة`;
-    return `أضيف منذ ${Math.round(hours / 24)} يوم`;
+    if (hours < 24) return `${verb} منذ ${hours} ساعة`;
+    const days = Math.round(hours / 24);
+    return days < 60 ? `${verb} منذ ${days} يوم` : `${verb} منذ ${Math.round(days / 30)} شهر`;
   }
-  if (offer.source === 'demo' && offer.postedAgo) return offer.postedAgo;
   if (offer.searchDateText) return `حسب البحث: ${offer.searchDateText}`;
+  if (offer.firstSeenAt) {
+    const days = Math.round((Date.now() - Date.parse(offer.firstSeenAt)) / 86400000);
+    return days < 1 ? 'رُصد اليوم (تاريخ النشر غير معلن)' : `رُصد منذ ${days} يوم (تاريخ النشر غير معلن)`;
+  }
   return 'بلا تاريخ نشر';
 }
 
@@ -276,6 +315,29 @@ function getClientId() {
   }
 }
 
+/** نتائج البحث: الفهرس المجاني (بيانات منظمة) أولاً، ثم نتائج البحث الحي دون تكرار الرابط نفسه. */
+function searchResultOffers() {
+  const seen = new Set(state.indexedOffers.map((o) => o.directUrl));
+  return [...state.indexedOffers, ...state.liveOffers.filter((o) => !seen.has(o.directUrl))];
+}
+
+/** البحث في فهرس الإعلانات المجمّعة ودليل السعر: مجانيان ولا يُحسبان من الحصة. */
+async function loadIndexAndGuide(cleanQuery, controller) {
+  const section = state.selectedSection;
+  const params = `q=${encodeURIComponent(cleanQuery)}&section=${encodeURIComponent(section)}&gov=${encodeURIComponent(state.selectedGov)}`;
+  const guideSection = section === 'all' ? null : section;
+  const [idx, guide] = await Promise.all([
+    fetch(`/api/indexed-search?${params}`, { signal: controller.signal }).then((r) => (r.ok ? r.json() : { offers: [] })).catch(() => ({ offers: [] })),
+    guideSection
+      ? fetch(`/api/price-guide?q=${encodeURIComponent(cleanQuery)}&section=${guideSection}`, { signal: controller.signal }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      : null
+  ]);
+  if (controller !== activeSearchController) return;
+  state.indexedOffers = (idx.offers || []).map((o) => ({ ...o, source: 'indexed' }));
+  state.priceGuide = guide && guide.count > 0 ? guide : null;
+  renderApp();
+}
+
 function describeAge(isoDate) {
   const mins = Math.max(0, Math.round((Date.now() - Date.parse(isoDate)) / 60000));
   if (!Number.isFinite(mins)) return '';
@@ -286,6 +348,8 @@ async function performLiveSearch(queryText) {
   const cleanQuery = queryText.trim();
   if (!cleanQuery) {
     state.liveOffers = [];
+    state.indexedOffers = [];
+    state.priceGuide = null;
     state.isSearchingLive = false;
     renderApp();
     return;
@@ -297,7 +361,10 @@ async function performLiveSearch(queryText) {
   activeSearchController = new AbortController();
 
   state.isSearchingLive = true;
+  state.indexedOffers = [];
+  state.priceGuide = null;
   renderApp();
+  loadIndexAndGuide(cleanQuery, activeSearchController);
 
   const controller = activeSearchController;
   const url = `/api/live-search?q=${encodeURIComponent(cleanQuery)}&gov=${encodeURIComponent(state.selectedGov)}&section=${encodeURIComponent(state.selectedSection)}&rate=${encodeURIComponent(state.exchangeRate100USD)}`;
@@ -415,7 +482,7 @@ function getProcessedOffers() {
   const query = state.query.trim();
 
   const localMatches = state.offers.filter((offer) => matchesSearch(offer, query));
-  const combinedSource = query ? [...localMatches, ...state.liveOffers] : [...state.offers, ...state.liveOffers];
+  const combinedSource = query ? [...localMatches, ...searchResultOffers()] : [...state.offers, ...searchResultOffers()];
 
   let filtered = combinedSource.filter((offer) => {
     const offerSec = offer.section || 'products';
@@ -543,7 +610,13 @@ function getProcessedOffers() {
       : filtered.filter((o) => o.platform === state.selectedPlatform);
 
   const FAR = 999999999999;
+  const staleOf = (o) => {
+    const d = offerAgeDays(o);
+    return d !== null && d > STALE_AFTER_DAYS ? 1 : 0;
+  };
   finalDisplayed.sort((a, b) => {
+    const staleDiff = staleOf(a) - staleOf(b);
+    if (staleDiff !== 0) return staleDiff;
     const aHasPrice = Boolean(a.effectivePriceIQD && a.effectivePriceIQD > 0);
     const bHasPrice = Boolean(b.effectivePriceIQD && b.effectivePriceIQD > 0);
     const aDist = a.distanceKm === null ? FAR : a.distanceKm;
@@ -663,11 +736,65 @@ async function loadStoreReviews(storeName) {
   }
 }
 
+const AD_CHECKLISTS = {
+  cars: ['افحص السيارة بالسونار والكمبيوتر في مركز فحص مستقل', 'طابق رقم الشاصي مع السنوية واسأل عن الوارد والحوادث', 'لا تدفع عربوناً قبل المعاينة'],
+  realestate: ['تحقق من السند في دائرة التسجيل العقاري', 'تأكد أن البائع هو المالك أو لديه وكالة نافذة', 'عاين العقار بنفسك ولا تحوّل مالاً قبل العقد'],
+  products: ['اطلب الفحص قبل الدفع أو الدفع عند الاستلام', 'تأكد من الضمان والمنشأ', 'احذر الأسعار الأقل كثيراً من السوق']
+};
+
+/** نص حكم فحص الإعلان (كل القيم المعروضة أرقام منسقة أو نصوص ثابتة). */
+function renderAdVerdict(j, guide, section, price, areaSqm = 0) {
+  const pct = Math.abs(j.diffPct || 0);
+  const lines = {
+    no_price: 'اكتب السعر المكتوب في الإعلان، أو الصق نص الإعلان ليُقرأ منه.',
+    insufficient: `لا توجد لدينا بعد أسعار مماثلة كافية للحكم (${j.count || 0} من 3 على الأقل). اضغط "ابحث الآن" لمقارنته بالعروض الحالية.`,
+    suspicious_low: `⚠ أرخص من سعر السوق بـ ${pct}% — انخفاض غير معتاد. احذر: كثير من الإعلانات بهذا الفرق احتيال أو فيها عيب مخفي.`,
+    below_market: `✔ أرخص من أغلب العروض المماثلة بـ ${pct}% عن الوسيط. فرصة جيدة إن كانت المواصفات مطابقة.`,
+    fair: '✔ ضمن نطاق السعر المعتاد للعروض المماثلة.',
+    above_market: `أغلى من الوسيط بـ ${pct}%. يمكنك التفاوض على السعر.`,
+    overpriced: `✖ أغلى من السوق بـ ${pct}% (نحو ${formatIQD(j.diffIQD)} زيادة). فاوض أو ابحث عن بديل.`
+  };
+  const summary = guideSummary(guide);
+  const basis =
+    section !== 'realestate'
+      ? ''
+      : areaSqm > 0
+        ? `قورن سعر المتر: ${formatIQD(Math.round(price / areaSqm))} للمتر مقابل وسيط ${formatIQD(guide.perSqmMedian)}.`
+        : 'تنبيه: أسعار العقارات تختلف كثيراً بالمساحة والمنطقة؛ اكتب المساحة لمقارنة أدق بسعر المتر.';
+  const checklist = (AD_CHECKLISTS[section] || AD_CHECKLISTS.products).map((t) => `<li>${esc(t)}</li>`).join('');
+  return `
+    <strong>${esc(lines[j.verdict] || '')}</strong>
+    ${price > 0 ? `<div>سعر الإعلان: ${esc(formatIQD(price))}</div>` : ''}
+    ${basis ? `<div>${esc(basis)}</div>` : ''}
+    ${summary ? `<div class="ad-verdict-guide">${esc(summary)}</div>` : ''}
+    <div class="ad-verdict-checklist">قبل الدفع:<ul>${checklist}</ul></div>
+    <small>الأسعار المرصودة تقديرية ومعلنة من مواقع ونتائج بحث، وليست تقييماً رسمياً.</small>`;
+}
+
+/** دليل السعر من ذاكرة الأسعار: ما رصدناه من أسعار مماثلة خلال الأشهر الأخيرة. */
+function guideSummary(g) {
+  if (!g || !g.count) return '';
+  const kinds = [g.byKind?.declared ? `${g.byKind.declared} معلن في مواقع` : '', g.byKind?.estimated ? `${g.byKind.estimated} تقديري من نتائج البحث` : '']
+    .filter(Boolean)
+    .join('، ');
+  if (!g.enough) return `ذاكرة الأسعار: ${g.count} سعر فقط لـ ${g.label} خلال ${g.windowDays} يوماً — غير كافٍ لحكم موثوق بعد.`;
+  const perSqm = g.perSqmMedian ? ` • سعر المتر الوسيط ${formatIQD(g.perSqmMedian)}` : '';
+  return `ذاكرة الأسعار (${g.label}): الوسيط ${formatIQD(g.median)}، وأغلب الأسعار بين ${formatIQD(g.q1)} و${formatIQD(g.q3)} — من ${g.count} سعراً خلال ${g.windowDays} يوماً (${kinds})${perSqm}.`;
+}
+
+function renderPriceGuideNote() {
+  const el = document.getElementById('priceGuideNote');
+  if (!el) return;
+  const text = state.query.trim() ? guideSummary(state.priceGuide) : '';
+  el.hidden = !text;
+  el.textContent = text;
+}
+
 function renderApp() {
   updateLiveDeepLinks();
 
   // تحديث عدادات القطاعات الرئيسية في الشريط العلوي
-  const allSource = state.query.trim() ? [...state.offers.filter((o) => matchesSearch(o, state.query.trim())), ...state.liveOffers] : state.offers;
+  const allSource = state.query.trim() ? [...state.offers.filter((o) => matchesSearch(o, state.query.trim())), ...searchResultOffers()] : state.offers;
   const secCountAllEl = document.getElementById('secCountAll');
   const secCountProductsEl = document.getElementById('secCountProducts');
   const secCountCarsEl = document.getElementById('secCountCars');
@@ -689,6 +816,7 @@ function renderApp() {
   document.getElementById('countGg').textContent = allFiltered.filter((o) => o.platform === 'google').length;
 
   const MIN_N = PriceEngine.MIN_COMPARABLE_OFFERS;
+  renderPriceGuideNote();
   const meterFairNote = document.getElementById('meterFairNote');
   const meterMinNote = document.getElementById('meterMinNote');
   if (stats && stats.count < MIN_N) {
@@ -821,7 +949,25 @@ function renderApp() {
     return;
   }
 
-  grid.innerHTML = finalDisplayed
+  // صفحات الأقسام والبحث في المواقع تضم إعلانات كثيرة: تُعرض منفصلة أسفل الإعلانات الفردية
+  const listingPages = finalDisplayed.filter((o) => o.isListingPage);
+  const singleAds = finalDisplayed.filter((o) => !o.isListingPage);
+  const listingPagesHtml = listingPages.length
+    ? `
+      <details class="listing-pages-box" ${singleAds.length ? '' : 'open'}>
+        <summary>صفحات أقسام وبحث في المواقع (${listingPages.length}) — كل صفحة تضم إعلانات متعددة، افتحها للتصفح</summary>
+        <ul>
+          ${listingPages
+            .map(
+              (o) => `<li><a href="${esc(buildOfferDirectUrl(o))}" target="_blank" rel="noopener noreferrer nofollow">${esc(o.title)}</a>
+                <span>${esc(String(o.storeName || ''))}</span></li>`
+            )
+            .join('')}
+        </ul>
+      </details>`
+    : '';
+
+  grid.innerHTML = singleAds
     .map((offer) => {
       const isDemo = offer.source === 'demo';
       const isLive = offer.source === 'live';
@@ -841,12 +987,15 @@ function renderApp() {
       const ratingText = hasReviews ? `★ ${Number(offer.trustRating).toFixed(1)} (${Number(offer.reviewsCount)})` : '☆ لا توجد تقييمات';
       const imgAlt = offer.imageIsIllustrative ? 'صورة توضيحية من بحث الصور وليست من الإعلان' : offer.title;
 
-      const thumbHtml = imgUrl
-        ? `<img src="${esc(imgUrl)}" alt="${esc(imgAlt)}" title="${offer.imageIsIllustrative ? 'صورة توضيحية وليست صورة الإعلان' : ''}" class="product-thumb-img" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'" />`
-        : `<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#9ca3af" stroke-width="1.6">
-             <circle cx="12" cy="12" r="9"></circle>
-             <path d="M12 8v8M8 12h8"></path>
+      // رمز بديل دائماً تحت الصورة: إن تعذر تحميل الصورة يظهر بدل مساحة فارغة
+      const placeholderSvg = `<svg class="row-media-placeholder" viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#9ca3af" stroke-width="1.6">
+             <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+             <circle cx="9" cy="10" r="2"></circle>
+             <path d="m21 16-5-5-9 9"></path>
            </svg>`;
+      const thumbHtml = imgUrl
+        ? `${placeholderSvg}<img src="${esc(imgUrl)}" alt="${esc(imgAlt)}" title="${offer.imageIsIllustrative ? 'صورة توضيحية وليست صورة الإعلان' : ''}" class="product-thumb-img" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />`
+        : placeholderSvg;
 
       let deliveryBreakdownHtml = '';
       if (offer.section === 'cars') {
@@ -878,6 +1027,8 @@ function renderApp() {
       if (isLive && offer.itemPriceIQD) {
         const matched = offer.priceMeta?.matchedText ? ` («${esc(offer.priceMeta.matchedText)}»)` : '';
         deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر تقديري مستخرج آلياً من مقتطف البحث${matched} — ليس سعراً مؤكداً، تحقق منه في المصدر</span>`;
+      } else if (offer.source === 'indexed' && offer.itemPriceIQD) {
+        // نوع السعر ظاهر في الوسم أعلاه، فلا نكرره
       } else if (!isDemo && offer.itemPriceIQD && !verifiedPrice) {
         deliveryBreakdownHtml += `<span class="delivery-breakdown">سعر معلن غير موثّق: أدخله المعلن ولم يتحقق منه أحد</span>`;
       } else if (verifiedPrice && offer.itemPriceIQD) {
@@ -887,6 +1038,8 @@ function renderApp() {
       let inspectionLabel;
       if (isLive) {
         inspectionLabel = '⚠ نتيجة بحث آلية: السعر والهاتف والموقع غير موثقة — تحقق من المصدر';
+      } else if (offer.source === 'indexed') {
+        inspectionLabel = 'إعلان من موقع عراقي: البيانات كما نشرها المعلن — عاين قبل الدفع';
       } else if (isDemo) {
         inspectionLabel =
           offer.section === 'cars'
@@ -900,83 +1053,70 @@ function renderApp() {
           : 'لم يؤكد المعلن قبول الفحص';
       }
 
+      const age = offerAgeDays(offer);
+      const isStale = age !== null && age > STALE_AFTER_DAYS;
+      const reviewControl = canReviewSeller
+        ? `<button type="button" class="trust-rate-btn" data-action="review" data-store="${esc(storeName)}" title="عرض وإضافة تقييمات المستخدمين لهذه الجهة">${ratingText}</button>`
+        : '<span class="post-time" title="التقييم غير متاح: هوية البائع الحقيقية غير معروفة، فلا تُجمع تقييمات بائعين مختلفين تحت اسم المنصة أو الموقع">بائع غير محدد (لا تقييم)</span>';
+
       return `
-      <article id="offer-card-${esc(offer.id)}" data-offer-id="${esc(offer.id)}" class="product-card ${offer.isCheapest ? 'is-cheapest' : ''}">
-        <div class="card-source-bar">
-          <div class="source-identity">
-            <span class="platform-chip chip-${esc(offer.platform)}">
-              ${esc(getPlatformName(offer.platform))}
-            </span>
+      <article id="offer-card-${esc(offer.id)}" data-offer-id="${esc(offer.id)}" class="product-card result-row ${offer.isCheapest ? 'is-cheapest' : ''} ${isStale ? 'is-stale' : ''}">
+        <a class="row-media" href="${esc(directUrl)}" target="_blank" rel="noopener noreferrer nofollow" tabindex="-1" aria-hidden="true">
+          ${thumbHtml}
+        </a>
+
+        <div class="row-main">
+          <div class="card-ribbons">
+            ${isDemo ? '<span class="ribbon-tag ribbon-overpriced">عرض تجريبي (غير حقيقي)</span>' : ''}
+            ${offer.isCheapest ? '<span class="ribbon-tag ribbon-cheapest">الأقل سعراً بين العروض المماثلة</span>' : ''}
+            ${offer.isNearest ? `<span class="ribbon-tag ribbon-nearest">${offer.distanceKm === 0 ? 'داخل محافظتك' : 'الأقرب تقديرياً حسب المحافظة'}</span>` : ''}
+            ${offer.isBestSmart ? '<span class="ribbon-tag ribbon-smart">الترشيح الأفضل</span>' : ''}
+            ${offer.isOverpriced ? '<span class="ribbon-tag ribbon-overpriced">أغلى من الوسيط للعروض المماثلة</span>' : ''}
+            ${offer.isPriceOutlier ? '<span class="ribbon-tag ribbon-overpriced">سعر شاذ عن العروض المماثلة — تحقق منه</span>' : ''}
+            ${isStale ? '<span class="ribbon-tag ribbon-stale">إعلان قديم — قد يكون بيع</span>' : ''}
+          </div>
+          <h3 class="product-title">${esc(offer.title)}</h3>
+
+          <div class="row-meta">
+            <span class="platform-chip chip-${esc(offer.platform)}">${esc(getPlatformName(offer.platform))}</span>
             <span class="seller-name">${esc(storeName)}</span>
-          </div>
-          <div style="display:flex; align-items:center; gap:6px;">
-            ${
-              canReviewSeller
-                ? `<button type="button" class="trust-rate-btn" data-action="review" data-store="${esc(storeName)}" title="عرض وإضافة تقييمات المستخدمين لهذه الجهة">
-              ${ratingText}
-            </button>`
-                : '<span class="post-time" title="نتيجة بحث آلية لا تحدد بائعاً بعينه، فلا تُجمع تحتها تقييمات بائعين مختلفين">بائع غير محدد</span>'
-            }
-            <span class="post-time">${esc(formatPostedTime(offer))}</span>
-          </div>
-        </div>
-
-        <div class="card-body">
-          <div class="product-top-row">
-            <div class="product-thumb-wrap">
-              ${thumbHtml}
-            </div>
-
-            <div class="product-heading-col">
-              <div class="card-ribbons">
-                ${isDemo ? '<span class="ribbon-tag ribbon-overpriced">عرض تجريبي (غير حقيقي)</span>' : ''}
-                ${offer.isCheapest ? '<span class="ribbon-tag ribbon-cheapest">الأقل سعراً بين العروض المماثلة</span>' : ''}
-                ${offer.isNearest ? `<span class="ribbon-tag ribbon-nearest">${offer.distanceKm === 0 ? 'داخل محافظتك' : 'الأقرب تقديرياً حسب المحافظة'}</span>` : ''}
-                ${offer.isBestSmart ? '<span class="ribbon-tag ribbon-smart">الترشيح الأفضل</span>' : ''}
-                ${offer.isOverpriced ? '<span class="ribbon-tag ribbon-overpriced">أغلى من الوسيط للعروض المماثلة</span>' : ''}
-                ${offer.isPriceOutlier ? '<span class="ribbon-tag ribbon-overpriced">سعر شاذ عن العروض المماثلة — تحقق منه</span>' : ''}
-              </div>
-              <h3 class="product-title">${esc(offer.title)}</h3>
-            </div>
+            <span class="row-meta-sep">•</span>
+            <span class="post-time ${isStale ? 'is-old' : ''}">${esc(formatPostedTime(offer))}</span>
           </div>
 
           ${specsHtml}
 
           <p class="seller-description">${esc(offer.snippet)}</p>
 
-          <div class="trust-and-inspection-row">
-            <span class="inspection-pill">${esc(inspectionLabel)}</span>
-            ${
-              canReviewSeller
-                ? `<button type="button" class="overview-jump" style="background:none; border:none; cursor:pointer;" data-action="review" data-store="${esc(storeName)}">
-              تقييم الجهة أو الإبلاغ
-            </button>`
-                : '<span class="delivery-breakdown">التقييم غير متاح: هوية البائع الحقيقية غير معروفة في نتائج البحث</span>'
-            }
-          </div>
-
-          <div class="logistics-grid">
-            <div class="logistics-item">
+          <div class="row-facts">
+            <span class="logistics-item">
               <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
                 <circle cx="12" cy="10" r="3"></circle>
               </svg>
-              <span>${esc(govName)}${offer.district ? ` (${esc(offer.district)})` : ''}</span>
-            </div>
+              ${esc(govName)}${offer.district ? ` (${esc(offer.district)})` : ''}
+            </span>
+            <span class="distance-badge ${offer.distanceKm === 0 ? 'in-same-city' : ''}">${esc(distText)}</span>
+          </div>
 
-            <div class="logistics-item">
-              <span class="distance-badge ${offer.distanceKm === 0 ? 'in-same-city' : ''}">${esc(distText)}</span>
-            </div>
+          <div class="trust-and-inspection-row">
+            <span class="inspection-pill">${esc(inspectionLabel)}</span>
+            ${reviewControl}
+            ${
+              canReviewSeller
+                ? `<button type="button" class="overview-jump" style="background:none; border:none; cursor:pointer;" data-action="review" data-store="${esc(storeName)}">تقييم الجهة أو الإبلاغ</button>`
+                : ''
+            }
           </div>
         </div>
 
-        <div class="card-footer-box">
+        <div class="row-side card-footer-box">
           <div class="price-block">
             <div class="price-main-row">
               <span class="price-iqd" style="${!offer.effectivePriceIQD ? 'font-size:0.92rem; color:var(--brand-primary);' : ''}">${formatIQD(offer.effectivePriceIQD)}</span>
               ${usdText ? `<span class="price-usd">(${esc(usdText)})</span>` : ''}
-              ${offer.effectivePriceIQD && !isDemo && !verifiedPrice ? `<span class="price-usd" title="السعر غير مؤكد">• ${esc(priceKindLabel(offer))}</span>` : ''}
             </div>
+            ${offer.effectivePriceIQD && !isDemo && !verifiedPrice ? `<span class="price-kind-tag" title="السعر غير مؤكد">• ${esc(priceKindLabel(offer))}</span>` : ''}
             ${deliveryBreakdownHtml}
             ${
               offer.savingVsMedianIQD > 5000
@@ -988,13 +1128,7 @@ function renderApp() {
           <div class="card-cta-group">
             ${
               phone
-                ? `<button
-                    type="button"
-                    class="btn-copy-phone"
-                    data-action="copy-phone"
-                    data-phone="${esc(phone)}"
-                    title="${isLive ? 'رقم مستخرج آلياً من نتيجة البحث وغير موثق' : 'نسخ رقم الهاتف'}"
-                  >
+                ? `<button type="button" class="btn-copy-phone" data-action="copy-phone" data-phone="${esc(phone)}" title="${isLive ? 'رقم مستخرج آلياً من نتيجة البحث وغير موثق' : 'نسخ رقم الهاتف'}">
                     <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                     </svg>
@@ -1002,9 +1136,8 @@ function renderApp() {
                   </button>`
                 : ''
             }
-
             <a href="${esc(directUrl)}" target="_blank" rel="noopener noreferrer nofollow" class="btn-open-offer">
-              <span>${hasOriginalUrl ? 'فتح المصدر' : 'بحث في المنصة'}</span>
+              <span>${hasOriginalUrl ? 'فتح الإعلان الأصلي' : 'بحث في المنصة'}</span>
               <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M7 17 17 7M7 7h10v10"></path>
               </svg>
@@ -1014,7 +1147,7 @@ function renderApp() {
       </article>
       `;
     })
-    .join('');
+    .join('') + listingPagesHtml;
 }
 
 // ===== رادار الأسعار والإشعارات (مرتبطة بحساب غوغل) =====
@@ -1499,6 +1632,8 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.value = '';
     clearQueryBtn.hidden = true;
     state.liveOffers = [];
+    state.indexedOffers = [];
+    state.priceGuide = null;
     state.adComparisonPrice = null;
 
     state.carFilters = { brand: '', origin: '', plate: '' };
@@ -1600,6 +1735,25 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // فلاتر السيارات (مع جلب حي تلقائي لأي ماركة من الـ 38 ماركة في العراق)
+  // البحث عن سيارة بعينها: الماركة + الطراز + السنة، في قسم السيارات
+  document.getElementById('carFinderForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const brand = document.getElementById('carBrandFilter').value;
+    const model = document.getElementById('carModelInput').value.trim();
+    const yearRaw = normalizeDigits(document.getElementById('carYearInput').value.trim());
+    const year = /^(19[5-9]\d|20[0-4]\d)$/.test(yearRaw) ? yearRaw : '';
+    const q = [brand, model, year].filter(Boolean).join(' ').trim();
+    if (!q) return;
+    // الماركة صارت جزءاً من نص البحث، فلا نكررها كفلتر قد يستبعد نتائج بالإنجليزية
+    state.carFilters.brand = '';
+    document.getElementById('carBrandFilter').value = '';
+    state.selectedSection = 'cars';
+    state.query = q;
+    searchInput.value = q;
+    clearQueryBtn.hidden = false;
+    performLiveSearch(q);
+  });
+
   ['carBrandFilter', 'carOriginFilter', 'carPlateFilter'].forEach((id) => {
     document.getElementById(id).addEventListener('change', () => {
       state.carFilters.brand = document.getElementById('carBrandFilter').value;
@@ -1647,6 +1801,8 @@ document.addEventListener('DOMContentLoaded', () => {
     state.query = searchInput.value.trim();
     state.adComparisonPrice = null;
     state.liveOffers = [];
+    state.indexedOffers = [];
+    state.priceGuide = null;
     document.querySelectorAll('.tag-chip').forEach((c) => c.classList.remove('active-tag'));
     renderApp();
 
@@ -1664,6 +1820,8 @@ document.addEventListener('DOMContentLoaded', () => {
     state.query = '';
     state.adComparisonPrice = null;
     state.liveOffers = [];
+    state.indexedOffers = [];
+    state.priceGuide = null;
     document.querySelectorAll('.tag-chip').forEach((c) => c.classList.remove('active-tag'));
     document.getElementById('searchStatusBanner').hidden = true;
     renderApp();
@@ -2045,7 +2203,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const screenshotPreviewImg = document.getElementById('screenshotPreviewImg');
   const imageExtractedQuery = document.getElementById('imageExtractedQuery');
 
-  document.getElementById('openImageSearchBtn').addEventListener('click', () => imageSearchModal.showModal());
+  const adSectionSelect = document.getElementById('adSectionSelect');
+  const adPastedText = document.getElementById('adPastedText');
+  const adSeenPriceInput = document.getElementById('adSeenPriceInput');
+  const adVerdictBox = document.getElementById('adVerdictBox');
+  const adCompareLiveBtn = document.getElementById('adCompareLiveBtn');
+  const adAreaBlock = document.getElementById('adAreaBlock');
+  const adAreaInput = document.getElementById('adAreaInput');
+  const syncAdArea = () => {
+    adAreaBlock.hidden = adSectionSelect.value !== 'realestate';
+  };
+  adSectionSelect.addEventListener('change', syncAdArea);
+  document.getElementById('openImageSearchBtn').addEventListener('click', () => {
+    if (state.selectedSection !== 'all') adSectionSelect.value = state.selectedSection;
+    syncAdArea();
+    imageSearchModal.showModal();
+  });
+
+  // نص الإعلان الملصوق: يُقرأ منه السعر إن لم يُكتب، ويُقترح نوع الإعلان
+  adPastedText.addEventListener('input', () => {
+    const text = normalizeDigits(adPastedText.value);
+    if (!readMoney(adSeenPriceInput)) {
+      const found = PriceEngine.extractIraqiPrice(text, { usdRate: state.exchangeRate100USD / 100 });
+      if (found && found.priceIQD && !found.isRent) setMoney(adSeenPriceInput, found.priceIQD);
+    }
+    const sec = PriceEngine.classifySection(text).section;
+    if (['cars', 'realestate', 'products'].includes(sec)) adSectionSelect.value = sec;
+    const area = PriceEngine.extractRealEstateSpecs(text).areaSqm;
+    if (area && !adAreaInput.value) adAreaInput.value = String(area);
+    syncAdArea();
+  });
   document.getElementById('closeImageSearchBtn').addEventListener('click', () => imageSearchModal.close());
 
   adScreenshotInput.addEventListener('change', () => {
@@ -2061,22 +2248,48 @@ document.addEventListener('DOMContentLoaded', () => {
     imageExtractedQuery.focus();
   });
 
-  document.getElementById('imageSearchForm').addEventListener('submit', (e) => {
+  // فحص سعر الإعلان: مقارنة فورية بذاكرة الأسعار (مجاناً)، ثم بحث حي اختياري للمقارنة بالعروض الحالية
+  document.getElementById('imageSearchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const q = imageExtractedQuery.value.trim();
-    const adPrice = readMoney(document.getElementById('adSeenPriceInput'));
     if (!q) return;
+    const price = readMoney(adSeenPriceInput);
+    const section = adSectionSelect.value;
+    adVerdictBox.hidden = false;
+    adVerdictBox.className = 'ad-verdict';
+    adVerdictBox.textContent = 'جاري المقارنة بأسعار مماثلة...';
+    let guide = null;
+    try {
+      const res = await fetch(`/api/price-guide?q=${encodeURIComponent(q)}&section=${encodeURIComponent(section)}`);
+      if (res.ok) guide = await res.json();
+    } catch {}
+    // العقار يُقارن بسعر المتر إن عُرفت المساحة؛ فالسعر الكلي وحده يختلف كثيراً بالمساحة والمنطقة
+    const area = Number(normalizeDigits(adAreaInput.value)) || 0;
+    const perSqmGuide =
+      section === 'realestate' && area > 0 && guide?.perSqmMedian
+        ? { enough: true, count: guide.perSqmCount, median: guide.perSqmMedian, q1: guide.perSqmQ1, q3: guide.perSqmQ3 }
+        : null;
+    const judgement = perSqmGuide ? PriceEngine.judgeAdPrice(price / area, perSqmGuide) : PriceEngine.judgeAdPrice(price, guide);
+    if (perSqmGuide && judgement.diffIQD) judgement.diffIQD = Math.round(judgement.diffIQD * area);
+    adVerdictBox.className = `ad-verdict verdict-${judgement.verdict}`;
+    adVerdictBox.innerHTML = renderAdVerdict(judgement, guide, section, price, perSqmGuide ? area : 0);
+    adCompareLiveBtn.hidden = false;
+  });
 
+  adCompareLiveBtn.addEventListener('click', () => {
+    const q = imageExtractedQuery.value.trim();
+    if (!q) return;
+    const price = readMoney(adSeenPriceInput);
     state.query = q;
-    state.adComparisonPrice = adPrice > 0 ? adPrice : null;
+    state.adComparisonPrice = price > 0 ? price : null;
+    state.selectedSection = adSectionSelect.value;
+    document.querySelectorAll('.vertical-tab').forEach((t) => t.classList.toggle('active', t.getAttribute('data-section') === state.selectedSection));
     searchInput.value = q;
     clearQueryBtn.hidden = false;
     imageSearchModal.close();
-
     const banner = document.getElementById('searchStatusBanner');
     banner.hidden = false;
-    banner.textContent = `جاري البحث بالاسم الذي كتبته: ${q}...`;
-
+    banner.textContent = `جاري البحث عن "${q}" لمقارنة سعر الإعلان بالعروض الحالية...`;
     performLiveSearch(q);
   });
 

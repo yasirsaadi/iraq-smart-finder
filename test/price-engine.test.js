@@ -188,3 +188,18 @@ test('السعر لا يُنسب لسلعة أخرى مذكورة في المق�
   assert.equal(p('ايفون 15', 'ايفون 15 برو للبيع', 'ايفون 13 نظيف السعر 600 الف'), null);
   assert.equal(p('كيا سبورتاج 2023', 'كيا سبورتاج 2023 للبيع', 'وارد امريكي ... السعر دفتر و95 ورقة'), 29_250_000);
 });
+
+test('حكم سعر الإعلان مقابل دليل السعر', async () => {
+  const { judgeAdPrice } = await import('../shared/price-engine.js');
+  const guide = { enough: true, count: 12, median: 30_000_000, q1: 28_000_000, q3: 32_000_000 };
+  assert.equal(judgeAdPrice(30_500_000, guide).verdict, 'fair');
+  assert.equal(judgeAdPrice(27_000_000, guide).verdict, 'below_market');
+  assert.equal(judgeAdPrice(15_000_000, guide).verdict, 'suspicious_low', 'السعر المنخفض جداً إنذار احتيال لا صفقة');
+  assert.equal(judgeAdPrice(35_000_000, guide).verdict, 'above_market');
+  const over = judgeAdPrice(45_000_000, guide);
+  assert.equal(over.verdict, 'overpriced');
+  assert.equal(over.diffPct, 50);
+  assert.equal(over.diffIQD, 15_000_000);
+  assert.equal(judgeAdPrice(30_000_000, { enough: false, count: 2 }).verdict, 'insufficient');
+  assert.equal(judgeAdPrice(null, guide).verdict, 'no_price');
+});
