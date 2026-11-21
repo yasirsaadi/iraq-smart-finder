@@ -454,14 +454,66 @@ function detectDealType(text) {
   return /(?:^|[^؀-ۿ])(?:ل|بال)?(?:ايجار|للايجار|مؤجر|تاجير|للتاجير)(?![؀-ۿ])/.test(text) ? 'rent' : 'sale';
 }
 
+const PROPERTY_TERMS = [
+  ['apartment', ['شقه', 'شقق', 'ستوديو', 'استوديو']],
+  ['house', ['دار', 'بيت', 'بيوت', 'منزل', 'منازل', 'فيلا', 'فلل', 'مشتمل', 'مشتملات']],
+  ['land', ['ارض', 'اراضي', 'قطعه', 'قطعه ارض', 'دونم', 'دوانم', 'بستان', 'مزرعه']],
+  ['commercial', ['محل', 'محلات', 'دكان', 'مخزن', 'مخازن', 'مكتب', 'مكاتب']],
+  ['building', ['عماره', 'عمارات', 'بنايه', 'بنايات']]
+];
+// عبارات تذكر كلمات العقار دون أن تكون نوع المعروض: "مكتب عقارات البركة"، "قرب البيت الصيني"
+const PROPERTY_NOISE = /(?:مكتب|مكاتب)\s+(?:ال)?(?:عقار|عقارات|دلاله|الدلاله)|دلال\s+عقار|البيت\s+الصيني|بيت\s+المقدس/g;
+
+/**
+ * نوع العقار المعروض: أول نوع يُذكر في النص (العنوان أولاً ثم الوصف)، فموضوع الإعلان يُذكر أولاً عادة.
+ * "قطعة للبيع 50 متر ... قرب بيت" = أرض، و"بيت للبيع على قطعة 200 متر" = بيت.
+ */
 function detectPropertyType(text) {
-  if (hasTerm(text, 'شقه') || hasTerm(text, 'شقق')) return 'apartment';
-  if (hasTerm(text, 'ارض') || hasTerm(text, 'قطعه') || hasTerm(text, 'دونم')) return 'land';
-  if (hasTerm(text, 'دار') || hasTerm(text, 'بيت') || hasTerm(text, 'فيلا') || hasTerm(text, 'مشتمل')) return 'house';
-  return null;
+  const clean = String(text || '').replace(PROPERTY_NOISE, ' ');
+  let best = null;
+  for (const [type, terms] of PROPERTY_TERMS) {
+    const idx = firstTermIndex(clean, terms);
+    if (idx !== -1 && (!best || idx < best.idx)) best = { type, idx };
+  }
+  return best ? best.type : null;
 }
 
-const PROPERTY_LABELS = { apartment: 'شقق', land: 'أراضٍ', house: 'دور وبيوت', any: 'عقارات متنوعة' };
+const PROPERTY_LABELS = {
+  apartment: 'شقق',
+  land: 'أراضٍ',
+  house: 'دور وبيوت',
+  commercial: 'محلات ومكاتب',
+  building: 'عمارات وبنايات',
+  any: 'عقارات متنوعة'
+};
+export const PROPERTY_TYPE_NAMES = { apartment: 'شقة', land: 'أرض', house: 'بيت', commercial: 'محل أو مكتب', building: 'عمارة' };
+
+/**
+ * ما يطلبه الباحث تحديداً من نص البحث: نوع العقار (بيت، شقة، أرض...) ونوع الصفقة (إيجار) إن ذُكرا.
+ * يُستخدم لعدم خلط أرض ببيوت أو إيجار ببيع في المقارنة والترتيب.
+ */
+export function queryIntent(query) {
+  const text = normalizeForMatch(query);
+  return {
+    propertyType: detectPropertyType(text),
+    deal: /ايجار|تاجير|مؤجر/.test(text) ? 'rent' : /للبيع|بيع/.test(text) ? 'sale' : null
+  };
+}
+
+/** نوع العقار ونوع الصفقة من مفتاح مجموعة المقارنة (realestate|sale|house). */
+export function parseGroupKey(key) {
+  const [section, deal, type] = String(key || '').split('|');
+  return { section, deal, type };
+}
+
+/** هل العرض العقاري من نوع آخر غير ما طلبه الباحث؟ (النوع غير المعروف لا يُعد مخالفاً) */
+export function conflictsWithIntent(groupKey, intent) {
+  const g = parseGroupKey(groupKey);
+  if (g.section !== 'realestate' || !intent) return false;
+  if (intent.propertyType && g.type && g.type !== 'any' && g.type !== intent.propertyType) return true;
+  if (intent.deal && g.deal && g.deal !== intent.deal) return true;
+  return false;
+}
 
 /** نص المطابقة الكامل للعرض (العنوان والمقتطف والكلمات المفتاحية والمواصفات). */
 function offerText(offer) {
@@ -566,6 +618,8 @@ export function extractRealEstateSpecs(rawText) {
   if (ptype === 'apartment') specs.propertyType = 'شقة سكنية';
   else if (ptype === 'land') specs.propertyType = 'قطعة أرض';
   else if (ptype === 'house') specs.propertyType = 'دار سكنية';
+  else if (ptype === 'commercial') specs.propertyType = 'محل أو مكتب تجاري';
+  else if (ptype === 'building') specs.propertyType = 'عمارة';
   if (!specs.dealType) delete specs.dealType;
   return specs;
 }
@@ -587,6 +641,32 @@ const TERM_SYNONYMS = [
   ['شانجان', 'changan'], ['جيلي', 'geely'], ['هافال', 'haval']
 ].map((group) => group.map((t) => normalizeForMatch(t)));
 
+// أسماء من أكثر من كلمة تُكتب بالعربية مفصولة: تُوحَّد إلى رمز واحد في البحث والنص معاً،
+// وإلا صارت "بي" و"ام" كلمتين قصيرتين تطابقان أي نص تقريباً
+const PHRASE_ALIASES = [
+  [['بي ام دبليو', 'بي ام دبيلو', 'بي ام', 'بى ام', 'bmw', 'b.m.w'], 'bmw'],
+  [['جي ام سي', 'جى ام سى', 'gmc'], 'gmc'],
+  [['ام جي', 'mg'], 'mg'],
+  [['لاند كروزر', 'لاندكروزر', 'land cruiser', 'landcruiser'], 'لاندكروزر'],
+  [['رينج روفر', 'رنج روفر', 'range rover'], 'رينجروفر'],
+  [['بلاي ستيشن', 'بلايستيشن', 'playstation'], 'بلايستيشن'],
+  [['ماك بوك', 'macbook'], 'ماكبوك'],
+  [['ابل واتش', 'apple watch'], 'ابلواتش']
+].map(([forms, canon]) => [forms.map((f) => normalizeForMatch(f)).sort((a, b) => b.length - a.length), normalizeForMatch(canon)]);
+
+const PHRASE_ALIAS_REGEXES = PHRASE_ALIASES.flatMap(([forms, canon]) =>
+  forms.map((f) => [new RegExp(`${B}(?:و|ب|ل)?(?:ال)?${escapeRegExp(f)}${E}`, 'g'), canon, f[0]])
+);
+
+function applyPhraseAliases(normalizedText) {
+  let out = normalizedText;
+  for (const [re, canon, firstChar] of PHRASE_ALIAS_REGEXES) {
+    if (!out.includes(firstChar)) continue;
+    out = out.replace(re, (m, pre) => `${pre}${canon}`);
+  }
+  return out;
+}
+
 function synonymsOf(token) {
   const group = TERM_SYNONYMS.find((g) => g.includes(token));
   return group || [token];
@@ -595,11 +675,11 @@ function synonymsOf(token) {
 const QUERY_STOPWORDS = new Set(['في', 'من', 'على', 'الى', 'عن', 'مع', 'او', 'سعر', 'السعر', 'للبيع', 'بيع', 'ارخص', 'افضل', 'العراق']);
 
 export function isRelevantToQuery(query, rawText) {
-  const tokens = normalizeForMatch(query)
+  const tokens = applyPhraseAliases(normalizeForMatch(query))
     .split(/[\s،,]+/)
     .filter((t) => t && !QUERY_STOPWORDS.has(t) && (t.length >= 2 || /^\d+$/.test(t)));
   if (tokens.length === 0) return true;
-  const hay = normalizeForMatch(rawText);
+  const hay = applyPhraseAliases(normalizeForMatch(rawText));
 
   const digitTokens = tokens.filter((t) => /^\d+$/.test(t));
   const wordTokens = tokens.filter((t) => !/^\d+$/.test(t));
@@ -607,9 +687,10 @@ export function isRelevantToQuery(query, rawText) {
   const digitsOk = digitTokens.every((t) => new RegExp(`(?:^|[^\\d])${t}(?!\\d)`).test(hay));
   if (!digitsOk) return false;
 
+  // الكلمات القصيرة (3 أحرف أو أقل) تُطابق ككلمة مستقلة فقط، لا كجزء من كلمة أخرى ("ام" داخل "الاحلام")
   const matchWord = (t) => {
     for (const form of synonymsOf(t)) {
-      if (hay.includes(form)) return true;
+      if (form.length <= 3 ? hasTerm(hay, form) : hay.includes(form)) return true;
       if (form.startsWith('ال') && form.length > 3 && hay.includes(form.slice(2))) return true;
     }
     return false;

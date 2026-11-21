@@ -148,6 +148,16 @@ function describeDistance(offer) {
   return `نحو ${approx} كم بخط مستقيم بين مركزي المحافظتين (ليست مسافة الطريق)`;
 }
 
+/** وصف نوع العرض المخالف لنوع البحث، مثل "أرض" أو "إيجار". */
+function mismatchLabel(offer) {
+  const g = PriceEngine.parseGroupKey(offer.comparisonKey);
+  const intent = PriceEngine.queryIntent(state.query);
+  if (intent.propertyType && g.type && g.type !== intent.propertyType && PriceEngine.PROPERTY_TYPE_NAMES[g.type]) {
+    return PriceEngine.PROPERTY_TYPE_NAMES[g.type];
+  }
+  return g.deal === 'rent' ? 'إيجار' : 'بيع';
+}
+
 /** السعر مؤكد فقط إن كان العرض موثقاً ولم يُستخرج آلياً من نتيجة بحث. */
 function isVerifiedPrice(offer) {
   return offer.source !== 'live' && offer.source !== 'demo' && offer.verified === true && offer.priceSource !== 'search_snippet';
@@ -480,6 +490,7 @@ function matchesSearch(offer, query) {
 
 function getProcessedOffers() {
   const query = state.query.trim();
+  const searchIntent = PriceEngine.queryIntent(query);
 
   const localMatches = state.offers.filter((offer) => matchesSearch(offer, query));
   const combinedSource = query ? [...localMatches, ...searchResultOffers()] : [...state.offers, ...searchResultOffers()];
@@ -517,6 +528,8 @@ function getProcessedOffers() {
         : itemPriceIQD
       : null;
     const group = PriceEngine.comparisonGroupFor(offer);
+    // عقار من نوع أو صفقة غير ما طلبه الباحث (أرض في بحث عن بيت، إيجار في بحث عن بيع)
+    const typeMismatch = (offer.section || 'products') === 'realestate' && PriceEngine.conflictsWithIntent(group.key, searchIntent);
 
     return {
       ...offer,
@@ -524,6 +537,7 @@ function getProcessedOffers() {
       distanceKm,
       deliveryFeeIQD,
       effectivePriceIQD,
+      typeMismatch,
       comparisonKey: group.key,
       comparisonLabel: group.label
     };
@@ -541,7 +555,7 @@ function getProcessedOffers() {
   // سعر السوق يُحسب على سعر السلعة نفسها (دون أجور التوصيل الخاصة بمحافظة المستخدم)
   const groupMembers = new Map();
   for (const o of filtered) {
-    if (!o.itemPriceIQD) continue;
+    if (!o.itemPriceIQD || o.typeMismatch) continue;
     if (!groupMembers.has(o.comparisonKey)) groupMembers.set(o.comparisonKey, { label: o.comparisonLabel, offers: [] });
     groupMembers.get(o.comparisonKey).offers.push(o);
   }
@@ -552,13 +566,14 @@ function getProcessedOffers() {
   // المجموعة المعروضة في مؤشر السعر: الأكثر عروضاً مسعّرة ضمن النتائج الحالية
   const focus = [...groupStats.values()].sort((a, b) => b.stats.count - a.stats.count)[0] || null;
 
-  const knownDistances = filtered.filter((o) => o.distanceKm !== null).map((o) => o.distanceKm);
+  const knownDistances = filtered.filter((o) => o.distanceKm !== null && !o.typeMismatch).map((o) => o.distanceKm);
   const minDist = knownDistances.length ? Math.min(...knownDistances) : null;
   const maxDist = knownDistances.length ? Math.max(...knownDistances) : null;
   const MIN_N = PriceEngine.MIN_COMPARABLE_OFFERS;
 
   filtered = filtered.map((offer) => {
-    const g = offer.itemPriceIQD ? groupStats.get(offer.comparisonKey) : null;
+    // العرض المخالف لنوع البحث لا يدخل المقارنة ولا يُمنح أي وسم (أرخص، أفضل، أغلى)
+    const g = offer.itemPriceIQD && !offer.typeMismatch ? groupStats.get(offer.comparisonKey) : null;
     const st = g ? g.stats : null;
     const comparable = Boolean(st && st.count >= MIN_N);
     const isPriceOutlier = Boolean(
@@ -589,7 +604,7 @@ function getProcessedOffers() {
       isPriceOutlier,
       isReliablyComparable: reliable,
       isCheapest: reliable && offer.itemPriceIQD === st.inlierMin,
-      isNearest: offer.distanceKm !== null && offer.distanceKm === minDist,
+      isNearest: !offer.typeMismatch && offer.distanceKm !== null && offer.distanceKm === minDist,
       isOverpriced: reliable && offer.itemPriceIQD > st.median * 1.15
     };
   });
@@ -611,6 +626,7 @@ function getProcessedOffers() {
 
   const FAR = 999999999999;
   const staleOf = (o) => {
+    if (o.typeMismatch) return 2; // نوع مختلف عن البحث: في آخر القائمة
     const d = offerAgeDays(o);
     return d !== null && d > STALE_AFTER_DAYS ? 1 : 0;
   };
@@ -871,7 +887,7 @@ function renderApp() {
       (o) => o.effectivePriceIQD && o.effectivePriceIQD > 0 && o.comparisonKey === focusKey && o.isReliablyComparable
     );
     const cheapest = focusPriced.length ? [...focusPriced].sort((a, b) => a.effectivePriceIQD - b.effectivePriceIQD)[0] : null;
-    const located = allFiltered.filter((o) => o.distanceKm !== null);
+    const located = allFiltered.filter((o) => o.distanceKm !== null && !o.typeMismatch);
     const nearest = located.length
       ? [...located].sort((a, b) => a.distanceKm - b.distanceKm || (a.effectivePriceIQD || 999999999999) - (b.effectivePriceIQD || 999999999999))[0]
       : allFiltered[0];
@@ -1074,6 +1090,7 @@ function renderApp() {
             ${offer.isOverpriced ? '<span class="ribbon-tag ribbon-overpriced">أغلى من الوسيط للعروض المماثلة</span>' : ''}
             ${offer.isPriceOutlier ? '<span class="ribbon-tag ribbon-overpriced">سعر شاذ عن العروض المماثلة — تحقق منه</span>' : ''}
             ${isStale ? '<span class="ribbon-tag ribbon-stale">إعلان قديم — قد يكون بيع</span>' : ''}
+            ${offer.typeMismatch ? `<span class="ribbon-tag ribbon-stale">نوع مختلف عن بحثك: ${esc(mismatchLabel(offer))} — خارج المقارنة</span>` : ''}
           </div>
           <h3 class="product-title">${esc(offer.title)}</h3>
 

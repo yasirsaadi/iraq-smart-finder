@@ -203,3 +203,39 @@ test('حكم سعر الإعلان مقابل دليل السعر', async () => 
   assert.equal(judgeAdPrice(30_000_000, { enough: false, count: 2 }).verdict, 'insufficient');
   assert.equal(judgeAdPrice(null, guide).verdict, 'no_price');
 });
+
+test('الصلة: "بي ام دبليو" لا تطابق أي نص فيه "بي" أو "ام" داخل كلمة أخرى', async () => {
+  const { isRelevantToQuery: r } = await import('../shared/price-engine.js');
+  assert.equal(r('بي ام دبليو', 'حذاء ابيض مستخدم قياس 39 من ماركة ميلانو'), false);
+  assert.equal(r('بي ام دبليو', 'سوت الأحلام اصلي 100% قطعه نادره'), false);
+  assert.equal(r('بي ام دبليو', 'بيت للبيع طابو صرف امام الجامع'), false);
+  assert.equal(r('بي ام دبليو', 'عرض خاص 95000000 دينار بي ام دبليو 520i'), true);
+  assert.equal(r('بي ام دبليو', 'BMW 530i 2020 للبيع'), true, 'الاسم العربي يطابق الإنجليزي');
+  assert.equal(r('bmw x5', 'بي ام دبليو X5 2019'), true);
+  assert.equal(r('ام جي 5', 'MG 5 2022 للبيع'), true);
+  assert.equal(r('ام جي 5', 'جهاز امي جيد 5 قطع'), false);
+  assert.equal(r('ايفون 15', 'الايفون 15 برو للبيع'), true, 'الكلمات الطويلة ما زالت تطابق مع "ال"');
+});
+
+test('نوع العقار: أول نوع يُذكر هو موضوع الإعلان، مع أنواع المحلات والعمارات', async () => {
+  const { comparisonGroupFor, extractRealEstateSpecs } = await import('../shared/price-engine.js');
+  const grp = (title, snippet = '') => comparisonGroupFor({ section: 'realestate', title, snippet, specs: extractRealEstateSpecs(`${title} ${snippet}`) }).key;
+  assert.equal(grp('عقارات بغداد الجديده', 'قطعة للبيع 50 متر سعر 75 مليون ... والبيت الصيني فرع'), 'realestate|sale|land');
+  assert.equal(grp('بيت للبيع على قطعة 200 متر في السيدية'), 'realestate|sale|house');
+  assert.equal(grp('مكتب عقارات البركة', 'شقة للبيع في المنصور 120 متر'), 'realestate|sale|apartment', '"مكتب عقارات" ليس عقاراً تجارياً معروضاً');
+  assert.equal(grp('محل للايجار في الكرادة', 'محل تجاري 40 متر'), 'realestate|rent|commercial');
+  assert.equal(grp('عمارة للبيع في الكرادة 4 طوابق'), 'realestate|sale|building');
+  assert.equal(grp('مزرعة للبيع الموقع اليوسفية', 'سند 25 زراعي'), 'realestate|sale|land');
+});
+
+test('نية الباحث: البحث عن بيت للبيع يستبعد الأرض والإيجار من المقارنة، والنوع المجهول لا يُستبعد', async () => {
+  const { queryIntent, conflictsWithIntent } = await import('../shared/price-engine.js');
+  const intent = queryIntent('بيت للبيع');
+  assert.deepEqual(intent, { propertyType: 'house', deal: 'sale' });
+  assert.equal(conflictsWithIntent('realestate|sale|land', intent), true);
+  assert.equal(conflictsWithIntent('realestate|rent|house', intent), true);
+  assert.equal(conflictsWithIntent('realestate|sale|house', intent), false);
+  assert.equal(conflictsWithIntent('realestate|sale|any', intent), false);
+  assert.equal(conflictsWithIntent('cars|sale|camry', intent), false);
+  assert.deepEqual(queryIntent('بي ام دبليو'), { propertyType: null, deal: null });
+});
