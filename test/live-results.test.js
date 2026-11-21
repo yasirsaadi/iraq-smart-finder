@@ -109,3 +109,25 @@ test('المواقع العراقية المضافة: اسم المصدر الص
   // أسماء المصادر ليست أسماء تجار
   assert.equal(describeSource('elryan.com').storeName, 'الريان (elryan.com)');
 });
+
+test('صفحات تجمع منشورات كثيرة: مجموعات فيسبوك وحسابات انستغرام والصفحات الرئيسية وأقسام بصيغة الجمع', async () => {
+  const { isListingPageFor: f, reclassifyListingPages } = await import('../lib/live-results.js');
+  assert.equal(f({ url: 'https://www.facebook.com/groups/3122074927907230/', host: 'facebook.com', title: 'تجمع بي ام دبليو العراقي' }), true);
+  assert.equal(f({ url: 'https://www.facebook.com/groups/x/posts/12345/', host: 'facebook.com', title: 'بي ام دبليو 520 للبيع' }), false);
+  assert.equal(f({ url: 'https://www.facebook.com/marketplace/item/123456/', host: 'facebook.com', title: 'BMW X5' }), false);
+  assert.equal(f({ url: 'https://www.facebook.com/BMWIraqClub', host: 'facebook.com', title: 'فريق بي ام دبليو' }), true);
+  assert.equal(f({ url: 'https://www.instagram.com/p/abc/', host: 'instagram.com', title: 'عرض' }), false);
+  assert.equal(f({ url: 'https://www.instagram.com/cars_iraq/', host: 'instagram.com', title: 'حساب' }), true);
+  assert.equal(f({ url: 'https://aiqarat.com/', host: 'aiqarat.com', title: 'عقارات العراق | منصة عقارات' }), true);
+  assert.equal(f({ url: 'https://www.iqcars.net/ar/buy-cars/iraq/all/bmw', host: 'iqcars.net', title: 'سيارات بي ام دبليو للبيع في العراق' }), true);
+  assert.equal(f({ url: 'https://www.iqcars.net/ar/car/x/toyota/camry', host: 'iqcars.net', title: 'تويوتا كامري 2020' }), false);
+  assert.equal(f({ url: 'https://shanashel.com/property/1615', host: 'shanashel.com', title: '4 Bedroom بيت للبيع for Sale' }), false, 'نمط إعلان الموقع يغلب قاعدة العنوان الرقمي');
+  // النتائج المحفوظة قبل التحديث تُصحَّح دون بحث جديد
+  const [g, post] = reclassifyListingPages([
+    { directUrl: 'https://www.facebook.com/groups/685755592759941/', sourceHost: 'facebook.com', title: 'عقارات بغداد الجديده', isListingPage: false, priceIQD: 75_000_000, priceMeta: { matchedText: '75 مليون' } },
+    { directUrl: 'https://www.facebook.com/groups/x/posts/1/', sourceHost: 'facebook.com', title: 'بيت للبيع', isListingPage: false, priceIQD: 200_000_000 }
+  ]);
+  assert.equal(g.isListingPage, true);
+  assert.equal(g.priceIQD, null, 'سعر منشور واحد في المجموعة ليس سعر عرض');
+  assert.equal(post.priceIQD, 200_000_000);
+});

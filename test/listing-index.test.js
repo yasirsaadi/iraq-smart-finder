@@ -82,3 +82,25 @@ test('دليل السعر: أقل من 3 أسعار ليس كافياً، وسع
   assert.equal(g.perSqmMedian, 2_000_000);
   assert.equal(g.lastObservedAt, '2026-11-20T00:00:00.000Z');
 });
+
+test('الفهرس: "بي ام دبليو" لا يعيد أحذية أو بيوتاً، ودليل السعر لا يخلط أرضاً ببيوت', async () => {
+  const idx = createListingIndex({ sql: null });
+  const mk = (n, title, section, price) => normalizeIncomingListing({ ...raw({ url: `https://ajiiba.com/ar/listings/${n}`, title, section, priceAmount: price }), description: '' }, { detectGov });
+  await idx.upsertListings([
+    mk('a1', 'حذاء ابيض مستخدم قياس 39', 'products', 30000),
+    mk('a2', 'سوت الأحلام اصلي قطعه نادره', 'products', 100000),
+    mk('a3', 'بي ام دبليو 520i موديل 2018 للبيع', 'cars', 32_000_000),
+    mk('a4', 'بيت للبيع امام الجامع', 'realestate', 200_000_000)
+  ]);
+  const hits = await idx.search({ query: 'بي ام دبليو', section: 'all' });
+  assert.deepEqual(hits.map((h) => h.title), ['بي ام دبليو 520i موديل 2018 للبيع']);
+
+  const obs = (i, title, price) => ({ url: `u${i}`, title, groupKey: 'realestate|sale|house', priceIQD: price, areaSqm: null, priceKind: 'declared', observedAt: '2026-11-20T00:00:00Z' });
+  const guide = buildPriceGuide('بيت للبيع', 'realestate', [
+    obs(1, 'بيت للبيع في السيدية', 300e6), obs(2, 'بيت للبيع في الدورة', 320e6), obs(3, 'بيت للبيع في البياع', 340e6),
+    // مفتاح قديم خاطئ (house) لعنوان أرض: يُصحح من العنوان ويُستبعد من دليل البيوت
+    obs(4, 'قطعة ارض للبيع قرب بيت الحاج', 40e6), obs(5, 'قطعة ارض للبيع 100 متر بيت', 45e6)
+  ]);
+  assert.equal(guide.count, 3, 'الأراضي خارج دليل البيوت');
+  assert.equal(guide.median, 320e6);
+});

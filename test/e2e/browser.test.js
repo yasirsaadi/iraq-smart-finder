@@ -391,6 +391,40 @@ test('القائمة العمودية: إعلانات الفهرس أولاً، 
   await page.close();
 });
 
+test('بحث عن بيت: الأرض والإيجار خارج المقارنة وبلا أوسمة، وفي آخر القائمة', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  const re = (id, title, price, extra = {}) => liveOffer(id, title, price, { section: 'realestate', snippet: title, ...extra });
+  await page.route('**/api/indexed-search**', (route) => route.fulfill({ json: { offers: [] } }));
+  await page.route('**/api/live-search**', (route) =>
+    route.fulfill({
+      json: {
+        providerOk: true,
+        offers: [
+          re('h1', 'بيت للبيع في السيدية 200 متر', 300_000_000),
+          re('h2', 'بيت للبيع في الدورة 150 متر', 280_000_000),
+          re('h3', 'بيت للبيع في البياع 180 متر', 320_000_000),
+          re('land', 'قطعة للبيع 50 متر قرب شارع الحدادين', 75_000_000, { specs: { propertyType: 'قطعة أرض', areaSqm: 50 } }),
+          re('rent', 'بيت للايجار في المنصور', 900_000, { priceIsRent: true })
+        ]
+      }
+    })
+  );
+  await page.fill('#searchQuery', 'بيت للبيع');
+  await page.press('#searchQuery', 'Enter');
+  await page.waitForSelector('[data-offer-id="land"]');
+  const ids = await page.$$eval('#resultsGrid article', (as) => as.map((a) => a.getAttribute('data-offer-id')));
+  assert.deepEqual(ids.slice(-2).sort(), ['land', 'rent'], 'المخالف لنوع البحث في الآخر');
+  const land = await page.textContent('[data-offer-id="land"]');
+  assert.match(land, /نوع مختلف عن بحثك: أرض/);
+  assert.doesNotMatch(land, /الأقل سعراً|الترشيح الأفضل|داخل محافظتك<|الأقرب/);
+  assert.match(await page.textContent('[data-offer-id="rent"]'), /نوع مختلف عن بحثك: إيجار/);
+  assert.match(await page.textContent('[data-offer-id="h2"]'), /الأقل سعراً بين العروض المماثلة/, 'الأرخص بين البيوت فقط');
+  assert.equal(await page.textContent('#bestPriceValue'), '280 مليون د.ع');
+  assert.match(await page.textContent('#meterFairNote'), /الوسيط لـ 3 عرض مماثل \(عقارات • دور وبيوت للبيع\)/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('وضع العرض التجريبي: العروض موسومة وأسعار العقارات لا تدخل في مقارنة الأجهزة', { skip: SKIP }, async () => {
   const { page, errors } = await openPage(DEMO);
   await page.waitForSelector('#resultsGrid article');

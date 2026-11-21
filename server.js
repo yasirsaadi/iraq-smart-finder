@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { neon } from '@neondatabase/serverless';
 import { normalizeDigits, hasTerm, normalizeForMatch } from './shared/price-engine.js';
 import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities, isReviewableSellerName } from './shared/sanitize.js';
-import { parseYahooResults, buildLiveOffer } from './lib/live-results.js';
+import { parseYahooResults, buildLiveOffer, reclassifyListingPages } from './lib/live-results.js';
 import { attachListingImages } from './lib/listing-images.js';
 import { createSearchStore, initSearchStoreTables, readEconomicsConfig, quotaSubjectFor } from './lib/search-store.js';
 import { timingSafeEqual } from 'node:crypto';
@@ -308,8 +308,10 @@ const listingIndex = createListingIndex({ sql });
  * يفحص تنبيهات الأسعار المطابقة لبحث محفوظ ويرسل الإشعارات. لا يستهلك أي رصيد بحث.
  * @returns {Promise<number>} عدد الإشعارات المرسلة
  */
-async function checkAlertsAgainstPayload(payload, { query, governorate, section }, alerts = null) {
-  if (!FEATURE_FLAGS.alertsDeliveryEnabled || !payload?.offers?.length) return 0;
+async function checkAlertsAgainstPayload(rawPayload, { query, governorate, section }, alerts = null) {
+  if (!FEATURE_FLAGS.alertsDeliveryEnabled || !rawPayload?.offers?.length) return 0;
+  // لا تنبيه عن صفحة مجموعة أو قسم حتى لو حُفظت قبل تحديث قواعد التصنيف
+  const payload = { ...rawPayload, offers: reclassifyListingPages(rawPayload.offers) };
   let sent = 0;
   const list = alerts || (await alertStore.forSearch(query, governorate, section).catch(() => []));
   for (const alert of list) {
@@ -521,7 +523,7 @@ app.get('/api/live-search', async (req, res) => {
   // ١) الذاكرة المشتركة: مجانية دائماً ولا تُحسب من حصة الزائر
   if (!debug) {
     const hit = await searchStore.getCached(key);
-    if (hit) return res.json({ ...hit.value, pending: false, cached: true, cachedAt: hit.cachedAt });
+    if (hit) return res.json({ ...hit.value, offers: reclassifyListingPages(hit.value.offers), pending: false, cached: true, cachedAt: hit.cachedAt });
   }
 
   // ٢) بحث مماثل قيد الاستكمال: لا رصيد جديد
