@@ -4,7 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { neon } from '@neondatabase/serverless';
-import { normalizeDigits, hasTerm, normalizeForMatch } from './shared/price-engine.js';
+import { normalizeDigits, hasTerm, normalizeForMatch, classifySection } from './shared/price-engine.js';
 import { safeHttpUrl, safeIraqiMobile, cleanPlainText, decodeHtmlEntities, isReviewableSellerName } from './shared/sanitize.js';
 import { parseYahooResults, buildLiveOffer, reclassifyListingPages } from './lib/live-results.js';
 import { attachListingImages } from './lib/listing-images.js';
@@ -24,7 +24,14 @@ import { createNotifier, initNotificationTables } from './lib/notifications.js';
 import { createAlertStore, initAlertColumns, findAlertMatches, formatIQD, MAX_ALERTS_PER_USER, MAX_ALERTS_PER_SUBSCRIBER } from './lib/price-alerts.js';
 import { refreshPopularBatch, checkDueAlerts } from './lib/background-jobs.js';
 import { createActionLimiter, initActionLimitTable } from './lib/action-limits.js';
-import { createListingIndex, initListingTables, normalizeIncomingListing } from './lib/listing-index.js';
+import { createListingIndex, initListingTables, normalizeIncomingListing, listingToOffer } from './lib/listing-index.js';
+import { createVinDecoder, initVinTables } from './lib/vin-decoder.js';
+import { normalizeVin, compareVinWithAd, isValidVinFormat } from './shared/vin.js';
+import { initReportTables, createReportStore, cleanCheckInput, buildCheckReport, renderReportPage } from './lib/check-reports.js';
+import { buildAreaPriceTable, renderAreaIndexPage, renderAreaGovPage } from './lib/area-prices.js';
+import { readVinHistoryConfig } from './lib/vin-history.js';
+import { initVinPurchaseTables, createVinPurchaseStore, fulfillVinReport } from './lib/vin-purchases.js';
+import { renderVinHistoryPage } from './lib/vin-history-page.js';
 import { isSerperConfigured, buildSerperQueries, serperSearchRaw, needsResolve, serperResolve, mapSerperOrganic } from './lib/serper-provider.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -57,8 +64,12 @@ export const FEATURE_FLAGS = Object.freeze({
   // لا يوجد مرسل فعلي لرسائل واتساب أو تليغرام؛ التنبيهات معطلة حتى يُربط مزود إرسال
   // رادار الأسعار: يعمل مع تسجيل الدخول، ويصل التنبيه داخل الموقع وعبر إشعارات المتصفح.
   // يمكن إيقافه صراحة بـ ALERTS_DELIVERY_ENABLED=false
-  alertsDeliveryEnabled: Boolean(GOOGLE_CLIENT_ID) && process.env.ALERTS_DELIVERY_ENABLED !== 'false'
+  alertsDeliveryEnabled: Boolean(GOOGLE_CLIENT_ID) && process.env.ALERTS_DELIVERY_ENABLED !== 'false',
+  // تقرير تاريخ السيارة المدفوع: يلزم الدفع الحقيقي مفعلاً ومفتاح مزوّد التاريخ (CARSXE_API_KEY)
+  vinHistoryEnabled:
+    process.env.PAYMENTS_ENABLED === 'true' && QICARD.configured && Boolean(GOOGLE_CLIENT_ID) && Boolean(PUBLIC_SITE_URL) && Boolean(readVinHistoryConfig().provider)
 });
+const VIN_HISTORY = readVinHistoryConfig();
 
 if (process.env.PAYMENTS_ENABLED === 'true' && !FEATURE_FLAGS.paymentsEnabled) {
   console.warn('PAYMENTS_ENABLED=true لكن الاشتراك بقي معطلاً: يلزم QICARD_USERNAME و QICARD_PASSWORD و QICARD_TERMINAL_ID و GOOGLE_CLIENT_ID و PUBLIC_SITE_URL.');
@@ -225,6 +236,9 @@ async function initNeonDatabase() {
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS direct_url TEXT`;
     // صاحب العرض (العروض القديمة تبقى بلا مالك: NULL)
     await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS user_id INTEGER`;
+    // شارة "شاصي مطابق": رقم الشاصي ونتيجة مقارنته بالإعلان وقت الإضافة
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS vin TEXT`;
+    await sql`ALTER TABLE dalal_iraq_offers ADD COLUMN IF NOT EXISTS vin_check JSONB`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS dalal_iraq_alerts (
@@ -280,12 +294,24 @@ async function initNeonDatabase() {
     await sql`ALTER TABLE dalal_iraq_searches ADD COLUMN IF NOT EXISTS section TEXT DEFAULT 'all'`;
     await initSearchStoreTables(sql);
     await initAccountTables(sql);
-    await initActionLimitTable(sql);
-    await initListingTables(sql);
-    await initNotificationTables(sql);
-    await initAlertColumns(sql);
   } catch (err) {
     console.error('Neon DB initialization warning:', err.message);
+  }
+  // كل خطوة تهيئة مستقلة: فشل واحدة لا يمنع البقية (كي لا تبقى جداول أو أعمدة جديدة دون إنشاء)
+  for (const [name, step] of [
+    ['action limits', initActionLimitTable],
+    ['listing index', initListingTables],
+    ['vin decodes', initVinTables],
+    ['check reports', initReportTables],
+    ['vin purchases', initVinPurchaseTables],
+    ['notifications', initNotificationTables],
+    ['alert columns', initAlertColumns]
+  ]) {
+    try {
+      await step(sql);
+    } catch (err) {
+      console.error(`DB init step "${name}" failed:`, err.message);
+    }
   }
 }
 
@@ -303,6 +329,9 @@ const accounts = createAccountStore({ sql });
 const notifier = createNotifier({ sql });
 const alertStore = createAlertStore({ sql });
 const listingIndex = createListingIndex({ sql });
+const vinDecoder = createVinDecoder({ sql });
+const reportStore = createReportStore({ sql });
+const vinPurchases = createVinPurchaseStore({ sql });
 
 /**
  * يفحص تنبيهات الأسعار المطابقة لبحث محفوظ ويرسل الإشعارات. لا يستهلك أي رصيد بحث.
@@ -315,18 +344,67 @@ async function checkAlertsAgainstPayload(rawPayload, { query, governorate, secti
   let sent = 0;
   const list = alerts || (await alertStore.forSearch(query, governorate, section).catch(() => []));
   for (const alert of list) {
-    const matches = findAlertMatches(alert, payload.offers, alert.notifiedUrls || []);
-    if (matches.length) {
-      const best = matches[0];
-      await notifier.notifyUser(alert.userId, {
-        kind: 'price_drop',
-        title: `🔔 نزل السعر: ${alert.keyword}`,
-        body: `${best.title} — ${formatIQD(best.priceIQD)}، وهو ضمن سعرك المستهدف ${formatIQD(alert.targetPriceIQD)}.${matches.length > 1 ? ` و${matches.length - 1} عروض أخرى.` : ''}`,
-        url: `/?q=${encodeURIComponent(alert.keyword)}&section=${encodeURIComponent(alert.section || 'all')}`
-      });
-      sent += 1;
+    sent += await notifyAlertMatches(alert, payload.offers);
+  }
+  return sent;
+}
+
+/**
+ * السعر الفعلي الذي يُقارن به التنبيه. للتنبيه العادي: السعر الذي حدده المستخدم.
+ * لصياد الصفقات: وسيط السوق ناقص النسبة، مع حد أدنى (نصف الوسيط) كي لا نرسل إعلانات احتيال كصفقات.
+ */
+async function alertTargetFor(alert) {
+  if (!alert.belowMarketPct) return { targetPriceIQD: Number(alert.targetPriceIQD) };
+  const section = alert.section && alert.section !== 'all' ? alert.section : classifySection(alert.keyword).section;
+  if (!['cars', 'realestate', 'products'].includes(section)) return null;
+  // سعر السوق في محافظة التنبيه إن توفرت بيانات كافية، وإلا العراق كله
+  const guide = await listingIndex.priceGuide({ query: alert.keyword, section, governorate: alert.governorate }).catch(() => null);
+  if (!guide?.enough) return null;
+  return {
+    targetPriceIQD: Math.round(guide.median * (1 - alert.belowMarketPct / 100)),
+    minPriceIQD: Math.round(guide.median * 0.5),
+    median: guide.median
+  };
+}
+
+/** يرسل إشعار التنبيه إن وُجدت عروض مطابقة، ويسجل ما نُبّه عنه. يعيد 1 إن أُرسل إشعار. */
+async function notifyAlertMatches(alert, offers, { markChecked = true } = {}) {
+  const target = await alertTargetFor(alert);
+  const matches = target ? findAlertMatches(alert, offers, alert.notifiedUrls || [], target) : [];
+  let sent = 0;
+  if (matches.length) {
+    const best = matches[0];
+    const more = matches.length > 1 ? ` و${matches.length - 1} عروض أخرى.` : '';
+    const deal = Boolean(alert.belowMarketPct);
+    const below = deal ? Math.round(((target.median - best.priceIQD) / target.median) * 100) : 0;
+    await notifier.notifyUser(alert.userId, {
+      kind: deal ? 'deal_found' : 'price_drop',
+      title: deal ? `🎯 صفقة تحت السوق: ${alert.keyword}` : `🔔 نزل السعر: ${alert.keyword}`,
+      body: deal
+        ? `${best.title} — ${formatIQD(best.priceIQD)}، أقل من وسيط السوق (${formatIQD(target.median)}) بـ ${below}%. تحقق من المواصفات قبل الدفع.${more}`
+        : `${best.title} — ${formatIQD(best.priceIQD)}، وهو ضمن سعرك المستهدف ${formatIQD(alert.targetPriceIQD)}.${more}`,
+      url: `/?q=${encodeURIComponent(alert.keyword)}&section=${encodeURIComponent(alert.section || 'all')}`
+    });
+    sent = 1;
+  }
+  if (markChecked || matches.length) await alertStore.markChecked(alert.id, matches.map((m) => m.directUrl));
+  return sent;
+}
+
+/** الإعلانات الجديدة من الزاحف تُفحص فوراً مقابل كل التنبيهات الفعالة في قسمها (مجاناً). */
+async function checkAlertsAgainstIndexed(listings) {
+  if (!FEATURE_FLAGS.alertsDeliveryEnabled || !listings.length) return 0;
+  let sent = 0;
+  const offers = listings.filter((l) => l.priceIQD && l.deal === 'sale').map(listingToOffer);
+  for (const section of ['cars', 'realestate', 'products']) {
+    const inSection = offers.filter((o) => o.section === section);
+    if (!inSection.length) continue;
+    const alerts = await alertStore.activeInSection(section).catch(() => []);
+    for (const alert of alerts) {
+      // محافظة التنبيه شرط؛ الإعلان بلا محافظة معروفة لا يُرسل لأحد
+      const local = inSection.filter((o) => o.locationDetected && o.governorate === alert.governorate);
+      if (local.length) sent += await notifyAlertMatches(alert, local, { markChecked: false });
     }
-    await alertStore.markChecked(alert.id, matches.map((m) => m.directUrl));
   }
   return sent;
 }
@@ -494,7 +572,8 @@ app.get('/api/config', (_req, res) => {
     googleClientId: GOOGLE_CLIENT_ID || null,
     subscriptionPriceIQD: SUBSCRIPTION_PRICE_IQD,
     subscriptionDays: SUBSCRIPTION_DAYS,
-    paymentsSandbox: FEATURE_FLAGS.paymentsEnabled ? QICARD.isSandbox : null
+    paymentsSandbox: FEATURE_FLAGS.paymentsEnabled ? QICARD.isSandbox : null,
+    vinReportPriceIQD: FEATURE_FLAGS.vinHistoryEnabled ? VIN_HISTORY.priceIQD : null
   });
 });
 
@@ -606,12 +685,115 @@ app.get('/api/price-guide', async (req, res) => {
   const section = ['products', 'cars', 'realestate'].includes(req.query.section) ? req.query.section : null;
   if (!query || !section) return res.status(400).json({ error: 'query_and_section_required' });
   if (isRateLimited(`guide:${req.ip || 'unknown'}`)) return res.status(429).json({ error: 'rate_limited' });
+  const governorate = IRAQ_GOV_KEYWORDS[String(req.query.gov || '')] ? String(req.query.gov) : null;
   try {
-    res.json(await listingIndex.priceGuide({ query, section }));
+    const guide = await listingIndex.priceGuide({ query, section, governorate });
+    res.json({ ...guide, scopeName: guide.scope === 'governorate' ? IRAQ_GOV_KEYWORDS[governorate].name : 'العراق' });
   } catch (err) {
     console.error('price guide failed:', err.message);
     res.status(500).json({ error: 'price_guide_failed', count: 0 });
   }
+});
+
+// ===== فحص رقم الشاصي (مجاني): مواصفات المصنع من سجل NHTSA ومقارنتها بنص الإعلان =====
+app.get('/api/vin/:vin', async (req, res) => {
+  const vin = normalizeVin(req.params.vin);
+  if (isRateLimited(`vin:${req.ip || 'unknown'}`)) return res.status(429).json({ error: 'rate_limited' });
+  try {
+    const result = await vinDecoder.decode(vin);
+    if (!result.valid) {
+      return res.status(400).json({ ...result, error: 'invalid_vin', message: 'رقم الشاصي يجب أن يكون 17 خانة من أحرف إنجليزية وأرقام، ولا يحتوي I أو O أو Q.' });
+    }
+    const adText = cleanPlainText(req.query.text, 2000);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ...result, comparison: adText ? compareVinWithAd(result.decoded, adText) : null });
+  } catch (err) {
+    console.error('vin decode failed:', err.message);
+    res.status(502).json({ error: 'vin_service_unavailable', message: 'خدمة فك الشاصي غير متاحة الآن، أعد المحاولة بعد قليل.' });
+  }
+});
+
+// ===== تقرير "قبل أن تدفع" القابل للمشاركة =====
+const siteBaseUrl = (req) => (PUBLIC_SITE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+
+app.post('/api/check-reports', async (req, res) => {
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (isRateLimited(`report:${req.ip || 'unknown'}`)) return res.status(429).json({ error: 'rate_limited' });
+  const input = cleanCheckInput(req.body);
+  if (!input) return res.status(400).json({ error: 'invalid_input', message: 'اكتب اسم السلعة وسعرها قبل إنشاء التقرير.' });
+  try {
+    const governorate = IRAQ_GOV_KEYWORDS[String(req.body?.gov || '')] ? String(req.body.gov) : null;
+    const report = await buildCheckReport({ ...input, governorate, scopeNames: GOV_NAMES }, { listingIndex, vinDecoder });
+    const id = await reportStore.save(report);
+    res.status(201).json({ id, url: `${siteBaseUrl(req)}/r/${id}`, report });
+  } catch (err) {
+    console.error('report create failed:', err.message);
+    res.status(500).json({ error: 'report_failed', message: 'تعذر إنشاء التقرير الآن.' });
+  }
+});
+
+app.get('/r/:id', async (req, res) => {
+  try {
+    const report = await reportStore.get(req.params.id);
+    if (!report) return res.status(404).type('html').send('<!DOCTYPE html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>تقرير غير موجود</title><p style="font-family:sans-serif;padding:24px">التقرير غير موجود. <a href="/">العودة إلى رادار أسعار العراق</a></p></html>');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.type('html').send(renderReportPage(report, { url: `${siteBaseUrl(req)}/r/${req.params.id}` }));
+  } catch (err) {
+    console.error('report page failed:', err.message);
+    res.status(500).type('html').send('خطأ مؤقت');
+  }
+});
+
+// ===== دليل سعر المتر حسب المنطقة (صفحات عامة تُفهرس في غوغل) =====
+const areaTableCache = { at: 0, table: null };
+async function areaPriceTable() {
+  if (areaTableCache.table && Date.now() - areaTableCache.at < 30 * 60 * 1000) return areaTableCache.table;
+  const table = buildAreaPriceTable(await listingIndex.realEstateSales());
+  Object.assign(areaTableCache, { at: Date.now(), table });
+  return table;
+}
+const GOV_NAMES = Object.fromEntries(Object.entries(IRAQ_GOV_KEYWORDS).map(([k, g]) => [k, g.name]));
+
+app.get('/prices', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'public, max-age=900');
+    res.type('html').send(renderAreaIndexPage(await areaPriceTable(), { govNames: GOV_NAMES, baseUrl: siteBaseUrl(req) }));
+  } catch (err) {
+    console.error('area prices failed:', err.message);
+    res.status(500).type('html').send('خطأ مؤقت');
+  }
+});
+
+app.get('/prices/:gov', async (req, res) => {
+  const gov = String(req.params.gov || '');
+  if (!IRAQ_GOV_KEYWORDS[gov]) return res.redirect(302, '/prices');
+  try {
+    const table = await areaPriceTable();
+    res.set('Cache-Control', 'public, max-age=900');
+    res.type('html').send(renderAreaGovPage(gov, table[gov], { govNames: GOV_NAMES, baseUrl: siteBaseUrl(req) }));
+  } catch (err) {
+    console.error('area prices failed:', err.message);
+    res.status(500).type('html').send('خطأ مؤقت');
+  }
+});
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /r/\nSitemap: ${siteBaseUrl(req)}/sitemap.xml\n`);
+});
+
+app.get('/sitemap.xml', async (req, res) => {
+  const base = siteBaseUrl(req);
+  let govs = [];
+  try {
+    const table = await areaPriceTable();
+    govs = Object.keys(table).filter((g) => table[g].areas.length);
+  } catch {}
+  const urls = ['/', '/prices', ...govs.map((g) => `/prices/${g}`), '/privacy', '/terms'];
+  res.type('application/xml').send(
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls
+      .map((u) => `<url><loc>${base}${u}</loc></url>`)
+      .join('')}</urlset>`
+  );
 });
 
 // يستقبل دفعات الزاحف الليلي (مهمة مجدولة في GitHub Actions) — محمي بالرمز السري نفسه
@@ -621,7 +803,11 @@ app.post('/api/admin/ingest-listings', async (req, res) => {
   const clean = items.map((l) => normalizeIncomingListing(l, { detectGov: detectGovFromText, usdRate: STORED_USD_RATE })).filter(Boolean);
   try {
     const saved = await listingIndex.upsertListings(clean);
-    res.json({ received: items.length, saved, rejected: items.length - clean.length, totals: await listingIndex.stats() });
+    const alertsSent = await checkAlertsAgainstIndexed(clean).catch((err) => {
+      console.warn('alert check on ingest failed:', err.message);
+      return 0;
+    });
+    res.json({ received: items.length, saved, rejected: items.length - clean.length, alertsSent, totals: await listingIndex.stats() });
   } catch (err) {
     console.error('ingest failed:', err.message);
     res.status(500).json({ error: 'ingest_failed' });
@@ -774,6 +960,8 @@ app.get('/api/offers', async (_req, res) => {
         o.phone,
         o.snippet,
         o.direct_url AS "directUrl",
+        o.vin,
+        o.vin_check AS "vinCheck",
         o.created_at AS "postedAt"
       FROM dalal_iraq_offers o
       LEFT JOIN (
@@ -833,8 +1021,35 @@ app.post('/api/offers', async (req, res) => {
     snippet: cleanPlainText(body.snippet, 1000)
   };
 
+  // رقم الشاصي اختياري للسيارات؛ إن كُتب يجب أن يكون صالحاً
+  let vin = null;
+  let vinCheck = null;
+  if (offer.section === 'cars' && body.vin) {
+    vin = normalizeVin(body.vin);
+    if (!isValidVinFormat(vin)) {
+      return res.status(400).json({ saved: false, error: 'invalid_vin', message: 'رقم الشاصي يجب أن يكون 17 خانة من أحرف إنجليزية وأرقام، ولا يحتوي I أو O أو Q.' });
+    }
+  }
   if (!sql) return res.status(503).json({ saved: false, source: 'memory', error: 'database_unavailable' });
   if (await rejectOverQuota(req, res, 'offer')) return;
+  if (vin) {
+    try {
+      const r = await vinDecoder.decode(vin);
+      const cmp = compareVinWithAd(r.decoded, `${offer.title} ${offer.snippet} ${JSON.stringify(offer.specs)}`);
+      vinCheck = {
+        decoded: Boolean(r.decoded),
+        checkDigitOk: r.checkDigitOk,
+        region: r.region?.label || null,
+        make: r.decoded?.make || null,
+        model: r.decoded?.model || null,
+        modelYear: r.decoded?.modelYear || null,
+        mismatches: cmp.mismatches,
+        matched: cmp.checks.filter((c) => c.ok === true).map((c) => c.field)
+      };
+    } catch {
+      vinCheck = { decoded: false, unavailable: true };
+    }
+  }
 
   try {
     const extId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -843,12 +1058,12 @@ app.post('/api/offers', async (req, res) => {
       INSERT INTO dalal_iraq_offers (
         external_id, section, specs, title, category, keywords, image_url, platform, store_name,
         verified, allows_inspection, trust_rating, reviews_count, price_iqd, delivery_local_iqd, delivery_national_iqd,
-        governorate, district, delivery, phone, snippet, direct_url, posted_ago, user_id
+        governorate, district, delivery, phone, snippet, direct_url, posted_ago, user_id, vin, vin_check
       ) VALUES (
         ${extId}, ${offer.section}, ${JSON.stringify(offer.specs)}, ${offer.title}, ${offer.category},
         ${offer.keywords}, ${offer.imageUrl}, ${offer.platform}, ${offer.storeName}, false, ${offer.allowsInspection},
         NULL, 0, ${offer.priceIQD}, ${offer.deliveryLocalIQD}, ${offer.deliveryNationalIQD},
-        ${offer.governorate}, ${offer.district}, ${offer.delivery}, ${offer.phone}, ${offer.snippet}, ${offer.directUrl}, NULL, ${req.user.id}
+        ${offer.governorate}, ${offer.district}, ${offer.delivery}, ${offer.phone}, ${offer.snippet}, ${offer.directUrl}, NULL, ${req.user.id}, ${vin}, ${vinCheck ? JSON.stringify(vinCheck) : null}
       )
       RETURNING external_id AS id, created_at AS "postedAt";
     `;
@@ -856,7 +1071,7 @@ app.post('/api/offers', async (req, res) => {
     res.status(201).json({
       saved: true,
       source: 'neon',
-      offer: { ...offer, id: row.id, postedAt: row.postedAt, source: 'user', verified: false, trustRating: null, reviewsCount: 0 }
+      offer: { ...offer, id: row.id, postedAt: row.postedAt, source: 'user', verified: false, trustRating: null, reviewsCount: 0, vin, vinCheck }
     });
   } catch (err) {
     console.error('POST /api/offers failed:', err.message);
@@ -888,11 +1103,11 @@ app.post('/api/alerts', async (req, res) => {
   if (!FEATURE_FLAGS.alertsDeliveryEnabled) return res.status(503).json({ saved: false, error: 'alerts_delivery_disabled' });
   if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
   if (!req.user) return res.status(401).json({ saved: false, error: 'login_required' });
-  const { keyword, targetPriceIQD, governorate = 'baghdad', section = 'all' } = req.body || {};
+  const { keyword, targetPriceIQD, governorate = 'baghdad', section = 'all', belowMarketPct } = req.body || {};
   try {
     const result = await alertStore.create(
       req.user.id,
-      { keyword, targetPriceIQD, governorate: IRAQ_GOV_KEYWORDS[governorate] ? governorate : 'baghdad', section },
+      { keyword, targetPriceIQD, belowMarketPct, governorate: IRAQ_GOV_KEYWORDS[governorate] ? governorate : 'baghdad', section },
       await alertLimitFor(req.user)
     );
     if (result.error) return res.status(400).json({ saved: false, ...result });
@@ -925,11 +1140,12 @@ app.patch('/api/alerts/:id', async (req, res) => {
   if (!req.user) return res.status(401).json({ saved: false, error: 'login_required' });
   const id = toPositiveIntOrNull(req.params.id, 2_147_483_647);
   if (!id) return res.status(400).json({ saved: false, error: 'invalid_id' });
-  const { keyword, targetPriceIQD, governorate, section } = req.body || {};
+  const { keyword, targetPriceIQD, governorate, section, belowMarketPct } = req.body || {};
   try {
     const result = await alertStore.update(req.user.id, id, {
       keyword,
       targetPriceIQD,
+      belowMarketPct: belowMarketPct === undefined ? undefined : belowMarketPct,
       governorate: governorate && IRAQ_GOV_KEYWORDS[governorate] ? governorate : undefined,
       section
     });
@@ -1144,12 +1360,30 @@ app.post('/api/auth/logout', async (req, res) => {
 // ===== الاشتراك المدفوع عبر كي كارد =====
 
 /** يسأل بوابة كي كارد مباشرة عن حالة الدفع، ويفعّل الاشتراك مرة واحدة فقط عند النجاح المؤكد. */
+/** تسليم تقرير الشاصي لدفعة ناجحة (لا يتكرر: التقرير مرتبط بالدفعة). */
+async function deliverVinReportForPayment(payment) {
+  const result = await fulfillVinReport(
+    { userId: payment.userId, vin: payment.productRef, paymentId: payment.paymentId },
+    { cfg: VIN_HISTORY, store: vinPurchases, notifier }
+  );
+  return { status: result.status, reportUrl: result.reportId ? `/vin-report/${result.reportId}` : null };
+}
+
 async function confirmQiPayment(paymentId) {
   const payment = await accounts.paymentById(paymentId);
   if (!payment) return { found: false };
-  if (payment.status === 'SUCCESS') return { found: true, status: 'SUCCESS', activatedNow: false, userId: payment.userId };
+  if (payment.status === 'SUCCESS') {
+    // دفعة تقرير ناجحة سابقاً: نضمن تسليم التقرير (قد يكون المزوّد تعطل لحظة الدفع)
+    const vinReport = payment.product === 'vin_report' ? await deliverVinReportForPayment(payment) : null;
+    return { found: true, status: 'SUCCESS', activatedNow: false, userId: payment.userId, vinReport };
+  }
   const remote = await getQiPaymentStatus(QICARD, paymentId);
   if (isPaymentSettled(remote, { expectedAmountIQD: payment.amountIQD, expectedRequestId: payment.requestId })) {
+    if (payment.product === 'vin_report') {
+      await accounts.claimPayment(paymentId);
+      const vinReport = await deliverVinReportForPayment(payment);
+      return { found: true, status: 'SUCCESS', activatedNow: true, userId: payment.userId, vinReport };
+    }
     const activatedNow = await accounts.activateFromPayment(paymentId);
     if (activatedNow) {
       notifier
@@ -1227,16 +1461,90 @@ app.get('/api/payments/qicard/confirm', async (req, res) => {
     const requested = /^[0-9a-f-]{36}$/i.test(String(req.query.paymentId || '')) ? await accounts.paymentById(String(req.query.paymentId)) : null;
     const pending = requested && requested.userId === req.user.id ? requested : await accounts.latestPendingPaymentFor(req.user.id);
     let status = 'NONE';
+    let vinReport = null;
     if (pending) {
-      const result = await confirmQiPayment(pending.paymentId);
+      let result;
+      try {
+        result = await confirmQiPayment(pending.paymentId);
+      } catch (err) {
+        // الدفع نجح لكن مزوّد التقرير تعطل مؤقتاً: التقرير يُسلَّم عند إعادة المحاولة (إشعار كي كارد أو زيارة لاحقة)
+        if (pending.product === 'vin_report') {
+          console.warn('vin report delivery pending:', err.message);
+          return res.json({ paymentStatus: 'SUCCESS', vinReport: { status: 'pending' }, ...(await accountPayload(req.user)) });
+        }
+        throw err;
+      }
       if (result.userId !== req.user.id) return res.status(403).json({ error: 'forbidden' });
       status = result.status;
+      vinReport = result.vinReport || null;
     }
-    res.json({ paymentStatus: status, ...(await accountPayload(req.user)) });
+    res.json({ paymentStatus: status, vinReport, ...(await accountPayload(req.user)) });
   } catch (err) {
     console.error('qicard confirm failed:', err.message);
     res.status(502).json({ error: 'payment_gateway_error' });
   }
+});
+
+// ===== شراء تقرير تاريخ السيارة =====
+app.post('/api/vin-history/purchase', async (req, res) => {
+  if (!FEATURE_FLAGS.vinHistoryEnabled) return res.status(503).json({ error: 'vin_history_disabled' });
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'bad_origin' });
+  if (!req.user) return res.status(401).json({ error: 'login_required' });
+  if (!sql) return res.status(503).json({ error: 'database_unavailable' });
+  if (isRateLimited(`vinbuy:${req.user.id}`)) return res.status(429).json({ error: 'rate_limited' });
+  const vin = normalizeVin(req.body?.vin);
+  if (!isValidVinFormat(vin)) return res.status(400).json({ error: 'invalid_vin' });
+  // السجل الأمريكي يغطي سيارات أمريكا الشمالية فقط؛ لا نبيع تقريراً نعرف مسبقاً أنه سيكون فارغاً غالباً
+  if (!/^[1-5]/.test(vin)) return res.status(400).json({ error: 'not_north_american', message: 'تقرير التاريخ متاح للسيارات المصنوعة لأمريكا الشمالية فقط (يبدأ شاصيها بـ 1 إلى 5).' });
+  try {
+    // رصيد سابق (تعويض عن شاصي بلا بيانات): يُستخدم دون دفع
+    if (await vinPurchases.useCredit(req.user.id)) {
+      try {
+        const r = await fulfillVinReport({ userId: req.user.id, vin }, { cfg: VIN_HISTORY, store: vinPurchases, notifier });
+        return res.json({ paidWith: 'credit', status: r.status, reportUrl: r.reportId ? `/vin-report/${r.reportId}` : null });
+      } catch (err) {
+        await vinPurchases.addCredit(req.user.id); // عطل مؤقت: نعيد الرصيد كما كان
+        throw err;
+      }
+    }
+    const payment = await createQiPayment(QICARD, {
+      amountIQD: VIN_HISTORY.priceIQD,
+      finishPaymentUrl: `${PUBLIC_SITE_URL}/?payment=return`,
+      notificationUrl: `${PUBLIC_SITE_URL}/api/payments/qicard/webhook`,
+      customerInfo: { email: req.user.email || undefined, accountId: `user-${req.user.id}` },
+      additionalInfo: { الخدمة: `تقرير تاريخ السيارة للشاصي ${vin}` }
+    });
+    await accounts.recordPayment({
+      requestId: payment.requestId,
+      paymentId: payment.paymentId,
+      userId: req.user.id,
+      amountIQD: VIN_HISTORY.priceIQD,
+      planDays: 0,
+      product: 'vin_report',
+      productRef: vin
+    });
+    res.json({ formUrl: payment.formUrl, paymentId: payment.paymentId, amountIQD: VIN_HISTORY.priceIQD, sandbox: QICARD.isSandbox });
+  } catch (err) {
+    console.error('vin history purchase failed:', err.message);
+    res.status(502).json({ error: 'purchase_failed', message: 'تعذر إتمام الطلب الآن. لم يُخصم أي مبلغ.' });
+  }
+});
+
+app.get('/api/vin-history/mine', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!req.user) return res.json({ reports: [], credits: 0 });
+  res.json({ reports: await vinPurchases.listFor(req.user.id), credits: await vinPurchases.creditsOf(req.user.id) });
+});
+
+// صفحة التقرير المدفوع: لصاحبه فقط
+app.get('/vin-report/:id', async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  const token = parseCookies(req.get('cookie'))[SESSION_COOKIE];
+  const user = token ? await accounts.userForSessionToken(token).catch(() => null) : null;
+  if (!user) return res.redirect(302, '/');
+  const report = await vinPurchases.reportFor(user.id, req.params.id).catch(() => null);
+  if (!report) return res.status(404).type('html').send('<!DOCTYPE html><html lang="ar" dir="rtl"><meta charset="utf-8"><p style="font-family:sans-serif;padding:24px">التقرير غير موجود أو لا يخص حسابك. <a href="/">العودة</a></p></html>');
+  res.type('html').send(renderVinHistoryPage(report));
 });
 
 // المسارات القديمة للاشتراك برقم الهاتف كانت تمنح عضوية دون دفع؛ استُبدلت بمسار كي كارد المؤكد

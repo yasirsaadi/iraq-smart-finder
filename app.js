@@ -4,6 +4,7 @@
 
 import * as PriceEngine from './shared/price-engine.js';
 import { escapeHtml as esc, safeHttpUrl, safeIraqiMobile, isReviewableSellerName } from './shared/sanitize.js';
+import { formatIQDText, AD_CHECKLISTS, verdictLine, guideSummaryText, basisLine, vinFindings, vinSpecRows } from './shared/check-report.js';
 
 const IRAQ_GOVERNORATES = {
   baghdad: { name: 'بغداد', lat: 33.3152, lon: 44.3661, keywords: ['بغداد', 'المنصور', 'الكرادة', 'زيونة', 'الأعظمية', 'الكاظمية', 'الدورة', 'شارع الصناعة', 'الربيعي', 'الشورجة', 'السنك', 'النهضة', 'البياع', 'اليرموك', 'بسماية', 'الجادرية'] },
@@ -148,6 +149,18 @@ function describeDistance(offer) {
   return `نحو ${approx} كم بخط مستقيم بين مركزي المحافظتين (ليست مسافة الطريق)`;
 }
 
+/** شارة الشاصي لإعلانات المعارض والمعلنين: مطابق لسجل المصنع، أو لا يطابق الإعلان. */
+function vinBadgeHtml(offer) {
+  const c = offer.vinCheck;
+  if (!c || !c.decoded) return '';
+  const northAmerica = /أمريكا الشمالية/.test(c.region || '');
+  if (c.mismatches > 0 || (northAmerica && !c.checkDigitOk)) {
+    return '<span class="ribbon-tag ribbon-overpriced" title="بيانات الشاصي من سجل المصنع لا تطابق ما كُتب في الإعلان">⚠ الشاصي لا يطابق الإعلان</span>';
+  }
+  const what = [c.modelYear, c.make, c.model].filter(Boolean).join(' ');
+  return `<span class="ribbon-tag ribbon-cheapest" title="${esc(`مفكوك من سجل المصنع الأمريكي: ${what}`)}">✔ شاصي مطابق للإعلان</span>`;
+}
+
 /** وصف نوع العرض المخالف لنوع البحث، مثل "أرض" أو "إيجار". */
 function mismatchLabel(offer) {
   const g = PriceEngine.parseGroupKey(offer.comparisonKey);
@@ -178,13 +191,7 @@ function normalizeDigits(str) {
 }
 
 function formatIQD(amountIQD) {
-  if (!amountIQD || amountIQD <= 0) return 'السعر داخل المنشور الأصلي';
-  if (amountIQD >= 10000000) {
-    const millions = (amountIQD / 1000000).toFixed(amountIQD % 1000000 === 0 ? 0 : 2);
-    return `${millions} مليون د.ع`;
-  }
-  const formatted = Math.round(amountIQD).toLocaleString('en-US');
-  return `${formatted} د.ع`;
+  return formatIQDText(amountIQD);
 }
 
 // تحويل السعر إلى دولار أو دفتر وورقة (للسيارات والعقارات)
@@ -339,7 +346,7 @@ async function loadIndexAndGuide(cleanQuery, controller) {
   const [idx, guide] = await Promise.all([
     fetch(`/api/indexed-search?${params}`, { signal: controller.signal }).then((r) => (r.ok ? r.json() : { offers: [] })).catch(() => ({ offers: [] })),
     guideSection
-      ? fetch(`/api/price-guide?q=${encodeURIComponent(cleanQuery)}&section=${guideSection}`, { signal: controller.signal }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      ? fetch(`/api/price-guide?q=${encodeURIComponent(cleanQuery)}&section=${guideSection}&gov=${encodeURIComponent(state.selectedGov)}`, { signal: controller.signal }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
       : null
   ]);
   if (controller !== activeSearchController) return;
@@ -752,34 +759,45 @@ async function loadStoreReviews(storeName) {
   }
 }
 
-const AD_CHECKLISTS = {
-  cars: ['افحص السيارة بالسونار والكمبيوتر في مركز فحص مستقل', 'طابق رقم الشاصي مع السنوية واسأل عن الوارد والحوادث', 'لا تدفع عربوناً قبل المعاينة'],
-  realestate: ['تحقق من السند في دائرة التسجيل العقاري', 'تأكد أن البائع هو المالك أو لديه وكالة نافذة', 'عاين العقار بنفسك ولا تحوّل مالاً قبل العقد'],
-  products: ['اطلب الفحص قبل الدفع أو الدفع عند الاستلام', 'تأكد من الضمان والمنشأ', 'احذر الأسعار الأقل كثيراً من السوق']
-};
+function normalizeVinClient(raw) {
+  return normalizeDigits(String(raw || '')).toUpperCase().replace(/[\s\-_.]/g, '');
+}
+
+/** قسم نتيجة فحص الشاصي في نافذة الفحص (كل النصوص المعروضة مهرّبة). */
+function renderVinSection(v) {
+  if (!v) return '';
+  if (v.error) return `<div class="vin-box vin-bad"><strong>رقم الشاصي:</strong> ${esc(v.message)}</div>`;
+  const { warnings, matched } = vinFindings(v);
+  const specs = vinSpecRows(v.decoded);
+  return `
+    <div class="vin-box ${warnings.length ? 'vin-bad' : 'vin-good'}">
+      <strong>رقم الشاصي ${esc(v.vin)} — ${esc(v.region?.label || '')}</strong>
+      ${warnings.map((w) => `<div>⚠ ${esc(w)}</div>`).join('')}
+      ${matched.length ? `<div>✔ مطابق للإعلان: ${esc(matched.join('، '))}</div>` : ''}
+      ${
+        v.decoded
+          ? `<table class="vin-specs">${specs.map(([k, val]) => `<tr><th>${esc(k)}</th><td dir="auto">${esc(val)}</td></tr>`).join('')}</table>`
+          : '<div>لم يُعثر على مواصفات هذا الشاصي في السجل الأمريكي (شائع في السيارات المصنوعة لأسواق غير أمريكية).</div>'
+      }
+      <small>المواصفات من سجل المصنع الأمريكي (NHTSA). لا تكشف الحوادث أو الغرق أو العداد — هذه يكشفها تقرير تاريخ السيارة.</small>
+      ${
+        state.config.vinHistoryEnabled && v.region?.code === 'north_america'
+          ? `<button type="button" class="btn-submit" data-action="buy-vin-report" data-vin="${esc(v.vin)}">تقرير تاريخ السيارة الكامل (${esc(formatIQD(state.config.vinReportPriceIQD))}): غرق، تلف، خسارة كلية، قراءات العداد</button>
+             <small>إن لم توجد بيانات لهذا الشاصي في السجل الأمريكي يُضاف لك رصيد تقرير لشاصي آخر، فلا يضيع مالك.</small>
+             <div class="vin-buy-status" hidden></div>`
+          : ''
+      }
+    </div>`;
+}
 
 /** نص حكم فحص الإعلان (كل القيم المعروضة أرقام منسقة أو نصوص ثابتة). */
 function renderAdVerdict(j, guide, section, price, areaSqm = 0) {
-  const pct = Math.abs(j.diffPct || 0);
-  const lines = {
-    no_price: 'اكتب السعر المكتوب في الإعلان، أو الصق نص الإعلان ليُقرأ منه.',
-    insufficient: `لا توجد لدينا بعد أسعار مماثلة كافية للحكم (${j.count || 0} من 3 على الأقل). اضغط "ابحث الآن" لمقارنته بالعروض الحالية.`,
-    suspicious_low: `⚠ أرخص من سعر السوق بـ ${pct}% — انخفاض غير معتاد. احذر: كثير من الإعلانات بهذا الفرق احتيال أو فيها عيب مخفي.`,
-    below_market: `✔ أرخص من أغلب العروض المماثلة بـ ${pct}% عن الوسيط. فرصة جيدة إن كانت المواصفات مطابقة.`,
-    fair: '✔ ضمن نطاق السعر المعتاد للعروض المماثلة.',
-    above_market: `أغلى من الوسيط بـ ${pct}%. يمكنك التفاوض على السعر.`,
-    overpriced: `✖ أغلى من السوق بـ ${pct}% (نحو ${formatIQD(j.diffIQD)} زيادة). فاوض أو ابحث عن بديل.`
-  };
-  const summary = guideSummary(guide);
-  const basis =
-    section !== 'realestate'
-      ? ''
-      : areaSqm > 0
-        ? `قورن سعر المتر: ${formatIQD(Math.round(price / areaSqm))} للمتر مقابل وسيط ${formatIQD(guide.perSqmMedian)}.`
-        : 'تنبيه: أسعار العقارات تختلف كثيراً بالمساحة والمنطقة؛ اكتب المساحة لمقارنة أدق بسعر المتر.';
+  const insufficientHint = j.verdict === 'insufficient' ? ' اضغط "ابحث الآن" لمقارنته بالعروض الحالية.' : '';
+  const summary = guideSummaryText(guide);
+  const basis = basisLine(section, price, areaSqm, guide);
   const checklist = (AD_CHECKLISTS[section] || AD_CHECKLISTS.products).map((t) => `<li>${esc(t)}</li>`).join('');
   return `
-    <strong>${esc(lines[j.verdict] || '')}</strong>
+    <strong>${esc(verdictLine(j) + insufficientHint)}</strong>
     ${price > 0 ? `<div>سعر الإعلان: ${esc(formatIQD(price))}</div>` : ''}
     ${basis ? `<div>${esc(basis)}</div>` : ''}
     ${summary ? `<div class="ad-verdict-guide">${esc(summary)}</div>` : ''}
@@ -789,13 +807,7 @@ function renderAdVerdict(j, guide, section, price, areaSqm = 0) {
 
 /** دليل السعر من ذاكرة الأسعار: ما رصدناه من أسعار مماثلة خلال الأشهر الأخيرة. */
 function guideSummary(g) {
-  if (!g || !g.count) return '';
-  const kinds = [g.byKind?.declared ? `${g.byKind.declared} معلن في مواقع` : '', g.byKind?.estimated ? `${g.byKind.estimated} تقديري من نتائج البحث` : '']
-    .filter(Boolean)
-    .join('، ');
-  if (!g.enough) return `ذاكرة الأسعار: ${g.count} سعر فقط لـ ${g.label} خلال ${g.windowDays} يوماً — غير كافٍ لحكم موثوق بعد.`;
-  const perSqm = g.perSqmMedian ? ` • سعر المتر الوسيط ${formatIQD(g.perSqmMedian)}` : '';
-  return `ذاكرة الأسعار (${g.label}): الوسيط ${formatIQD(g.median)}، وأغلب الأسعار بين ${formatIQD(g.q1)} و${formatIQD(g.q3)} — من ${g.count} سعراً خلال ${g.windowDays} يوماً (${kinds})${perSqm}.`;
+  return guideSummaryText(g);
 }
 
 function renderPriceGuideNote() {
@@ -1090,6 +1102,12 @@ function renderApp() {
             ${offer.isOverpriced ? '<span class="ribbon-tag ribbon-overpriced">أغلى من الوسيط للعروض المماثلة</span>' : ''}
             ${offer.isPriceOutlier ? '<span class="ribbon-tag ribbon-overpriced">سعر شاذ عن العروض المماثلة — تحقق منه</span>' : ''}
             ${isStale ? '<span class="ribbon-tag ribbon-stale">إعلان قديم — قد يكون بيع</span>' : ''}
+            ${vinBadgeHtml(offer)}
+            ${
+              offer.source === 'user' && offer.isReliablyComparable && !offer.isOverpriced && !offer.isPriceOutlier && !offer.isCheapest
+                ? '<span class="ribbon-tag ribbon-cheapest">✔ سعر ضمن السوق</span>'
+                : ''
+            }
             ${offer.typeMismatch ? `<span class="ribbon-tag ribbon-stale">نوع مختلف عن بحثك: ${esc(mismatchLabel(offer))} — خارج المقارنة</span>` : ''}
           </div>
           <h3 class="product-title">${esc(offer.title)}</h3>
@@ -1199,7 +1217,11 @@ function renderAlertsList() {
       (a) => `
       <div class="alert-row">
         <div>
-          <strong>${esc(a.keyword)}</strong> — السعر المستهدف: <span style="color:var(--brand-primary); font-weight:700;">${formatIQD(Number(a.targetPriceIQD))}</span>
+          <strong>${esc(a.keyword)}</strong> — ${
+            a.belowMarketPct
+              ? `🎯 صفقة: <span style="color:var(--brand-primary); font-weight:700;">أرخص من وسيط السوق بـ ${Number(a.belowMarketPct)}% أو أكثر</span>`
+              : `السعر المستهدف: <span style="color:var(--brand-primary); font-weight:700;">${formatIQD(Number(a.targetPriceIQD))}</span>`
+          }
           <div style="font-size:0.73rem; color:var(--text-muted);">المحافظة: ${esc(IRAQ_GOVERNORATES[a.governorate]?.name || a.governorate)} • ${esc(SECTION_LABELS[a.section] || SECTION_LABELS.all)} • يُفحص يومياً</div>
         </div>
         <div style="display:flex; gap:6px; flex-shrink:0;">
@@ -1756,8 +1778,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('carFinderForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const brand = document.getElementById('carBrandFilter').value;
-    const model = document.getElementById('carModelInput').value.trim();
-    const yearRaw = normalizeDigits(document.getElementById('carYearInput').value.trim());
+    const model = document.getElementById('carFinderModelInput').value.trim();
+    const yearRaw = normalizeDigits(document.getElementById('carFinderYearInput').value.trim());
     const year = /^(19[5-9]\d|20[0-4]\d)$/.test(yearRaw) ? yearRaw : '';
     const q = [brand, model, year].filter(Boolean).join(' ').trim();
     if (!q) return;
@@ -2088,6 +2110,7 @@ document.addEventListener('DOMContentLoaded', () => {
       delivery: section === 'products' ? `توصيل داخل المحافظة ${formatIQD(deliveryLocalIQD)}` : '',
       phone: safeIraqiMobile(parsed.phone) || '',
       snippet: rawText,
+      vin: section === 'cars' ? document.getElementById('postVinInput').value.trim() : '',
       postedAt: new Date().toISOString(),
       postedAgo: null
     };
@@ -2102,7 +2125,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     formStatus.hidden = true;
-    state.offers.unshift({ ...newOffer, id: data.offer?.id || newOffer.id, postedAt: data.offer?.postedAt || newOffer.postedAt });
+    state.offers.unshift({
+      ...newOffer,
+      id: data.offer?.id || newOffer.id,
+      postedAt: data.offer?.postedAt || newOffer.postedAt,
+      vin: data.offer?.vin || null,
+      vinCheck: data.offer?.vinCheck || null
+    });
     state.selectedSection = section;
     document.querySelectorAll('.vertical-tab').forEach((t) => {
       t.classList.toggle('active', t.getAttribute('data-section') === section);
@@ -2126,6 +2155,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const cancelAlertEditBtn = document.getElementById('cancelAlertEditBtn');
   let editingAlertId = null;
 
+  const radarModeSelect = document.getElementById('radarModeSelect');
+  const radarPctSelect = document.getElementById('radarPctSelect');
+  const syncRadarMode = () => {
+    const deal = radarModeSelect.value === 'deal';
+    document.getElementById('radarPctBlock').hidden = !deal;
+    document.getElementById('radarTargetBlock').hidden = deal;
+  };
+  radarModeSelect.addEventListener('change', syncRadarMode);
+  syncRadarMode();
+
   function setAlertEditMode(alert) {
     editingAlertId = alert ? Number(alert.id) : null;
     radarSubmitBtn.textContent = alert ? 'حفظ التعديل' : 'تفعيل رادار المراقبة الآن';
@@ -2133,6 +2172,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (alert) {
       document.getElementById('radarKeywordInput').value = alert.keyword;
       setMoney(document.getElementById('radarTargetPriceInput'), alert.targetPriceIQD);
+      radarModeSelect.value = alert.belowMarketPct ? 'deal' : 'price';
+      if (alert.belowMarketPct) radarPctSelect.value = String(alert.belowMarketPct);
+      syncRadarMode();
       document.getElementById('radarSectionSelect').value = alert.section || 'all';
       radarGovSelect.value = IRAQ_GOVERNORATES[alert.governorate] ? alert.governorate : state.selectedGov;
       document.getElementById('radarKeywordInput').focus();
@@ -2181,8 +2223,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('radarForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const keyword = document.getElementById('radarKeywordInput').value.trim();
-    const targetPriceIQD = readMoney(document.getElementById('radarTargetPriceInput'));
+    const deal = radarModeSelect.value === 'deal';
+    const targetPriceIQD = deal ? 0 : readMoney(document.getElementById('radarTargetPriceInput'));
+    const belowMarketPct = deal ? Number(radarPctSelect.value) : null;
     const section = document.getElementById('radarSectionSelect').value;
+    if (!deal && !(targetPriceIQD > 0)) {
+      document.getElementById('activeAlertsList').innerHTML = '<div class="alert-row">اكتب السعر المستهدف، أو اختر صياد الصفقات ليحسب سعر السوق تلقائياً.</div>';
+      return;
+    }
     const governorate = radarGovSelect.value || state.selectedGov;
     const listBox = document.getElementById('activeAlertsList');
 
@@ -2191,7 +2239,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(editingAlertId ? `/api/alerts/${editingAlertId}` : '/api/alerts', {
         method: editingAlertId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword, targetPriceIQD, governorate, section })
+        body: JSON.stringify({ keyword, targetPriceIQD, belowMarketPct, governorate, section })
       });
       result = { ok: res.ok, data: await res.json().catch(() => ({})) };
     } catch {}
@@ -2227,8 +2275,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const adCompareLiveBtn = document.getElementById('adCompareLiveBtn');
   const adAreaBlock = document.getElementById('adAreaBlock');
   const adAreaInput = document.getElementById('adAreaInput');
+  const adVinBlock = document.getElementById('adVinBlock');
+  const adVinInput = document.getElementById('adVinInput');
   const syncAdArea = () => {
     adAreaBlock.hidden = adSectionSelect.value !== 'realestate';
+    adVinBlock.hidden = adSectionSelect.value !== 'cars';
   };
   adSectionSelect.addEventListener('change', syncAdArea);
   document.getElementById('openImageSearchBtn').addEventListener('click', () => {
@@ -2277,7 +2328,7 @@ document.addEventListener('DOMContentLoaded', () => {
     adVerdictBox.textContent = 'جاري المقارنة بأسعار مماثلة...';
     let guide = null;
     try {
-      const res = await fetch(`/api/price-guide?q=${encodeURIComponent(q)}&section=${encodeURIComponent(section)}`);
+      const res = await fetch(`/api/price-guide?q=${encodeURIComponent(q)}&section=${encodeURIComponent(section)}&gov=${encodeURIComponent(state.selectedGov)}`);
       if (res.ok) guide = await res.json();
     } catch {}
     // العقار يُقارن بسعر المتر إن عُرفت المساحة؛ فالسعر الكلي وحده يختلف كثيراً بالمساحة والمنطقة
@@ -2288,9 +2339,107 @@ document.addEventListener('DOMContentLoaded', () => {
         : null;
     const judgement = perSqmGuide ? PriceEngine.judgeAdPrice(price / area, perSqmGuide) : PriceEngine.judgeAdPrice(price, guide);
     if (perSqmGuide && judgement.diffIQD) judgement.diffIQD = Math.round(judgement.diffIQD * area);
-    adVerdictBox.className = `ad-verdict verdict-${judgement.verdict}`;
-    adVerdictBox.innerHTML = renderAdVerdict(judgement, guide, section, price, perSqmGuide ? area : 0);
+
+    // فحص الشاصي (مجاني): المواصفات الحقيقية ومقارنتها بما يقوله الإعلان
+    let vinResult = null;
+    const vinRaw = section === 'cars' ? adVinInput.value.trim() : '';
+    if (vinRaw) {
+      try {
+        const adText = `${q} ${adPastedText.value}`.slice(0, 1800);
+        const res = await fetch(`/api/vin/${encodeURIComponent(normalizeVinClient(vinRaw))}?text=${encodeURIComponent(adText)}`);
+        vinResult = await res.json();
+        if (!res.ok) vinResult = { error: true, message: vinResult.message || 'تعذر فحص الشاصي.' };
+      } catch {
+        vinResult = { error: true, message: 'تعذر الاتصال بخدمة فحص الشاصي.' };
+      }
+    }
+
+    state.lastCheck = { query: q, section, price, area: perSqmGuide ? area : 0, judgement, guide, vin: vinResult };
+    adVerdictBox.className = `ad-verdict verdict-${vinResult?.comparison?.mismatches ? 'overpriced' : judgement.verdict}`;
+    adVerdictBox.innerHTML =
+      renderVinSection(vinResult) +
+      renderAdVerdict(judgement, guide, section, price, perSqmGuide ? area : 0) +
+      (price > 0
+        ? `<div class="ad-share"><button type="button" class="btn-secondary" data-action="make-report">أنشئ رابط تقرير لمشاركته في واتساب</button><div class="ad-share-result" hidden></div></div>`
+        : '');
     adCompareLiveBtn.hidden = false;
+  });
+
+  // تقرير قابل للمشاركة: الخادم يعيد حساب كل شيء بنفسه ثم يعطي رابطاً ثابتاً
+  adVerdictBox.addEventListener('click', async (e) => {
+    const buy = e.target.closest('[data-action="buy-vin-report"]');
+    if (buy) {
+      const status = adVerdictBox.querySelector('.vin-buy-status');
+      status.hidden = false;
+      if (!state.user) {
+        status.textContent = 'سجّل الدخول بحساب غوغل أولاً ليُحفظ التقرير في حسابك.';
+        openLoginModal();
+        return;
+      }
+      buy.disabled = true;
+      status.textContent = 'جاري التحضير...';
+      try {
+        const res = await fetch('/api/vin-history/purchase', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vin: buy.dataset.vin })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'تعذر إتمام الطلب. لم يُخصم أي مبلغ.');
+        if (data.formUrl) {
+          status.textContent = 'جاري تحويلك إلى صفحة الدفع الآمنة لدى كي كارد...';
+          window.location.href = data.formUrl;
+          return;
+        }
+        if (data.reportUrl) {
+          status.innerHTML = `تم استخدام رصيدك. <a href="${esc(data.reportUrl)}" target="_blank" rel="noopener">افتح التقرير</a>`;
+        } else if (data.status === 'no_data') {
+          status.textContent = 'لا توجد بيانات لهذا الشاصي في السجل الأمريكي، وبقي رصيدك لشاصي آخر.';
+        }
+      } catch (err) {
+        status.textContent = err.message;
+        buy.disabled = false;
+      }
+      return;
+    }
+    const btn = e.target.closest('[data-action="make-report"]');
+    if (btn) {
+      const out = adVerdictBox.querySelector('.ad-share-result');
+      btn.disabled = true;
+      out.hidden = false;
+      out.textContent = 'جاري إنشاء التقرير...';
+      const c = state.lastCheck || {};
+      try {
+        const res = await fetch('/api/check-reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: c.query, section: c.section, price: c.price, area: c.area, vin: adVinInput.value.trim(), adText: adPastedText.value, gov: state.selectedGov })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'تعذر إنشاء التقرير.');
+        const wa = `https://wa.me/?text=${encodeURIComponent(`تقرير فحص قبل الدفع: ${c.query}\n${data.url}`)}`;
+        out.innerHTML = `
+          <input type="text" readonly dir="ltr" value="${esc(data.url)}" class="ad-share-url" />
+          <div class="ad-share-actions">
+            <a class="btn-open-offer" href="${esc(wa)}" target="_blank" rel="noopener noreferrer">مشاركة في واتساب</a>
+            <button type="button" class="btn-secondary" data-action="copy-report">نسخ الرابط</button>
+            <a href="${esc(data.url)}" target="_blank" rel="noopener noreferrer">فتح التقرير</a>
+          </div>`;
+      } catch (err) {
+        out.textContent = err.message || 'تعذر إنشاء التقرير.';
+        btn.disabled = false;
+      }
+      return;
+    }
+    if (e.target.closest('[data-action="copy-report"]')) {
+      const input = adVerdictBox.querySelector('.ad-share-url');
+      try {
+        await navigator.clipboard.writeText(input.value);
+        e.target.textContent = 'تم النسخ ✓';
+      } catch {
+        input.select();
+      }
+    }
   });
 
   adCompareLiveBtn.addEventListener('click', () => {
@@ -2569,6 +2718,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(`/api/payments/qicard/confirm${returnedPaymentId ? `?paymentId=${encodeURIComponent(returnedPaymentId)}` : ''}`, { cache: 'no-store' });
       const data = await res.json();
       if (data.user) applyAccount(data);
+      if (data.vinReport) {
+        if (data.vinReport.reportUrl) {
+          banner.innerHTML = `✔ تم الدفع وتقرير تاريخ السيارة جاهز: <a href="${esc(data.vinReport.reportUrl)}">افتح التقرير</a>`;
+        } else if (data.vinReport.status === 'no_data') {
+          banner.textContent = 'تم الدفع، لكن السجل الأمريكي لا يحوي بيانات لهذا الشاصي؛ أُضيف لك رصيد تقرير تستخدمه لشاصي آخر.';
+        } else {
+          banner.textContent = 'تم الدفع، والتقرير قيد التجهيز. سيصلك إشعار فور جاهزيته.';
+        }
+        return;
+      }
       if (data.paymentStatus === 'SUCCESS' || data.subscription?.active) {
         banner.textContent = `✔ تم الدفع وتفعيل عضويتك حتى ${formatDate(data.subscription.expiresAt)}. شكراً لك!`;
       } else if (['FAILED', 'AUTHENTICATION_FAILED', 'CANCELED'].includes(data.paymentStatus)) {

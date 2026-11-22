@@ -104,3 +104,15 @@ test('الفهرس: "بي ام دبليو" لا يعيد أحذية أو بيو�
   assert.equal(guide.count, 3, 'الأراضي خارج دليل البيوت');
   assert.equal(guide.median, 320e6);
 });
+
+test('دليل السعر يفضّل محافظة الباحث إن كفت بياناتها، وإلا العراق كله', async () => {
+  const idx = createListingIndex({ sql: null });
+  const live = (id, price, governorate) => ({ directUrl: `https://www.facebook.com/p/${id}`, section: 'cars', title: 'تويوتا كامري 2020 للبيع', priceIQD: price, locationDetected: true, governorate, platform: 'facebook' });
+  await idx.recordLiveOffers([live(1, 30e6, 'baghdad'), live(2, 31e6, 'baghdad'), live(3, 32e6, 'baghdad'), live(4, 25e6, 'basra'), live(5, 26e6, 'basra')]);
+  const bg = await idx.priceGuide({ query: 'كامري 2020', section: 'cars', governorate: 'baghdad' });
+  assert.equal(bg.scope, 'governorate');
+  assert.equal(bg.median, 31e6);
+  const bs = await idx.priceGuide({ query: 'كامري 2020', section: 'cars', governorate: 'basra' });
+  assert.equal(bs.scope, 'iraq', 'سعران في البصرة لا يكفيان');
+  assert.equal(bs.count, 5);
+});
