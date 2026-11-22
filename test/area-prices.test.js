@@ -13,6 +13,8 @@ test('سعر المتر لكل منطقة ونوع، دون رقم من أقل �
     // السيدية: بيوت حديثة بمتر 1.5 مليون، وقديمة بمتر 1.2 مليون
     row('بيت للبيع', 300e6, 200, 'السيدية', 10), row('دار للبيع', 450e6, 300, 'السيدية', 20), row('بيت للبيع', 150e6, 100, 'السيدية', 30),
     row('بيت للبيع', 240e6, 200, 'السيدية', 80), row('دار للبيع', 360e6, 300, 'السيدية', 90), row('بيت للبيع', 120e6, 100, 'السيدية', 100),
+    row('بيت للبيع', 300e6, 200, 'السيدية', 12), row('دار للبيع', 450e6, 300, 'السيدية', 22),
+    row('بيت للبيع', 240e6, 200, 'السيدية', 85), row('دار للبيع', 360e6, 300, 'السيدية', 95),
     // أرضان فقط: غير كافية
     row('قطعة ارض للبيع', 100e6, 200, 'السيدية'), row('ارض للبيع', 90e6, 200, 'السيدية'),
     // قيم خاطئة تُستبعد: مساحة بالدونم، سعر متر غير معقول
@@ -22,12 +24,13 @@ test('سعر المتر لكل منطقة ونوع، دون رقم من أقل �
   ];
   const t = buildAreaPriceTable(rows, { now });
   const saydiya = t.baghdad.areas.find((a) => a.name === 'السيدية');
-  assert.equal(saydiya.types.house.count, 6);
+  assert.equal(saydiya.types.house.count, 10);
   assert.equal(saydiya.types.house.median, 1_350_000);
-  assert.equal(saydiya.types.house.trendPct, 25, 'آخر 60 يوماً مقابل ما قبلها');
+  assert.equal(saydiya.types.house.trendPct, 25, 'آخر 60 يوماً مقابل ما قبلها، 5 إعلانات على الأقل في كل فترة');
   assert.equal(saydiya.types.land.median, undefined, 'أرضان لا تكفيان');
   assert.equal(saydiya.types.land.count, 2);
-  assert.equal(t.baghdad.total, 8);
+  assert.equal(t.baghdad.total, 12);
+  assert.equal(t.baghdad.all.house.trendPct, null, 'لا اتجاه على مستوى المحافظة (يخلط المناطق)');
 });
 
 test('صفحات الدليل: عنوان بالمحافظة، روابط، ونصوص مهرّبة', () => {
