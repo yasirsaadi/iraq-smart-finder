@@ -85,3 +85,28 @@ test('تعديل التنبيه: السعر وحده يُبقي السجل، و�
   assert.equal((await store.update(2, alert.id, { targetPriceIQD: 1 })).error, 'not_found', 'مستخدم آخر لا يعدّل');
   assert.equal((await store.update(1, alert.id, { targetPriceIQD: -5 })).error, 'invalid_alert');
 });
+
+test('صياد الصفقات: تنبيه بنسبة تحت السوق دون سعر ثابت، وحد أدنى يمنع إعلانات الاحتيال', async () => {
+  const { createAlertStore, findAlertMatches, cleanBelowMarketPct } = await import('../lib/price-alerts.js');
+  const store = createAlertStore({ sql: null });
+  assert.equal(cleanBelowMarketPct(3), null);
+  assert.equal(cleanBelowMarketPct(60), null);
+  assert.equal(cleanBelowMarketPct('15'), 15);
+  const { alert } = await store.create(7, { keyword: 'كامري 2020', belowMarketPct: 15, governorate: 'baghdad', section: 'cars' }, 10);
+  assert.equal(alert.belowMarketPct, 15);
+  assert.equal(alert.targetPriceIQD, 0);
+  assert.equal((await store.create(7, { keyword: 'كامري', governorate: 'baghdad', section: 'cars' }, 10)).error, 'invalid_alert', 'لا سعر ولا نسبة');
+  assert.equal((await store.activeInSection('cars')).length, 1);
+  assert.equal((await store.activeInSection('realestate')).length, 0);
+
+  const offer = (id, price) => ({ directUrl: `https://x/${id}`, title: 'تويوتا كامري 2020 للبيع', snippet: '', priceIQD: price, section: 'cars' });
+  const offers = [offer(1, 25_000_000), offer(2, 14_000_000), offer(3, 30_000_000), offer(4, 31_000_000), offer(5, 29_500_000)];
+  // وسيط السوق 30 مليوناً: الهدف 25.5 مليوناً، والحد الأدنى 15 مليوناً
+  const matches = findAlertMatches(alert, offers, [], { targetPriceIQD: 25_500_000, minPriceIQD: 15_000_000 });
+  assert.deepEqual(matches.map((m) => m.directUrl), ['https://x/1'], '14 مليوناً مشبوه فلا يُرسل كصفقة');
+  assert.deepEqual(findAlertMatches(alert, offers), [], 'دون سعر محسوب لا تنبيه');
+
+  const updated = await store.update(7, alert.id, { belowMarketPct: null, targetPriceIQD: 26_000_000 });
+  assert.equal(updated.alert.belowMarketPct, null);
+  assert.equal(updated.alert.targetPriceIQD, 26_000_000);
+});

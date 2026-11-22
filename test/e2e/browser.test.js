@@ -425,6 +425,54 @@ test('بحث عن بيت: الأرض والإيجار خارج المقارنة 
   await page.close();
 });
 
+test('فحص الشاصي في نافذة الفحص: تعارض السنة يظهر كإنذار، ورابط التقرير قابل للمشاركة', { skip: SKIP }, async () => {
+  const { page, errors } = await openPage(PROD);
+  let vinUrl = '';
+  let reportBody = null;
+  await page.route('**/api/price-guide**', (route) =>
+    route.fulfill({ json: { count: 9, enough: true, median: 30e6, q1: 28e6, q3: 32e6, label: 'سيارات • كامري', windowDays: 120, byKind: { estimated: 9 }, scope: 'governorate', scopeName: 'بغداد' } })
+  );
+  await page.route('**/api/vin/**', (route) => {
+    vinUrl = route.request().url();
+    route.fulfill({
+      json: {
+        vin: '4T1B11HK5KU123456', valid: true, checkDigitOk: true, region: { code: 'north_america', label: 'صُنعت في أمريكا الشمالية' },
+        decoded: { make: 'TOYOTA', model: 'Camry', modelYear: 2019, body: 'Sedan/Saloon', engineL: 2.5, cylinders: 4, plantCountry: 'UNITED STATES (USA)' },
+        comparison: { mismatches: 1, checks: [{ field: 'year', ad: 2020, vin: 2019, ok: false }, { field: 'make', ad: 'toyota', vin: 'TOYOTA', ok: true }, { field: 'model', ad: 'camry', vin: 'Camry', ok: true }] }
+      }
+    });
+  });
+  await page.route('**/api/check-reports', (route) => {
+    reportBody = route.request().postDataJSON();
+    route.fulfill({ status: 201, json: { id: 'abcDEF12345', url: 'http://127.0.0.1/r/abcDEF12345' } });
+  });
+  await page.click('#openImageSearchBtn');
+  await page.fill('#imageExtractedQuery', 'تويوتا كامري 2020');
+  await page.selectOption('#adSectionSelect', 'cars');
+  assert.equal(await page.isVisible('#adVinInput'), true, 'حقل الشاصي يظهر للسيارات');
+  await page.fill('#adVinInput', '4t1b11hk5ku123456');
+  await page.click('#adSeenPriceInput');
+  await page.keyboard.type('30500000');
+  await page.click('#adCheckBtn');
+  await page.waitForSelector('#adVerdictBox .vin-box');
+  const box = await page.textContent('#adVerdictBox');
+  assert.match(vinUrl, /\/api\/vin\/4T1B11HK5KU123456\?text=/, 'الشاصي يُوحَّد بأحرف كبيرة');
+  assert.match(box, /سنة الصنع في الإعلان لا تطابق الشاصي: الإعلان «2020» والشاصي «2019»/);
+  assert.match(box, /مطابق للإعلان: الشركة، الطراز/);
+  assert.match(box, /في بغداد/);
+  assert.match(await page.getAttribute('#adVerdictBox', 'class'), /verdict-overpriced/, 'تعارض الشاصي يلوّن الحكم كإنذار');
+  await page.click('[data-action="make-report"]');
+  await page.waitForSelector('.ad-share-url');
+  assert.equal(await page.inputValue('.ad-share-url'), 'http://127.0.0.1/r/abcDEF12345');
+  assert.match(await page.getAttribute('.ad-share-actions a', 'href'), /^https:\/\/wa\.me\/\?text=/);
+  assert.equal(reportBody.vin, '4t1b11hk5ku123456');
+  assert.equal(reportBody.price, 30_500_000);
+  assert.equal(reportBody.gov, 'baghdad');
+  assert.equal(await page.isVisible('[data-action="buy-vin-report"]'), false, 'زر التقرير المدفوع مخفي ما دام غير مفعل');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('وضع العرض التجريبي: العروض موسومة وأسعار العقارات لا تدخل في مقارنة الأجهزة', { skip: SKIP }, async () => {
   const { page, errors } = await openPage(DEMO);
   await page.waitForSelector('#resultsGrid article');

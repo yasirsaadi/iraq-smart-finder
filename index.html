@@ -133,7 +133,7 @@
               <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
               <circle cx="12" cy="13" r="3"></circle>
             </svg>
-            <span>افحص سعر إعلان</span>
+            <span>افحص إعلاناً أو شاصي</span>
           </button>
         </div>
 
@@ -332,12 +332,12 @@
       </div>
       <form class="car-finder-row" id="carFinderForm" autocomplete="off">
         <div class="spec-select-group">
-          <label for="carModelInput">الطراز:</label>
-          <input type="text" id="carModelInput" placeholder="مثال: كامري، سوناتا، لاندكروزر" maxlength="40" />
+          <label for="carFinderModelInput">الطراز:</label>
+          <input type="text" id="carFinderModelInput" placeholder="مثال: كامري، سوناتا، لاندكروزر" maxlength="40" />
         </div>
         <div class="spec-select-group">
-          <label for="carYearInput">سنة الصنع:</label>
-          <input type="text" inputmode="numeric" id="carYearInput" placeholder="مثال: 2020" maxlength="4" />
+          <label for="carFinderYearInput">سنة الصنع:</label>
+          <input type="text" inputmode="numeric" id="carFinderYearInput" placeholder="مثال: 2020" maxlength="4" />
         </div>
         <button type="submit" class="btn-submit car-finder-btn">ابحث عن هذه السيارة وقارن سعرها</button>
       </form>
@@ -429,7 +429,7 @@
     <section id="realestateFilterPanel" class="specialized-filter-bar" hidden>
       <div class="spec-filter-header">
         <strong>محددات مقارنة العقارات والأراضي في العراق:</strong>
-        <span>يحسب لك سعر المتر المربع الواحد تلقائياً للمقارنة العادلة بين المناطق والمجمعات السكنية</span>
+        <span>يحسب لك سعر المتر المربع الواحد تلقائياً للمقارنة العادلة بين المناطق والمجمعات السكنية • <a href="/prices">دليل سعر المتر في كل منطقة ←</a></span>
       </div>
       <div class="spec-filter-controls">
         <div class="spec-select-group">
@@ -688,6 +688,10 @@
           <label for="carPlateInput">نوع اللوحة والوارد</label>
           <input type="text" id="carPlateInput" placeholder="مثال: رقم بغداد • خليجي" />
         </div>
+        <div class="field-block">
+          <label for="postVinInput">رقم الشاصي VIN (اختياري — يمنح إعلانك شارة "شاصي مطابق")</label>
+          <input type="text" id="postVinInput" dir="ltr" maxlength="25" autocomplete="off" spellcheck="false" placeholder="17 خانة" />
+        </div>
       </div>
 
       <!-- حقول إضافية للعقارات تظهر عند اختيار عقار -->
@@ -777,12 +781,32 @@
     <form id="radarForm" class="modal-form">
       <div class="modal-grid-2">
         <div class="field-block">
+          <label for="radarModeSelect">نوع التنبيه</label>
+          <select id="radarModeSelect">
+            <option value="deal">🎯 صياد الصفقات: أخبرني بأي عرض أرخص من سعر السوق</option>
+            <option value="price">🔔 عند نزول السعر عن مبلغ أحدده</option>
+          </select>
+        </div>
+        <div class="field-block" id="radarPctBlock">
+          <label for="radarPctSelect">أرخص من وسيط السوق بنسبة</label>
+          <select id="radarPctSelect">
+            <option value="10">10% أو أكثر</option>
+            <option value="15" selected>15% أو أكثر</option>
+            <option value="20">20% أو أكثر</option>
+            <option value="25">25% أو أكثر</option>
+            <option value="30">30% أو أكثر</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-grid-2">
+        <div class="field-block">
           <label for="radarKeywordInput">اسم السلعة أو السيارة أو العقار</label>
           <input type="text" id="radarKeywordInput" placeholder="مثال: النترا 2024، شقة بسماية، آيفون 15..." required />
         </div>
-        <div class="field-block">
+        <div class="field-block" id="radarTargetBlock">
           <label for="radarTargetPriceInput">السعر المستهدف بالدينار العراقي</label>
-          <input type="text" inputmode="numeric" data-numeric-only="true" id="radarTargetPriceInput" placeholder="مثال: 28000000" required data-money="true" />
+          <input type="text" inputmode="numeric" data-numeric-only="true" id="radarTargetPriceInput" placeholder="مثال: 28000000" data-money="true" />
         </div>
       </div>
 
@@ -824,7 +848,7 @@
   <dialog id="imageSearchModal" class="commercial-modal">
     <div class="modal-top">
       <div>
-        <h2>افحص سعر إعلان رأيته: هل هو عادل؟</h2>
+        <h2>افحص إعلاناً قبل أن تدفع: السعر والشاصي</h2>
         <p>اكتب اسم ما في الإعلان وسعره (أو الصق نص الإعلان)، ونقارنه بأسعار مماثلة رصدناها. الصورة اختيارية وللمعاينة فقط؛ الموقع لا يحلل الصورة.</p>
       </div>
       <button type="button" class="modal-close" id="closeImageSearchBtn" aria-label="إغلاق">✕</button>
@@ -836,6 +860,11 @@
         <input type="text" id="imageExtractedQuery" placeholder="مثال: كيا سبورتاج 2024، ماكينة قهوة ديلونجي..." required />
       </div>
 
+
+      <div class="field-block" id="adVinBlock">
+        <label for="adVinInput">رقم الشاصي VIN (اختياري — 17 خانة، نكشف منه السنة والطراز الحقيقيين)</label>
+        <input type="text" id="adVinInput" dir="ltr" maxlength="25" autocomplete="off" spellcheck="false" placeholder="مثال: 4T1B11HK5KU123456" />
+      </div>
 
       <div class="field-block" id="adAreaBlock" hidden>
         <label for="adAreaInput">مساحة العقار بالمتر المربع (يُقارن سعر المتر إن كتبتها)</label>
@@ -1042,7 +1071,7 @@
       </div>
       <div class="footer-left">
         يدعم التسعير بالدينار العراقي، الدولار، الدفتر والورقة، وحساب سعر المتر المربع للعقارات.
-        <div style="margin-top:4px;"><a href="/privacy" style="color:inherit;">سياسة الخصوصية</a> • <a href="/terms" style="color:inherit;">شروط الاستخدام</a></div>
+        <div style="margin-top:4px;"><a href="/prices" style="color:inherit;">سعر متر العقارات حسب المنطقة</a> • <a href="/privacy" style="color:inherit;">سياسة الخصوصية</a> • <a href="/terms" style="color:inherit;">شروط الاستخدام</a></div>
       </div>
     </div>
   </footer>

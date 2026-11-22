@@ -8,3 +8,44 @@
 .legal-back { display: inline-block; margin-bottom: 18px; color: var(--brand-primary, #1e3a8a); font-weight: 600; text-decoration: none; }
 .legal-card { background: var(--bg-surface, #fff); border: 1px solid var(--border-light, #e5e7eb); border-radius: 12px; padding: 22px 24px; }
 body.legal-body { padding-top: 0 !important; margin-top: 0 !important; }
+
+/* صفحة تقرير "قبل أن تدفع" */
+.report-page .r-box {
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  background: #fff;
+}
+.report-page .r-box h2 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+.report-page .r-good,
+.report-page .r-fair,
+.report-page .r-below_market { border-color: #86efac; background: #f0fdf4; }
+.report-page .r-above_market { border-color: #fcd34d; background: #fffbeb; }
+.report-page .r-bad,
+.report-page .r-overpriced,
+.report-page .r-suspicious_low { border-color: #fca5a5; background: #fef2f2; }
+.report-page table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+.report-page th { text-align: start; color: #64748b; padding: 3px 0 3px 10px; white-space: nowrap; width: 1%; }
+.report-page td { padding: 3px 6px; }
+.r-cta {
+  display: inline-block;
+  background: #1e3a8a;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+/* دليل سعر المتر حسب المنطقة */
+.area-prices-page .legal-card { max-width: 980px; }
+.area-table-wrap { overflow-x: auto; }
+.area-table { border-collapse: collapse; width: 100%; font-size: 0.9rem; margin: 10px 0; }
+.area-table th, .area-table td { border-bottom: 1px solid #e2e8f0; padding: 8px 6px; text-align: start; vertical-align: top; }
+.area-table thead th { background: #f1f5f9; font-size: 0.82rem; }
+.area-table td small { display: block; color: #64748b; font-size: 0.74rem; }
+.area-table td.na { color: #94a3b8; }

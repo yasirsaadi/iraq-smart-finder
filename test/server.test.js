@@ -200,3 +200,40 @@ test('فهرس الإعلانات ودليل الأسعار: مجانيان وم
   const bot = await (await get(PROD, '/bot')).text();
   assert.match(bot, /IraqPriceRadarBot/);
 });
+
+test('تقرير قبل أن تدفع: إنشاء ثم صفحة عامة، ورفض الناقص والطلب من موقع آخر', async () => {
+  const bad = await post(PROD, '/api/check-reports', { query: '', section: 'cars', price: 0 });
+  assert.equal(bad.status, 400);
+  const cross = await fetch(`http://127.0.0.1:${PROD}/api/check-reports`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' }, body: JSON.stringify({ query: 'كامري', section: 'cars', price: 1e7 })
+  });
+  assert.equal(cross.status, 403);
+  const created = await post(PROD, '/api/check-reports', { query: 'كامري 2020', section: 'cars', price: 30_000_000 });
+  assert.equal(created.status, 201);
+  const { id, url } = await created.json();
+  assert.match(url, new RegExp(`/r/${id}$`));
+  const page = await get(PROD, `/r/${id}`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /تقرير فحص قبل الدفع/);
+  assert.equal((await get(PROD, '/r/nonexistent1')).status, 404);
+  assert.equal((await get(PROD, '/api/vin/ABC')).status, 400, 'صيغة شاصي خاطئة دون طلب خارجي');
+});
+
+test('صفحات سعر المتر وخريطة الموقع وملف robots', async () => {
+  const idx = await get(PROD, '/prices');
+  assert.equal(idx.status, 200);
+  assert.match(await idx.text(), /سعر متر العقارات في العراق/);
+  assert.equal((await get(PROD, '/prices/baghdad')).status, 200);
+  const unknown = await fetch(`http://127.0.0.1:${PROD}/prices/atlantis`, { redirect: 'manual' });
+  assert.equal(unknown.status, 302);
+  assert.match(await (await get(PROD, '/sitemap.xml')).text(), /<loc>http:\/\/127\.0\.0\.1:\d+\/prices<\/loc>/);
+  assert.match(await (await get(PROD, '/robots.txt')).text(), /Disallow: \/r\//);
+});
+
+test('تقرير تاريخ السيارة المدفوع معطل دون دفع حقيقي ومزوّد', async () => {
+  const cfg = await (await get(PROD, '/api/config')).json();
+  assert.equal(cfg.vinHistoryEnabled, false);
+  assert.equal(cfg.vinReportPriceIQD, null);
+  assert.equal((await post(PROD, '/api/vin-history/purchase', { vin: '1HGCM82633A004352' })).status, 503);
+  assert.equal((await fetch(`http://127.0.0.1:${PROD}/vin-report/1`, { redirect: 'manual' })).status, 302, 'دون حساب: تحويل للرئيسية');
+});
